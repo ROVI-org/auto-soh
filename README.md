@@ -1,2 +1,22 @@
-# auto-soh
-Fit State of Health (SOH) to batteries using state estimation techniques
+# Auto-SOH
+
+Fit State of Health (SOH) to batteries using state estimation techniques. 
+
+## Installation
+
+First clone the repository from GitHub then install using pip:
+
+```commandline
+pip install -e .
+```
+
+We provide an Anaconda environment as well:
+
+```commandline
+conda env create --file dev/environment.yml --force
+```
+
+## Package Design
+
+This tool is very much in the development stage and may be integrated with [PyBOP](https://github.com/pybop-team/PyBOP) 
+as we better understand the project funding Auto-SOH.
