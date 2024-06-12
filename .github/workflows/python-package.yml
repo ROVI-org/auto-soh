@@ -1,0 +1,29 @@
+name: Python Package
+
+on: [ push, pull_request ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install package
+        run: |
+          pip install -e .[test]
+      - name: Lint with flake8
+        run: |
+          flake8 asoh/ tests
+      - name: Test with pytest
+        run: |
+          pytest tests
+      - name: Coveralls
+        run: |
+          pip install coveralls
+          coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
