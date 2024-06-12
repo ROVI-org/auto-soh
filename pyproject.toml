@@ -13,6 +13,7 @@ authors = [
 ]
 dependencies = [
     "battery-data-toolkit"
+    "progpy"
 ]
 
 [tool.setuptools.packages.find]
