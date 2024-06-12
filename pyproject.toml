@@ -12,7 +12,7 @@ authors = [
     {name = "Noah Paulson", email = "lward@anl.gov"},
 ]
 dependencies = [
-    "battery-data-toolkit"
+    "battery-data-toolkit",
     "progpy"
 ]
 
