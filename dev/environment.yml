@@ -1,0 +1,18 @@
+name: autosoh
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python==3.10.*
+
+  # Basics
+  - tqdm
+  - matplotlib
+  - jupyterlab
+
+  - pip
+  - pip:
+    - progpy
+    - battery-data-toolkit
+
+    - -e ..
