@@ -1,66 +1,48 @@
-from progpy.prognostics_model import PrognosticsModel
+import numpy as np
+from pydantic import Field
+
+from .base import HealthModel, ControlState, InstanceState, OutputModel
 
 
-class SingleResistor(PrognosticsModel):
-    """A battery system modeled by a single resistor and open-circuit voltage which depends only on state of charge.
+class ECMControl(ControlState):
+    """Control of a battery based on the feed current"""
 
-    State Variables
-    --------------
+    pass
 
-    soc: State of charge of the battery system. Units: A-hr
-    r_int: Internal resistance of the battery. Units: Ohm
 
-    Input Variables
-    ---------------
+class ECMState(InstanceState):
+    """State of a battery defined by an Equivalent circuit model"""
 
-    i: Current applied to the system. Units: A
+    charge: float = Field(0, description='State of charge of the battery element. Units: A-hr')
+    r_serial: float = Field(description='Resistance of resistor in series with the battery element', gt=0)
+    ocv_params: tuple[float, float] = Field(description='Parameters which define the open-circuit voltage of the battery element. '
+                                                        'Constant component (units: V), component which varies linearly with charge (units: V/A-hr)')
 
-    Output Variables
-    ----------------
+    state_params: tuple[str, ...] = ('charge',)
 
-    v: Observed voltage. Units: V
+    def compute_ocv(self) -> float:
+        """Compute the open circuit voltage (OCV) given at the current state of charge
 
-    """
+        Returns:
+            OCV in Volts
+        """
+        return self.ocv_params[0] + self.charge * self.ocv_params[1]
 
-    states = [
-        'soc', 'r_int', 'ocv_0', 'ocv_1'
-    ]
-    inputs = ['i']
 
-    default_parameters = {
-        'x0': {
-            # State of charge parameters
-            'soc': 0,  # Start uncharged
+class ECMOutputs(OutputModel):
+    """The only observable from an ECM model is the terminal voltage"""
 
-            # State of health parameters
-            'r_int': 1,  # Resistance in Ohm,
-            'ocv_0': 1,  # Parameters of the OCV model
-            'ocv_1': 0  # Parameters of the OCV model
-        }
-    }
+    terminal_voltage: float = Field(description='Voltage at the terminal')
 
-    @property
-    def state_params(self) -> list[str]:
-        """Parameters which define the state of charge of the system"""
-        return ['soc']
 
-    @property
-    def soh_params(self):
-        """Parameters which define the state of health of the system"""
-        return [x for x in self.default_parameters['x0'] if x not in self.state_params]
+class SingleResistorModel(HealthModel):
+    """A battery system modeled by a single resistor and open-circuit voltage which depends only on state of charge."""
 
-    def dx(self, x, u):
-        # Update the SOC based on current
-        dx = {'soc': u['i'] / 3600}  # SOC increases with charge
+    def dx(self, state: ECMState, control: ECMControl) -> np.ndarray:
+        # The only change in the system is the state of charge increasing by the current
+        return np.array([control.current / 3600.])
 
-        # Set dx of the SOH-related variables to zero
-        #  Nothing changes for them
-        for p in self.soh_params:
-            dx[p] = 0
-
-        return self.StateContainer(dx)
-
-    def output(self, x):
-        return self.OutputContainer({
-            'v': x['ocv_0'] + x['ocv_1'] * x['soc']
-        })
+    def output(self, state: ECMState, control: ControlState) -> ECMOutputs:
+        return ECMOutputs(
+            terminal_voltage=state.compute_ocv() + state.r_serial * control.current
+        )
