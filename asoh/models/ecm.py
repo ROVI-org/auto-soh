@@ -1,7 +1,7 @@
 import numpy as np
 from pydantic import Field
 
-from .base import HealthModel, ControlState, InstanceState, OutputModel
+from .base import HealthModel, ControlState, InstanceState, Outputs
 
 
 class ECMControl(ControlState):
@@ -29,7 +29,7 @@ class ECMState(InstanceState):
         return self.ocv_params[0] + self.charge * self.ocv_params[1]
 
 
-class ECMOutputs(OutputModel):
+class ECMOutputs(Outputs):
     """The only observable from an ECM model is the terminal voltage"""
 
     terminal_voltage: float = Field(description='Voltage at the terminal')
