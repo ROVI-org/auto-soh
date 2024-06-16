@@ -36,13 +36,13 @@ def test_state_model_update():
     state = ECMState(r_serial=1, ocv_params=(1., 0.5), health_params=('r_serial', 'ocv_params'))
     assert np.isclose(state.full_state, [0., 1., 1., 0.5]).all()
 
-    state.update_full_state([0.1, 1.1, 0.9, 0.6])
+    state.set_full_state([0.1, 1.1, 0.9, 0.6])
     assert np.isclose(state.full_state, [0.1, 1.1, 0.9, 0.6]).all()
 
-    state.update_state([0.2])
+    state.set_state([0.2])
     assert np.isclose(state.full_state, [0.2, 1.1, 0.9, 0.6]).all()
 
-    state.update_soh([1.2, 0.8, 0.7])
+    state.set_soh([1.2, 0.8, 0.7])
     assert np.isclose(state.full_state, [0.2, 1.2, 0.8, 0.7]).all()
 
 

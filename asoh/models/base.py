@@ -84,7 +84,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
                 p = [next(param_iter) for _ in x]
                 setattr(self, s, p)
 
-    def update_state(self, new_state: np.ndarray | list[float]):
+    def set_state(self, new_state: np.ndarray | list[float]):
         """Update this state to the values in the vector
 
         Args:
@@ -93,7 +93,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
 
         self._update_params(new_state, self.state_params)
 
-    def update_soh(self, new_state: np.ndarray | list[float]):
+    def set_soh(self, new_state: np.ndarray | list[float]):
         """Update the state of health values given a list of values
 
         Args:
@@ -102,7 +102,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
 
         self._update_params(new_state, self.health_params)
 
-    def update_full_state(self, new_state: np.ndarray | list[float]):
+    def set_full_state(self, new_state: np.ndarray | list[float]):
         """Update the state and health parameters given a list of values
 
         Args:
@@ -197,7 +197,7 @@ class HealthModel:
 
         # Set up the time propagation function
         def _update_fun(t, y):
-            state.update_state(y)
+            state.set_state(y)
             return self.dx(state, control)
 
         result = solve_ivp(
@@ -205,7 +205,7 @@ class HealthModel:
             y0=state.state,
             t_span=(0, total_time)
         )
-        state.update_state(result.y[:, -1])
+        state.set_state(result.y[:, -1])
 
     def output(self, state: InstanceState, control: ControlState) -> Outputs:
         """Compute the observed outputs of a system given the current state and control
