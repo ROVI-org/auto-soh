@@ -8,11 +8,9 @@ dependencies:
   # Basics
   - tqdm
   - matplotlib
-  - jupyterlab
 
   - pip
   - pip:
-    - progpy
     - battery-data-toolkit
-
+    - jupyterlab
     - -e ..
