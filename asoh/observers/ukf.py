@@ -7,7 +7,8 @@ from ..models.base import ControlState, Outputs, HealthModel, InstanceState
 
 
 class UnscentedKalmanFilter(BaseEstimator):
-    """Unscented Kalman Filter (UKF)
+    """Unscented Kalman Filter (UKF) following the algorithm of
+    `Wan and van der Merwe <https://groups.seas.harvard.edu/courses/cs281/papers/unscented.pdf>`_.
 
     Args:
         model: Model describing system dynamics
@@ -29,11 +30,6 @@ class UnscentedKalmanFilter(BaseEstimator):
     """Noise associated with updating the state of a dynamic system"""
     cov_v: np.ndarray = ...
     """Noise associated with measuring the outputs of the system"""
-
-    cov_XY: np.ndarray = ...
-    """Covariance between each hidden state and each output"""
-    cov_Y: np.ndarray = ...
-    """Covariance between each output"""
 
     u_old: ControlState | None = ...
     """Control signal of the previous timestep"""
@@ -58,7 +54,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         self.aug_len = self.state.num_params + self.state.num_params + self.model.num_outputs
 
         # Tuning parameters
-        assert alpha_param >= 0.01, 'Alpha parameter must be >= 0.01!'
+        assert alpha_param >= 0.01, 'Alpha parameter must be >= 0.01!'  # TODO (wardlt): The paper says a recommended value for this is 1e-3?
         assert alpha_param <= 1, 'Alpha parameter must be <= 1!'
         assert beta_param >= 0, 'Beta parameter must be >= 0!'
         self.alpha_param = alpha_param
@@ -83,7 +79,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         assert covariance_process_noise.shape[0] == self.state.num_params, \
             'Process noise covariance shape does not match hidden states!'
         assert covariance_sensor_noise.shape[0] == self.model.num_outputs, \
-            'Sensor noise covariance shape does not match measurement lenght!'
+            'Sensor noise covariance shape does not match measurement length!'
         self.cov_w = covariance_process_noise.copy()
         self.cov_v = covariance_sensor_noise.copy()
 
@@ -97,23 +93,27 @@ class UnscentedKalmanFilter(BaseEstimator):
 
     def step(self, u: ControlState, y: Outputs, t_step: float):
         # Step 0: Create Sigma points of augmented state
-        sigma_pts = self._build_sigma_pts()
+        sigma_pts = self.build_sigma_pts()
         # Step 1: perform update on the estimates of hidden state
-        cov_xy_k_minus, y_hat_k, cov_y_k = self._estimation_update(sigma_pts, u, t_step)
+        cov_xy_k_minus, y_hat_k, cov_y_k = self.estimation_update(sigma_pts, u, t_step)
         # Step 2: apply necessary corrections based on the measurement
-        self._correction_update(y, y_hat_k, cov_xy_k_minus, cov_y_k)
+        self.correction_update(y, y_hat_k, cov_xy_k_minus, cov_y_k)
         # TODO (wardlt): Have this return the diagnostics which Victor was tracking
 
-    def _build_sigma_pts(self) -> np.ndarray:
+    def build_sigma_pts(self) -> np.ndarray:
         """Generate Sigma points, which are points where the UKF will to predict updates in states
 
         Each row of the Sigma matrix includes points defining the hidden state,
         noise of the hidden state, and noise in the measurements.
+
+        Returns:
+            A set of points which defines variations along the
         """
         # x_aug is basically the expected hidden state with the errors, which
         # are supposed to be 0 mean
         x_aug = np.hstack(
-            (self.state.full_state, np.zeros((self.state.num_params + self.model.num_outputs,)))
+            (self.state.full_state,
+             np.zeros((self.state.num_params + self.model.num_outputs,)))
         )
 
         # Covariance matrix is block diagonal of hidden + errors
@@ -136,7 +136,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         assert sigma_pts.shape == (2 * self.aug_len + 1, self.aug_len), 'Dimensions of Sigma Points are incorrect!'
         return sigma_pts
 
-    def _estimation_update(self, sigma_pts: np.ndarray, u_new: ControlState, t_step: float):
+    def estimation_update(self, sigma_pts: np.ndarray, u_new: ControlState, t_step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update state estimation given the control signal and current state
 
         Updates the mean and covariance matrix of :attr:`state`
@@ -149,7 +149,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         Returns:
            - cov_xy_k_minus: Estimated covariance matrix between state and outputs
            - y_hat_k: Estimated outputs
-           - cov_y_k: Covariance between estimated outputs
+           - cov_y_k: Covariance between outputs
         """
 
         # Special case: use current control if previous is not yet set
@@ -211,7 +211,6 @@ class UnscentedKalmanFilter(BaseEstimator):
         '''
         # Unscented KF way
         y_diffs = updated_ys - y_hat_k
-        # np.tile(y_hat_k, ((2 * self.aug_len + 1), 1))
         cov_y_k = np.matmul(y_diffs.T,
                             np.matmul(np.diag(self.cov_weights),
                                       y_diffs)
@@ -234,14 +233,14 @@ class UnscentedKalmanFilter(BaseEstimator):
         """Compute the gain matrix"""
         return np.matmul(cov_xy, np.linalg.inv(cov_y))
 
-    def _correction_update(self, new_measure: Outputs, y_hat_k: np.ndarray, cov_xy, cov_y) -> np.ndarray:
+    def correction_update(self, new_measure: Outputs, y_hat_k: np.ndarray, cov_xy, cov_y) -> np.ndarray:
         """Determine a correction to the state estimate, both mean and covariance
 
         Args:
             new_measure: Measurement to compare against correction
             y_hat_k: Estimated output given current state
-            cov_xy: Covariance matrix between state and outputs, determined during :meth:`_estimation_update`
-            cov_y: Covariance between output states, determined during :meth:`_estimation_update`
+            cov_xy: Covariance matrix between state and outputs, determined during :meth:`time_update`
+            cov_y: Covariance between output states, determined during :meth:`time_update`
         Returns:
             Observed error between state estimation and covered error
         """
