@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field, model_validator
 
 
 # TODO (wardlt): Consider an implementation where we store the parameters as a single numpy array, then provide helper classes for the parameters.
-#  Maybe add some kind of `compile` which generates an object which provides such an interface (progpy does something like that)
+#  Maybe add some kind of `compile` which generates an object which provides such an interface (progpy does something like that),
+#  which would [maybe] conflict with the desire to combine this class and HealthModel
 class InstanceState(BaseModel, arbitrary_types_allowed=True):
     """Defines the state of a particular instance of a model
 
@@ -26,10 +27,11 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
     covariance: np.ndarray = Field(None, description='Covariance matrix between all parameters being fit, including "health" and "state"')
 
     state_params: tuple[str, ...] = ...
-    """Parameter which are always treated as time dependent"""
+    """Parameters which are always treated as time dependent"""
 
     @model_validator(mode='after')
     def _set_covariance(self):
+        """Make it unit normal distribution to start with"""
         n_params = len(self.full_params)
         if self.covariance is None:
             self.covariance = np.eye(n_params)
@@ -72,6 +74,11 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
     @property
     def full_state(self) -> np.ndarray:
         return self._assemble_array(self.state_params + self.health_params)
+
+    @property
+    def num_params(self) -> int:
+        """Number of parameters being fit, including both state and health parameters"""
+        return len(self.state_params) + len(self.state_params)
 
     def _update_params(self, x, params):
         """Update the parameters of parts of the state given the list of names and their new values"""
@@ -122,7 +129,7 @@ class ControlState(BaseModel):
 
     def to_numpy(self) -> np.ndarray:
         """Control inputs as a numpy vector"""
-        output = [value for value in self.model_fields.values()]
+        output = [getattr(self, key) for key in self.model_fields.keys()]
         return np.array(output)
 
 
@@ -132,9 +139,19 @@ class Outputs(BaseModel):
     Add new fields to subclasses of ``ControlState`` for more complex systems
     """
 
+    @property
+    def names(self) -> tuple[str, ...]:
+        return tuple(self.model_fields.keys())
+
+    def to_numpy(self) -> np.ndarray:
+        """Outputs as a numpy vector"""
+        output = [getattr(self, key) for key in self.model_fields.keys()]
+        return np.array(output)
+
 
 # TODO (wardlt): Use generic classes? That might cement the relationship between a model and its associated input types
 # TODO (warldt): Can we combine State and HealthModel? The State could contain parameters about how to perform updates
+# TODO (warldt): Consider how to denote vectorized versions of each function
 class HealthModel:
     """A model for a storage system which describes its operating state and health.
 
@@ -197,6 +214,7 @@ class HealthModel:
 
         # Set up the time propagation function
         def _update_fun(t, y):
+            # TODO (wardlt): Should we have control signals which vary with time? E.g., a linear interpolation between current/new state?
             state.set_state(y)
             return self.dx(state, control)
 

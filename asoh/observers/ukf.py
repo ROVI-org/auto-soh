@@ -1,6 +1,4 @@
 """Unscented Kálmán Filter (UKF) - a state estimator which makes no assumptions about the model form of a dynamic system."""
-from functools import cached_property
-
 import numpy as np
 from scipy.linalg import block_diag
 
@@ -11,41 +9,25 @@ from ..models.base import ControlState, Outputs, HealthModel, InstanceState
 class UnscentedKalmanFilter(BaseEstimator):
     """Unscented Kalman Filter (UKF)
 
-
-    Its initialization inputs are:
-        hidden_states ---> initial hidden states as np.array
-        covariance_hidden_states ---> initial covariance of hidden states
-                                        as np.array
-        measurement_length ---> length of the measurement array
-        input_length ---> length of the input array
-        hidden_to_hidden_model ---> model used to update hidden states
-                                    (takes in hidden state, input, and
-                                    process error, as well as *argv and **kwargs)
-        hidden_to_measure_model ---> model used to predict measurements from
-                                    current hidden state (take in hidden
-                                    state, input, sensor error, as well as *argv
-                                    and **kwargs)
-        alpha_param ---> tuning parameter 0.01 <= alpha <= 1 used to control the
-                            spread of the sigma points; lower values keep sigma
-                            points closer to the mean, alpha=1 effectively brings
-                            the KF closer to Central Difference KF (default = 1.)
-        kappa_param ---> tuning parameter  kappa >= 3 - aug_len; choose values
-                        of kappa >=0 for positive semidefiniteness. (default = 0.)
-        beta_param ---> tuning parameter beta >=0 used to incorporate knowledge
+    Args:
+        model: Model describing system dynamics
+        state: Initial state estimate
+        alpha_param: tuning parameter 0.01 <= alpha <= 1 used to control the
+                    spread of the sigma points; lower values keep sigma
+                    points closer to the mean, alpha=1 effectively brings
+                    the KF closer to Central Difference KF (default = 1.)
+        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values
+                     of kappa >=0 for positive semidefiniteness. (default = 0.)
+        beta_param: tuning parameter beta >=0 used to incorporate knowledge
                         of prior distribution; for Gaussian use beta = 2
                         (default = 2.)
-        h_param ---> DEPRECATED!! main tuning paramenter for CDKF (default = sqrt(3))
-        covariance_process_noise ---> covariance of process noise as np.array
-                                        (default = identity)
-        covariance_sensor_noise ---> covariance of sensor noise as
-                                     np.array(default = identity)
-        keep_full_history ---> whether or not to keep full history
-                                (default = True)
+        covariance_process_noise: covariance of process noise (default = identity)
+        covariance_sensor_noise: covariance of sensor noise as (default = identity)
     """
 
-    Cov_w: np.ndarray = ...
+    cov_w: np.ndarray = ...
     """Noise associated with updating the state of a dynamic system"""
-    Cov_v: np.ndarray = ...
+    cov_v: np.ndarray = ...
     """Noise associated with measuring the outputs of the system"""
 
     cov_XY: np.ndarray = ...
@@ -53,8 +35,8 @@ class UnscentedKalmanFilter(BaseEstimator):
     cov_Y: np.ndarray = ...
     """Covariance between each output"""
 
-    U: np.ndarray | None = ...
-    """Covariance of the previous timestep"""
+    u_old: ControlState | None = ...
+    """Control signal of the previous timestep"""
 
     def __init__(self,
                  model: HealthModel,
@@ -62,20 +44,18 @@ class UnscentedKalmanFilter(BaseEstimator):
                  alpha_param: float = 1.,
                  kappa_param: float = 0.,
                  beta_param: float = 2.,
-                 covariance_process_noise=None,
-                 covariance_sensor_noise=None,
-                 keep_full_history=True):
+                 covariance_process_noise: np.ndarray = None,
+                 covariance_sensor_noise: np.ndarray = None):
         super().__init__(model, state)
 
         # General inits
-        self.Cov_Y = np.zeros((self.Y_len, self.Y_len))
-        self.Cov_XY = np.zeros((self.X_len, self.Y_len))  # cov_hidden_output
-        self.U = None
-        self.L_k = np.zeros((self.X_len, self.Y_len))  # gain matrix
+        self.cov_Y = np.zeros((self.model.num_outputs, self.model.num_outputs))
+        self.u_old = None
+        self.L_k = np.zeros((self.state.num_params, self.model.num_outputs))  # gain matrix
 
-        # Augmeted dimensions
+        # Augmented dimensions
         # recall aug_len = hidden + noise_hidden + noise_measurement
-        self.aug_len = self.X_len + self.X_len + self.Y_len
+        self.aug_len = self.state.num_params + self.state.num_params + self.model.num_outputs
 
         # Tuning parameters
         assert alpha_param >= 0.01, 'Alpha parameter must be >= 0.01!'
@@ -95,17 +75,17 @@ class UnscentedKalmanFilter(BaseEstimator):
 
         # Taking care of covariances
         if covariance_process_noise is None:
-            covariance_process_noise = np.eye(self.X_len)
+            covariance_process_noise = np.eye(self.state.num_params)
         if covariance_sensor_noise is None:  # assume std=1
-            covariance_sensor_noise = np.eye(self.Y_len)
+            covariance_sensor_noise = np.eye(self.model.num_outputs)
         assert covariance_process_noise.shape[0] == covariance_process_noise.shape[1], 'Covariance matrices must be square!'
         assert covariance_sensor_noise.shape[0] == covariance_sensor_noise.shape[1], 'Covariance matrices must be square!'
-        assert covariance_process_noise.shape[0] == self.X_len, \
+        assert covariance_process_noise.shape[0] == self.state.num_params, \
             'Process noise covariance shape does not match hidden states!'
-        assert covariance_sensor_noise.shape[0] == self.Y_len, \
+        assert covariance_sensor_noise.shape[0] == self.model.num_outputs, \
             'Sensor noise covariance shape does not match measurement lenght!'
-        self.Cov_w = covariance_process_noise.copy()
-        self.Cov_v = covariance_sensor_noise.copy()
+        self.cov_w = covariance_process_noise.copy()
+        self.cov_v = covariance_sensor_noise.copy()
 
         # Let's also take care of the weights for updating augmented state:
         mean_weights = 0.5 * np.ones((2 * self.aug_len + 1)) / (alpha_param * alpha_param * (self.aug_len + kappa_param))
@@ -115,51 +95,14 @@ class UnscentedKalmanFilter(BaseEstimator):
         cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
         self.cov_weights = cov_weights.copy()
 
-        # Now, check if we want to keep the full history
-        self.keep_history = keep_full_history
-        if keep_full_history:
-            self.X_minus_history = [self.X.copy()]
-            self.X_plus_history = [self.X.copy()]
-            self.Cov_X_minus_history = [self.Cov_X.copy()]
-            self.Cov_X_plus_history = [self.Cov_X.copy()]
-            self.Y_history = []
-            self.Cov_Y_history = []
-            self.Cov_XY_history = []
-            self.y_err_hist = []
-            # self.U_history = [] # i shouldn't need this
-
-    @property
-    def X(self) -> np.ndarray:
-        """Current state of the system"""
-        return self.state.full_state
-
-    @cached_property
-    def X_len(self) -> int:
-        """Number of inputs"""
-        return self.state.full_state.size
-
-    @cached_property
-    def Y_len(self):
-        """Number of observable outputs"""
-        return self.model.num_outputs
-
-    def old_step(self, new_input, new_measure, *args, **kwargs):
-        # Step 0: Create Sigma points of augmented state
-        self._build_sigma_pts()
-        # Step 1: perform update on the estimates of hidden state
-        self._estimation_update(new_input, *args, **kwargs)
-        # Step 2: apply necessary corrections based on the measurement
-        y_err = self._correction_update(new_measure)
-        return self.X, self.Cov_X, y_err
-
     def step(self, u: ControlState, y: Outputs, t_step: float):
         # Step 0: Create Sigma points of augmented state
         sigma_pts = self._build_sigma_pts()
         # Step 1: perform update on the estimates of hidden state
-        self._estimation_update(sigma_pts, u.to_numpy(), t_step)
+        cov_xy_k_minus, y_hat_k, cov_y_k = self._estimation_update(sigma_pts, u, t_step)
         # Step 2: apply necessary corrections based on the measurement
-        y_err = self._correction_update(new_measure)
-        return self.X, self.Cov_X, y_err
+        self._correction_update(y, y_hat_k, cov_xy_k_minus, cov_y_k)
+        # TODO (wardlt): Have this return the diagnostics which Victor was tracking
 
     def _build_sigma_pts(self) -> np.ndarray:
         """Generate Sigma points, which are points where the UKF will to predict updates in states
@@ -167,105 +110,99 @@ class UnscentedKalmanFilter(BaseEstimator):
         Each row of the Sigma matrix includes points defining the hidden state,
         noise of the hidden state, and noise in the measurements.
         """
-        # X_aug is basically the expected hidden state with the errors, which
+        # x_aug is basically the expected hidden state with the errors, which
         # are supposed to be 0 mean
-        X_aug = np.hstack(
-            (self.X, np.zeros((self.X_len + self.Y_len,)))
+        x_aug = np.hstack(
+            (self.state.full_state, np.zeros((self.state.num_params + self.model.num_outputs,)))
         )
 
         # Covariance matrix is block diagonal of hidden + errors
-        cov_aug = block_diag(self.Cov_X, self.Cov_w, self.Cov_v)
+        cov_aug = block_diag(self.state.covariance, self.cov_w, self.cov_v)
         cov_aug = self._ensure_pos_semi_def(cov_aug)
 
         # Sigma points are the augmented "mean" + each individual row of the
         # transpose of the Cholesky decomposition of cov_aug, with a weighing
         # factor of plus and minus h_param
-        sqrt_Cov_aug = np.linalg.cholesky(cov_aug).T
-        aux_Sigma_Pts = np.vstack(
+        sqrt_cov_aug = np.linalg.cholesky(cov_aug).T
+        aux_sigma_pts = np.vstack(
             (np.zeros((self.aug_len,)),
-             self.gamma_param * sqrt_Cov_aug,
-             -self.gamma_param * sqrt_Cov_aug)
+             self.gamma_param * sqrt_cov_aug,
+             -self.gamma_param * sqrt_cov_aug)
         )
 
         # np.tile basically repeats the provided array as many times as given by
         # second argument tuple, in this case, into aug_len rows
-        Sigma_pts = X_aug + aux_Sigma_Pts
-        assert Sigma_pts.shape == (2 * self.aug_len + 1, self.aug_len), 'Dimensions of Sigma Points are incorrect!'
-        return Sigma_pts
+        sigma_pts = x_aug + aux_sigma_pts
+        assert sigma_pts.shape == (2 * self.aug_len + 1, self.aug_len), 'Dimensions of Sigma Points are incorrect!'
+        return sigma_pts
 
-    def _estimation_update(self, Sigma_pts, control: ControlState, new_input, t_step):
-        """
+    def _estimation_update(self, sigma_pts: np.ndarray, u_new: ControlState, t_step: float):
+        """Update state estimation given the control signal and current state
+
+        Updates the mean and covariance matrix of :attr:`state`
 
         Args:
-            Sigma_pts: Points at which to test update to state, produced by :meth:`_build_Sigma_points`
-            new_input: Control inputs at the next timestep
+            sigma_pts: Points at which to test update to state, produced by :meth:`_build_Sigma_points`
+            u_new: Control signal measured at new timestep
             t_step: Amount of time elapsed until the next timestep. Units: s
 
         Returns:
-            -# x_hat_k_minus, Cov_x_k_minus, y_hat_k, Cov_y_k, Cov_xy_k_minus
+           - cov_xy_k_minus: Estimated covariance matrix between state and outputs
+           - y_hat_k: Estimated outputs
+           - cov_y_k: Covariance between estimated outputs
         """
+
+        # Special case: use current control if previous is not yet set
+        if self.u_old is None:
+            self.u_old = u_new
+
         # Separate the portions of the sigma points dealing with state, process noise, sensor noise
-        x_hidden = Sigma_pts[:, :self.X_len].copy()
-        w_hidden = Sigma_pts[:, self.X_len:(2 * self.X_len)].copy()
-        v_hidden = Sigma_pts[:, (2 * self.X_len):].copy()
-        u = self.U.copy()  # get old input, as it will update at the end of this
+        x_hidden = sigma_pts[:, :self.state.num_params].copy()
+        w_hidden = sigma_pts[:, self.state.num_params:(2 * self.state.num_params)].copy()
+        v_hidden = sigma_pts[:, (2 * self.state.num_params):].copy()
 
         # Let the model update the hidden state
         updated_xs = []
-        for new_x in x_hidden:
+        for new_x, new_w in zip(x_hidden, w_hidden):
             self.state.set_full_state(new_x)
-            self.model.update(self.state, control, t_step)
-            updated_xs.append(self.state.full_state)
-        updated_xs = np.concatenate(updated_xs, axis=0)
-
-        # TODO (wardlt): Stopped here
+            self.model.update(self.state, self.u_old, t_step)
+            updated_xs.append(self.state.full_state + new_w)  # Apply the process noise
+        updated_xs = np.array(updated_xs)
 
         # NOTE: these are the new hidden states, not the new augmented states!
         x_hat_k_minus = np.average(updated_xs, axis=0, weights=self.mean_weights)
-        # x_hat_k_minus = np.matmul(self.mean_weights, updated_xs.T)
-        assert x_hat_k_minus.shape == (self.X_len,), \
-            'Wrong x_k_minus dimensions!'
+        assert x_hat_k_minus.shape == (self.state.num_params,), 'Wrong x_k_minus dimensions!'
 
         # Now, update the covariance
-        # NOTE: we cannot use numpy.cov with argument aweights because some of
-        #       the weights are negative!!!
-        '''
-        # CentralDiff Way
-        Cov_x_k_minus = np.cov(updated_xs, 
-                               rowvar=False, # our variables are columns, and 
-                                             # rows are "observations"/samples 
-                               aweights=self.cov_weights, # use weights
-                               bias=True # divide by number of samples
-                               # could have also used ddof = 0 to override bias
-                               )
-        '''
-        # This is such that we could, if needed, implement
-        # Unscented KF instead
         x_diffs = updated_xs - x_hat_k_minus
-        Cov_x_k_minus = np.matmul(x_diffs.T,
-                                  np.matmul(np.diag(self.cov_weights), x_diffs))
-        assert Cov_x_k_minus.shape == (self.X_len, self.X_len), \
-            'Wrong dimensions of Cov_x_k_minus!'
+        cov_x_k_minus = np.matmul(x_diffs.T, np.matmul(np.diag(self.cov_weights), x_diffs))
+        assert cov_x_k_minus.shape == (self.state.num_params, self.state.num_params), 'Wrong dimensions of cov_x_k_minus!'
 
         # Now, let's update the output/measure estimate!
         # NOTE: Ideally, this should NOT use any *args NOR **kwargs, and should
         #       only depend on hidden state, input, sensor error
         # NOTE 2: This is no longer the case, as we need to provide Delta_t in
         #         order to perform denoising on some hidden states
-        updated_ys = self.h2m_model(updated_xs, new_input, v_hidden, *args, **kwargs)
-        # A minor problem is that, if self.Y_len = 1, np.average colapses the
+        updated_ys = []
+        for updated_x, new_v in zip(updated_xs, v_hidden):
+            self.state.set_full_state(updated_x)
+            y_new = self.model.output(self.state, u_new)
+            updated_ys.append(y_new.to_numpy() + new_v)  # Add in the sensor noise
+        updated_ys = np.array(updated_ys)
+
+        # A minor problem is that, if self.model.num_outputs = 1, np.average collapses the
         # result into a dimensionless np.array; but, if we use keepdims=True,
-        # then y_hat_k.shape will be (1, self.Y_len)
+        # then y_hat_k.shape will be (1, self.model.num_outputs)
         # Therefore, it seems we have to treat these cases differently
-        y_hat_k = np.average(updated_ys, axis=0, weights=self.mean_weights)  # ,
-        #  keepdims=self.Y_len==1)
-        assert y_hat_k.shape == (self.Y_len,), 'Wrong y_hat dimensions!'
+        # TODO (wardlt): Would `np.atleast_2d` work?
+        y_hat_k = np.average(updated_ys, axis=0, weights=self.mean_weights)
+        assert y_hat_k.shape == (self.model.num_outputs,), 'Wrong y_hat dimensions!'
 
         # Covariance of y (again, aweights throws an error)
         '''
         # CentralDiff way
-        Cov_y_k = np.cov(updated_ys, 
-                         rowvar=False, # our variables are columns, and 
+        cov_y_k = np.cov(updated_ys,
+                         rowvar=False, # our variables are columns, and
                                         # rows are "observations"/samples
                          aweights=self.cov_weights, # use weights
                          bias=True # divide by number of samples
@@ -275,66 +212,55 @@ class UnscentedKalmanFilter(BaseEstimator):
         # Unscented KF way
         y_diffs = updated_ys - y_hat_k
         # np.tile(y_hat_k, ((2 * self.aug_len + 1), 1))
-        Cov_y_k = np.matmul(y_diffs.T,
+        cov_y_k = np.matmul(y_diffs.T,
                             np.matmul(np.diag(self.cov_weights),
                                       y_diffs)
                             )
-        assert Cov_y_k.shape == (self.Y_len, self.Y_len), \
-            'Wrong Cov_Y_k dimensions!'
+        assert cov_y_k.shape == (self.model.num_outputs, self.model.num_outputs), 'Wrong Cov_Y_k dimensions!'
         # Finally, compute covariance X-to-Y!
-        Cov_xy_k_minus = np.matmul(x_diffs.T,
+        cov_xy_k_minus = np.matmul(x_diffs.T,
                                    np.matmul(np.diag(self.cov_weights),
                                              y_diffs))
-        # TODO: Do I need to ensure positive semi-definiteness here?
-        assert Cov_xy_k_minus.shape == (self.X_len, self.Y_len), \
-            'Wrong Cov_xy_k dimensions!'
+        # TODO (vventuri): Do I need to ensure positive semi-definiteness here?
+        assert cov_xy_k_minus.shape == (self.state.num_params, self.model.num_outputs), 'Wrong Cov_xy_k dimensions!'
 
         # Storing new estimates
-        self.X = x_hat_k_minus.copy()
-        self.Cov_X = Cov_x_k_minus.copy()
-        self.Y = y_hat_k.copy()
-        self.Cov_Y = Cov_y_k.copy()
-        self.Cov_XY = Cov_xy_k_minus.copy()
-        self.U = new_input.copy()
+        self.state.covariance = cov_x_k_minus
+        self.u_old = u_new.copy(deep=True)
 
-        # adding to history
-        if self.keep_history:
-            self.X_minus_history.append(x_hat_k_minus.copy())
-            self.Cov_X_minus_history.append(Cov_x_k_minus.copy())
-            self.Y_history.append(y_hat_k.copy())
-            self.Cov_Y_history.append(Cov_y_k.copy())
-            self.Cov_XY_history.append(Cov_xy_k_minus.copy())
+        return cov_xy_k_minus, y_hat_k, cov_y_k
 
-    # Function to perform necessary corrections:
-    # L_k_gain, x_hat_k_plus, Cov_x_k_plus
-    def _calculate_gain_matrix(self):  # set self.L_k gain matrix
-        L_k = np.matmul(self.Cov_XY, np.linalg.inv(self.Cov_Y))
-        self.L_k = L_k.copy()
+    def _calculate_gain_matrix(self, cov_xy, cov_y):
+        """Compute the gain matrix"""
+        return np.matmul(cov_xy, np.linalg.inv(cov_y))
 
-    def _correction_update(self, new_measure):
+    def _correction_update(self, new_measure: Outputs, y_hat_k: np.ndarray, cov_xy, cov_y) -> np.ndarray:
+        """Determine a correction to the state estimate, both mean and covariance
+
+        Args:
+            new_measure: Measurement to compare against correction
+            y_hat_k: Estimated output given current state
+            cov_xy: Covariance matrix between state and outputs, determined during :meth:`_estimation_update`
+            cov_y: Covariance between output states, determined during :meth:`_estimation_update`
+        Returns:
+            Observed error between state estimation and covered error
+        """
         # get gain
-        self._calculate_gain_matrix()
+        l_k = self._calculate_gain_matrix(cov_xy, cov_y)
+
         # estimate new state
-        assert new_measure.shape == (self.Y_len,), 'Wrong shape for measure!'
-        L_k = self.L_k.copy()
-        y_err = new_measure - self.Y.copy()
-        x_hat_k_plus = self.X.copy() + np.matmul(L_k, y_err)
-        # Theory:
-        Cov_x_k_plus = self.Cov_X - np.matmul(L_k, np.matmul(self.Cov_Y, L_k.T))
+        y_err = new_measure.to_numpy() - y_hat_k
+        x_hat_k_plus = self.state.full_state + np.matmul(l_k, y_err)
+
+        # Update the estimate of the covariance
+        cov_x_k_plus = self.state.covariance - np.matmul(l_k, np.matmul(cov_y, l_k.T))
         # TODO: is there an equivalent Joseph-form updated (used for helping
         #       with positive definiteness) for Sigma Point KF?
-        Cov_x_k_plus = self._ensure_pos_semi_def(Cov_x_k_plus)
+        cov_x_k_plus = self._ensure_pos_semi_def(cov_x_k_plus)
 
         # Updating internal variables
-        self.X = x_hat_k_plus.copy()
-        self.Cov_X = Cov_x_k_plus
-
-        # adding to history
-        if self.keep_history:
-            self.X_plus_history.append(x_hat_k_plus.copy())
-            self.Cov_X_plus_history.append(Cov_x_k_plus.copy())
-            self.y_err_hist.append(y_err.copy())
-
+        self.state.set_full_state(x_hat_k_plus)
+        self.state.covariance = cov_x_k_plus
         return y_err
 
     # Check for positive semi-definiteness
@@ -351,13 +277,12 @@ class UnscentedKalmanFilter(BaseEstimator):
 
     # Enforce positive semi-definite covariances
     def _enforce_pos_semi_def(self, Sig):
-        '''
+        """
         Ref.: 1Nicholas J. Higham, “Computing a Nearest Symmetric Positive
         Semidefinite Matrix,” Linear Algebra and its Applications, 103,
         103–118, 1988
-        '''
+        """
         # Perform singular value decomposition
         _, S_diagonal, V_complex_conjugate = np.linalg.svd(Sig)
-        H_matrix = np.matmul(V_complex_conjugate.T, \
-                             np.matmul(S_diagonal, V_complex_conjugate))
+        H_matrix = np.matmul(V_complex_conjugate.T, np.matmul(S_diagonal, V_complex_conjugate))
         return (Sig + Sig.T + H_matrix + H_matrix.T) / 4

@@ -12,15 +12,15 @@ class BaseEstimator:
     Start by supplying at least the model used to describe the dynamics of a system
     as a :class:`~asoh.models.base.HealthModel` and an initial guess for the
     state of the system `~asoh.models.base.InstanceState`.
-    Some Estimators have additional parameters which define how they function. 
+    Some Estimators have additional parameters which define how they function.
 
     .. note ::
-     
+
         Recall that the state of a system includes the **state** parameters of the system
         (e.g., the state of charge) and parameters which define its dynamics (e.g., internal resistances).
         Some of the parameters which define the dynamics can be varied with time,
         and we denote those parameters **state of health**.
-        
+
     Increase the states
 
     Args:

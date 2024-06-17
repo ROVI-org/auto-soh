@@ -38,6 +38,8 @@ class ECMOutputs(Outputs):
 class SingleResistorModel(HealthModel):
     """A battery system modeled by a single resistor and open-circuit voltage which depends only on state of charge."""
 
+    num_outputs = 1
+
     def dx(self, state: ECMState, control: ECMControl) -> np.ndarray:
         # The only change in the system is the state of charge increasing by the current
         return np.array([control.current / 3600.])

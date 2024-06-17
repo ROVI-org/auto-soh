@@ -1,6 +1,8 @@
+"""Tests for simple ECM and the base class"""
+
 import numpy as np
 
-from asoh.models.ecm import SingleResistorModel, ECMState, ECMControl
+from asoh.models.ecm import SingleResistorModel, ECMState, ECMControl, ECMOutputs
 
 
 def test_rint():
@@ -51,3 +53,8 @@ def test_update():
     state = ECMState(r_serial=1., ocv_params=(1., 0.5))
     model.update(state, ECMControl(current=1.), 4.)
     assert state.charge == 4. / 3600
+
+
+def test_to_numpy():
+    assert np.isclose(ECMControl(current=1.).to_numpy(), [1.]).all()
+    assert np.isclose(ECMOutputs(terminal_voltage=2).to_numpy(), [2.]).all()
