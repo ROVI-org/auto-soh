@@ -19,12 +19,12 @@ def test_ukf(initial_ecm_model):
     # Create the ukf
     ukf = UnscentedKalmanFilter(model, state, covariance_process_noise=np.eye(2,) * 1e-3, covariance_sensor_noise=np.array([[1e-3]]))
     ukf.cov_Y.shape = (1, 1)
-    assert ukf.aug_len == 2 * 2 + 1  # Two state variables, 1 output
+    assert ukf._aug_len == 2 * 2 + 1  # Two state variables, 1 output
     assert np.isclose(ukf.mean_weights.sum(), 1)
 
     # Test making sigma points using the current state estimation
     sigma = ukf.build_sigma_pts()
-    assert sigma.shape == (2 * ukf.aug_len + 1, ukf.aug_len)
+    assert sigma.shape == (2 * ukf._aug_len + 1, ukf._aug_len)
     mean_point = sigma.mean(axis=0)
     assert np.isclose(mean_point[:2], state.full_state).all()  # Mean of the sigma point should be the current state estimate
     assert np.isclose(mean_point[2:], 0).all()  # Noise parameters start at 0

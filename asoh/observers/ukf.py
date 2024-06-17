@@ -31,7 +31,7 @@ class UnscentedKalmanFilter(BaseEstimator):
     cov_v: np.ndarray = ...
     """Noise associated with measuring the outputs of the system"""
 
-    u_old: ControlState | None = ...
+    u_old: ControlState | None = None
     """Control signal of the previous timestep"""
 
     def __init__(self,
@@ -44,14 +44,8 @@ class UnscentedKalmanFilter(BaseEstimator):
                  covariance_sensor_noise: np.ndarray = None):
         super().__init__(model, state)
 
-        # General inits
-        self.cov_Y = np.zeros((self.model.num_outputs, self.model.num_outputs))
-        self.u_old = None
-        self.L_k = np.zeros((self.state.num_params, self.model.num_outputs))  # gain matrix
-
         # Augmented dimensions
-        # recall aug_len = hidden + noise_hidden + noise_measurement
-        self.aug_len = self.state.num_params + self.state.num_params + self.model.num_outputs
+        self._aug_len = self.state.num_params + self.state.num_params + self.model.num_outputs
 
         # Tuning parameters
         assert alpha_param >= 0.01, 'Alpha parameter must be >= 0.01!'  # TODO (wardlt): The paper says a recommended value for this is 1e-3?
@@ -60,14 +54,14 @@ class UnscentedKalmanFilter(BaseEstimator):
         self.alpha_param = alpha_param
         self.beta_param = beta_param
         if kappa_param == 'auto':
-            self.kappa_param = 3 - self.aug_len
+            self.kappa_param = 3 - self._aug_len
         else:
-            assert self.aug_len + kappa_param > 0, \
+            assert self._aug_len + kappa_param > 0, \
                 'Kappa parameter must be > -L!'
             self.kappa_param = kappa_param
-        self.gamma_param = alpha_param * np.sqrt(self.aug_len + kappa_param)
+        self.gamma_param = alpha_param * np.sqrt(self._aug_len + kappa_param)
         self.lambda_param = (alpha_param * alpha_param *
-                             (self.aug_len + kappa_param)) - self.aug_len
+                             (self._aug_len + kappa_param)) - self._aug_len
 
         # Taking care of covariances
         if covariance_process_noise is None:
@@ -84,8 +78,8 @@ class UnscentedKalmanFilter(BaseEstimator):
         self.cov_v = covariance_sensor_noise.copy()
 
         # Let's also take care of the weights for updating augmented state:
-        mean_weights = 0.5 * np.ones((2 * self.aug_len + 1)) / (alpha_param * alpha_param * (self.aug_len + kappa_param))
-        mean_weights[0] = self.lambda_param / (alpha_param * alpha_param * (self.aug_len + kappa_param))
+        mean_weights = 0.5 * np.ones((2 * self._aug_len + 1)) / (alpha_param * alpha_param * (self._aug_len + kappa_param))
+        mean_weights[0] = self.lambda_param / (alpha_param * alpha_param * (self._aug_len + kappa_param))
         self.mean_weights = mean_weights.copy()
         cov_weights = mean_weights.copy()
         cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
@@ -125,7 +119,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         # factor of plus and minus h_param
         sqrt_cov_aug = np.linalg.cholesky(cov_aug).T
         aux_sigma_pts = np.vstack(
-            (np.zeros((self.aug_len,)),
+            (np.zeros((self._aug_len,)),
              self.gamma_param * sqrt_cov_aug,
              -self.gamma_param * sqrt_cov_aug)
         )
@@ -133,7 +127,7 @@ class UnscentedKalmanFilter(BaseEstimator):
         # np.tile basically repeats the provided array as many times as given by
         # second argument tuple, in this case, into aug_len rows
         sigma_pts = x_aug + aux_sigma_pts
-        assert sigma_pts.shape == (2 * self.aug_len + 1, self.aug_len), 'Dimensions of Sigma Points are incorrect!'
+        assert sigma_pts.shape == (2 * self._aug_len + 1, self._aug_len), 'Dimensions of Sigma Points are incorrect!'
         return sigma_pts
 
     def estimation_update(self, sigma_pts: np.ndarray, u_new: ControlState, t_step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
