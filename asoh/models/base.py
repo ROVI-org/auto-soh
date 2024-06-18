@@ -3,7 +3,7 @@ the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.integrate import solve_ivp, OdeSolution
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -13,12 +13,44 @@ from pydantic import BaseModel, Field, model_validator
 class InstanceState(BaseModel, arbitrary_types_allowed=True):
     """Defines the state of a particular instance of a model
 
-    Creating a InstanceState
-    ------------------------
+    Using an Instance State
+    -----------------------
+
+    Create a InstanceState by calling the constructor with the values of all parameters,
+    and the lists of those parameters which are treated as the state of health.
+
+    .. code-block: python
+
+        state = InstanceState(charge=1., health_params=('capacity',))
+
+    Access or set the state variables in an object-oriented style
+
+    .. code-block: python
+
+        assert state.attribute == 1
+        state.attribute = 2
+
+    or an array style:
+
+    .. code-block: python:
+
+        assert np.isclose(state.state, [2.]).all()
+        state.set_state([3.])
+
+    The array style can access or set three subsets of the parameters:
+
+    1. :attr:`.state` and :meth:`set_state` for variables which are always transient
+    2. :attr:`soh` and :meth:`set_soh` for variables which define the state of health of the system
+    2. :attr:`full_state` and :meth:`set_full_state` for both sets of variables.
+
+    Implementing a New State Class
+    ------------------------------
 
     Define a new instance state by adding the attributes which define the state
     of a particular model to a subclass of ``InstanceState``. List the names of
     attributes which always vary with time as the :attr:`state_params`.
+
+    The type of attributes can be either float or a tuple of floats.
     """
 
     health_params: tuple[str, ...] = Field(description='List of parameters which are being treated as state of health'
@@ -30,13 +62,45 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
     """Parameters which are always treated as time dependent"""
 
     @model_validator(mode='after')
-    def _set_covariance(self):
+    def _check_covariance(self):
         """Make it unit normal distribution to start with"""
         n_params = len(self.full_params)
         if self.covariance is None:
             self.covariance = np.eye(n_params)
         if self.covariance.shape != (n_params, n_params):
             raise ValueError(f'Expected ({n_params}, {n_params}) covariance matrix. Found {self.covariance.shape}')
+
+    def _compile_names(self, params: tuple[str, ...]):
+        """Expand parameter names where each member of a tuple parameter gets a unique name
+
+        Args:
+            params: Which parameters to expand
+        Returns:
+        """
+
+        names = []
+        for s in params:
+            x = getattr(self, s)
+            if isinstance(x, (float, int)):
+                names.append(s)
+            else:
+                names.extend(f'{s}_{i}' for i in range(len(x)))
+        return tuple(names)
+
+    @property
+    def state_names(self):
+        """Names of the variables used as state"""
+        return self._compile_names(self.state_params)
+
+    @property
+    def soh_names(self):
+        """Names of the variables used as state of health"""
+        return self._compile_names(self.health_params)
+
+    @property
+    def full_state_names(self):
+        """Names of the variables used as state"""
+        return self.state_names + self.soh_names
 
     def _assemble_array(self, params: tuple[str, ...]) -> np.ndarray:
         """Assemble a numpy array from the instances within this class
@@ -55,7 +119,6 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
                 output.extend(x)
         return np.array(output)
 
-    # TODO (wardlt): Generate names for parameters that are tuples/lists
     @property
     def full_params(self) -> tuple[str, ...]:
         """All parameters being adjusted by the model"""
@@ -63,16 +126,17 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
 
     @property
     def state(self) -> np.ndarray:
-        """Only the state of variables"""
+        """Values of the state variables"""
         return self._assemble_array(self.state_params)
 
     @property
     def soh(self) -> np.ndarray:
-        """Only the state of health variables"""
+        """Values of the state of health variables"""
         return self._assemble_array(self.health_params)
 
     @property
     def full_state(self) -> np.ndarray:
+        """Values of both the state of health and state variables"""
         return self._assemble_array(self.state_params + self.health_params)
 
     @property
@@ -97,7 +161,6 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         Args:
             new_state: New parameters
         """
-
         self._update_params(new_state, self.state_params)
 
     def set_soh(self, new_state: np.ndarray | list[float]):
@@ -106,7 +169,6 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         Args:
             new_state: New parameters
         """
-
         self._update_params(new_state, self.health_params)
 
     def set_full_state(self, new_state: np.ndarray | list[float]):
@@ -115,7 +177,6 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         Args:
             new_state: New parameters
         """
-
         self._update_params(new_state, self.full_params)
 
 
@@ -203,13 +264,15 @@ class HealthModel:
         """
         raise NotImplementedError()
 
-    def update(self, state: InstanceState, control: ControlState, total_time: float):
+    def update(self, state: InstanceState, control: ControlState, total_time: float) -> OdeSolution:
         """Update the state under the influence of a control variable for a certain amount of time
 
         Args:
             state: Starting state
             control: Control signal
             total_time: Amount of time to propagate
+        Returns:
+            Result from SciPy's ODE solver
         """
 
         # Set up the time propagation function
@@ -224,6 +287,7 @@ class HealthModel:
             t_span=(0, total_time)
         )
         state.set_state(result.y[:, -1])
+        return result
 
     def output(self, state: InstanceState, control: ControlState) -> Outputs:
         """Compute the observed outputs of a system given the current state and control

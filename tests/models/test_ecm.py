@@ -58,3 +58,10 @@ def test_update():
 def test_to_numpy():
     assert np.isclose(ECMControl(current=1.).to_numpy(), [1.]).all()
     assert np.isclose(ECMOutputs(terminal_voltage=2).to_numpy(), [2.]).all()
+
+
+def test_names():
+    state = ECMState(r_serial=1., ocv_params=(1., 0.5), health_params=('ocv_params',))
+    assert state.state_names == ('charge',)
+    assert state.soh_names == ('ocv_params_0', 'ocv_params_1')
+    assert state.full_state_names == ('charge', 'ocv_params_0', 'ocv_params_1')
