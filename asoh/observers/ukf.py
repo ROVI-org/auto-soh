@@ -2,11 +2,11 @@
 import numpy as np
 from scipy.linalg import block_diag
 
-from .base import BaseEstimator
+from .base import Observer, UpdateResult
 from ..models.base import ControlState, Outputs, HealthModel, InstanceState
 
 
-class UnscentedKalmanFilter(BaseEstimator):
+class UnscentedKalmanFilter(Observer):
     """Unscented Kalman Filter (UKF) following the algorithm of
     `Wan and van der Merwe <https://groups.seas.harvard.edu/courses/cs281/papers/unscented.pdf>`_.
 
@@ -91,8 +91,8 @@ class UnscentedKalmanFilter(BaseEstimator):
         # Step 1: perform update on the estimates of hidden state
         cov_xy_k_minus, y_hat_k, cov_y_k = self.estimation_update(sigma_pts, u, t_step)
         # Step 2: apply necessary corrections based on the measurement
-        self.correction_update(y, y_hat_k, cov_xy_k_minus, cov_y_k)
-        # TODO (wardlt): Have this return the diagnostics which Victor was tracking
+        y_err = self.correction_update(y, y_hat_k, cov_xy_k_minus, cov_y_k)
+        return UpdateResult(y_err=y_err)
 
     def build_sigma_pts(self) -> np.ndarray:
         """Generate Sigma points, which are points where the UKF will to predict updates in states
