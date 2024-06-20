@@ -13,7 +13,8 @@ authors = [
 ]
 dependencies = [
     "battery-data-toolkit",
-    "progpy"
+    "pydantic",
+    "numpy"
 ]
 
 [tool.setuptools.packages.find]
