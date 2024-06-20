@@ -3,16 +3,14 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python==3.10.*
+  - python==3.9.*
 
   # Basics
   - tqdm
   - matplotlib
-  - jupyterlab
 
   - pip
   - pip:
-    - progpy
     - battery-data-toolkit
-
-    - -e ..
+    - jupyterlab
+    - -e ..[test]
