@@ -2,6 +2,8 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
+from typing import Union
+
 import numpy as np
 from scipy.integrate import solve_ivp, OdeSolution
 from pydantic import BaseModel, Field, model_validator
@@ -155,7 +157,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
                 p = [next(param_iter) for _ in x]
                 setattr(self, s, p)
 
-    def set_state(self, new_state: np.ndarray | list[float]):
+    def set_state(self, new_state: Union[np.ndarray, list[float]]):
         """Update this state to the values in the vector
 
         Args:
@@ -163,7 +165,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         """
         self._update_params(new_state, self.state_params)
 
-    def set_soh(self, new_state: np.ndarray | list[float]):
+    def set_soh(self, new_state: Union[np.ndarray, list[float]]):
         """Update the state of health values given a list of values
 
         Args:
@@ -171,7 +173,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         """
         self._update_params(new_state, self.health_params)
 
-    def set_full_state(self, new_state: np.ndarray | list[float]):
+    def set_full_state(self, new_state: Union[np.ndarray, list[float]]):
         """Update the state and health parameters given a list of values
 
         Args:

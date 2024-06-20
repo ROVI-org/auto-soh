@@ -1,4 +1,6 @@
 """Unscented Kálmán Filter (UKF) - a state estimator which makes no assumptions about the model form of a dynamic system."""
+from typing import Optional
+
 import numpy as np
 from scipy.linalg import block_diag
 
@@ -31,7 +33,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
     cov_v: np.ndarray = ...
     """Noise associated with measuring the outputs of the system"""
 
-    u_old: ControlState | None = None
+    u_old: Optional[ControlState] = None
     """Control signal of the previous timestep"""
 
     def __init__(self,
