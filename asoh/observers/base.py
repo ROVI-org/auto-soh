@@ -12,18 +12,18 @@ class UpdateResult(BaseModel, extra='allow', arbitrary_types_allowed=True):
     y_err: np.ndarray = Field(..., description='Difference between estimated and observed outputs')
 
 
-class Observer:
-    """Base class for all state estimation methods
+class OnlineEstimator:
+    """Base class for state estimation methods which update incrementally.
 
-    Using an Observer
-    ------------------
+    Using an OnlineEstimator
+    ------------------------
 
-    Each instance of an Observer tracks the estimates for states of single storage system.
+    Each instance of an OnlineEstimator tracks the estimates for states of single storage system.
 
     Start by supplying at least the model used to describe the dynamics of a system
     as a :class:`~asoh.models.base.HealthModel` and an initial guess for the
     state of the system `~asoh.models.base.InstanceState`.
-    Some Observers have additional parameters which define how they function.
+    Some OnlineEstimators have additional parameters which define how they function.
 
     .. note ::
 
@@ -32,19 +32,19 @@ class Observer:
         Some of the parameters which define the dynamics can be varied with time,
         and we denote those parameters **state of health**.
 
-    The :meth:`step` function of an Observer adjusts the :attr:`state` given new observations.
+    The :meth:`step` function of an OnlineEstimator adjusts the :attr:`state` given new observations.
     Invoke the step function given the observations at a new step,
     the control signal at the new time,
     and the time elapsed since the last step.
-    The Observer will use the update function of the supplied model to produce an
+    The OnlineEstimator will use the update function of the supplied model to produce an
     estimate for the new state, then apply a correction logic to the observed state.
     The `step` function will return diagnostic signals relating to how the state
     was adjusted given new observations.
 
-    Implementing an Observer
-    ------------------------
+    Implementing an OnlineEstimator
+    -------------------------------
 
-    The :meth:`step` method is the only one which need be implemented for a new Observer.
+    The :meth:`step` method is the only one which need be implemented for a new OnlineEstimator.
     Consider creating a subclass of :class:`UpdateResult` which defines definitions for
     any new diagnostic information produced by the new observer.
 

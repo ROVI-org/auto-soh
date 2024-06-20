@@ -2,11 +2,11 @@
 import numpy as np
 from scipy.linalg import block_diag
 
-from .base import Observer, UpdateResult
+from .base import OnlineEstimator, UpdateResult
 from ..models.base import ControlState, Outputs, HealthModel, InstanceState
 
 
-class UnscentedKalmanFilter(Observer):
+class UnscentedKalmanFilter(OnlineEstimator):
     """Unscented Kalman Filter (UKF) following the algorithm of
     `Wan and van der Merwe <https://groups.seas.harvard.edu/courses/cs281/papers/unscented.pdf>`_.
 
