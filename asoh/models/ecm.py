@@ -1,16 +1,16 @@
 import numpy as np
 from pydantic import Field
 
-from .base import HealthModel, ControlState, InstanceState, Outputs
+from .base import HealthModel, InputState, SystemState, Measurements
 
 
-class ECMControl(ControlState):
+class ECMInput(InputState):
     """Control of a battery based on the feed current"""
 
     pass
 
 
-class ECMState(InstanceState):
+class ECMState(SystemState):
     """State of a battery defined by an Equivalent circuit model"""
 
     charge: float = Field(0, description='State of charge of the battery element. Units: A-hr')
@@ -29,7 +29,7 @@ class ECMState(InstanceState):
         return self.ocv_params[0] + self.charge * self.ocv_params[1]
 
 
-class ECMOutputs(Outputs):
+class ECMMeasurements(Measurements):
     """The only observable from an ECM model is the terminal voltage"""
 
     terminal_voltage: float = Field(description='Voltage at the terminal')
@@ -40,11 +40,11 @@ class SingleResistorModel(HealthModel):
 
     num_outputs = 1
 
-    def dx(self, state: ECMState, control: ECMControl) -> np.ndarray:
+    def dx(self, state: ECMState, control: ECMInput) -> np.ndarray:
         # The only change in the system is the state of charge increasing by the current
         return np.array([control.current / 3600.])
 
-    def output(self, state: ECMState, control: ControlState) -> ECMOutputs:
-        return ECMOutputs(
+    def output(self, state: ECMState, control: InputState) -> ECMMeasurements:
+        return ECMMeasurements(
             terminal_voltage=state.compute_ocv() + state.r_serial * control.current
         )

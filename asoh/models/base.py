@@ -12,18 +12,18 @@ from pydantic import BaseModel, Field, model_validator
 # TODO (wardlt): Consider an implementation where we store the parameters as a single numpy array, then provide helper classes for the parameters.
 #  Maybe add some kind of `compile` which generates an object which provides such an interface (progpy does something like that),
 #  which would [maybe] conflict with the desire to combine this class and HealthModel
-class InstanceState(BaseModel, arbitrary_types_allowed=True):
+class SystemState(BaseModel, arbitrary_types_allowed=True):
     """Defines the state of a particular instance of a model
 
-    Using an Instance State
-    -----------------------
+    Using a System State
+    --------------------
 
-    Create a InstanceState by calling the constructor with the values of all parameters,
+    Create a SystemState by calling the constructor with the values of all parameters,
     and the lists of those parameters which are treated as the state of health.
 
     .. code-block: python
 
-        state = InstanceState(charge=1., health_params=('capacity',))
+        state = SystemState(charge=1., health_params=('capacity',))
 
     Access or set the state variables in an object-oriented style
 
@@ -49,7 +49,7 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
     ------------------------------
 
     Define a new instance state by adding the attributes which define the state
-    of a particular model to a subclass of ``InstanceState``. List the names of
+    of a particular model to a subclass of ``SystemState``. List the names of
     attributes which always vary with time as the :attr:`state_params`.
 
     The type of attributes can be either float or a tuple of floats.
@@ -182,8 +182,8 @@ class InstanceState(BaseModel, arbitrary_types_allowed=True):
         self._update_params(new_state, self.full_params)
 
 
-class ControlState(BaseModel):
-    """The control of a battery system
+class InputState(BaseModel):
+    """The control of a battery system, such as the terminal current
 
     Add new fields to subclassess of ``ControlState`` for more complex systems
     """
@@ -196,8 +196,8 @@ class ControlState(BaseModel):
         return np.array(output)
 
 
-class Outputs(BaseModel):
-    """Output model for observables from a battery system
+class Measurements(BaseModel):
+    """Output for observables from a battery system
 
     Add new fields to subclasses of ``ControlState`` for more complex systems
     """
@@ -242,7 +242,7 @@ class HealthModel:
     ---------------------------
 
     First create the states which define your model as subclasses of the
-    :class:`InstanceState`, :class:`ControlState`, and :class:`OutputModel`.
+    :class:`SystemState`, :class:`ControlState`, and :class:`OutputModel`.
 
     We assume all models express dynamic systems which vary continuously with time.
     Implement the derivatives of each model parameter as a function of time
@@ -254,7 +254,7 @@ class HealthModel:
     num_outputs: int = ...
     """Number of outputs from the output function"""
 
-    def dx(self, state: InstanceState, control: ControlState) -> np.ndarray:
+    def dx(self, state: SystemState, control: InputState) -> np.ndarray:
         """Compute the derivatives of each state variable with respect to time
 
         Args:
@@ -266,7 +266,7 @@ class HealthModel:
         """
         raise NotImplementedError()
 
-    def update(self, state: InstanceState, control: ControlState, total_time: float) -> OdeSolution:
+    def update(self, state: SystemState, control: InputState, total_time: float) -> OdeSolution:
         """Update the state under the influence of a control variable for a certain amount of time
 
         Args:
@@ -291,7 +291,7 @@ class HealthModel:
         state.set_state(result.y[:, -1])
         return result
 
-    def output(self, state: InstanceState, control: ControlState) -> Outputs:
+    def output(self, state: SystemState, control: InputState) -> Measurements:
         """Compute the observed outputs of a system given the current state and control
 
         Args:

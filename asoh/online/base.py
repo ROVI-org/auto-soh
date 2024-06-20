@@ -1,9 +1,9 @@
-"""Base class for observers and their related data structures"""
+"""Base class for online estimators and their related data structures"""
 
 import numpy as np
 from pydantic import BaseModel, Field
 
-from asoh.models.base import ControlState, HealthModel, InstanceState, Outputs
+from asoh.models.base import InputState, HealthModel, SystemState, Measurements
 
 
 class UpdateResult(BaseModel, extra='allow', arbitrary_types_allowed=True):
@@ -22,7 +22,7 @@ class OnlineEstimator:
 
     Start by supplying at least the model used to describe the dynamics of a system
     as a :class:`~asoh.models.base.HealthModel` and an initial guess for the
-    state of the system `~asoh.models.base.InstanceState`.
+    state of the system `~asoh.models.base.SystemState`.
     Some OnlineEstimators have additional parameters which define how they function.
 
     .. note ::
@@ -50,20 +50,21 @@ class OnlineEstimator:
 
     Args:
         model: Model which describes dynamics
-        state: Initial guess for state and covariance matrix between state variables
+        state: Initial guess for state and covariance matrix between state variables.
+            The estimator will create a copy of the input state.
     """
 
     model: HealthModel
     """Model which defines the dynamics of the system being estimated"""
 
-    state: InstanceState
+    state: SystemState
     """State estimate provided to and updated by the observer"""
 
-    def __init__(self, model: HealthModel, state: InstanceState):
+    def __init__(self, model: HealthModel, state: SystemState):
         self.model = model
-        self.state = state
+        self.state = state.copy(deep=True)
 
-    def step(self, u: ControlState, y: Outputs, t_step: float) -> UpdateResult:
+    def step(self, u: InputState, y: Measurements, t_step: float) -> UpdateResult:
         """Update the state estimation given a new set of control states
 
         Args:

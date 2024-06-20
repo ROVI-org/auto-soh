@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from asoh.models.ecm import SingleResistorModel, ECMState, ECMControl, ECMOutputs
+from asoh.models.ecm import SingleResistorModel, ECMState, ECMInput, ECMMeasurements
 
 
 def test_rint():
@@ -19,18 +19,18 @@ def test_rint():
     assert np.isclose(state.full_state, [0., 1., 0.5]).all()  # Includes both charge, then OCV full_params
 
     # Make sure it steps appropriately
-    dx = model.dx(state, ECMControl(current=0.))
+    dx = model.dx(state, ECMInput(current=0.))
     assert np.isclose(dx, [0.]).all()
 
-    dx = model.dx(state, ECMControl(current=1.))
+    dx = model.dx(state, ECMInput(current=1.))
     assert np.isclose(dx, [1. / 3600.]).all()
 
     # Test the output function
-    output = model.output(state, ECMControl(current=0.))
+    output = model.output(state, ECMInput(current=0.))
     assert output.terminal_voltage == 1.
 
     state.charge = 0.5
-    output = model.output(state, ECMControl(current=1.))
+    output = model.output(state, ECMInput(current=1.))
     assert output.terminal_voltage == 2.25  # 1 V from constant OCV, 0.25 from 0.5 SOC, 1 from the 1 A current and 1 Ohm r_serial
 
 
@@ -51,13 +51,13 @@ def test_state_model_update():
 def test_update():
     model = SingleResistorModel()
     state = ECMState(r_serial=1., ocv_params=(1., 0.5))
-    model.update(state, ECMControl(current=1.), 4.)
+    model.update(state, ECMInput(current=1.), 4.)
     assert state.charge == 4. / 3600
 
 
 def test_to_numpy():
-    assert np.isclose(ECMControl(current=1.).to_numpy(), [1.]).all()
-    assert np.isclose(ECMOutputs(terminal_voltage=2).to_numpy(), [2.]).all()
+    assert np.isclose(ECMInput(current=1.).to_numpy(), [1.]).all()
+    assert np.isclose(ECMMeasurements(terminal_voltage=2).to_numpy(), [2.]).all()
 
 
 def test_names():

@@ -3,8 +3,8 @@
 from pytest import fixture
 import numpy as np
 
-from asoh.observers.ukf import UnscentedKalmanFilter
-from asoh.models.ecm import SingleResistorModel, ECMState, ECMControl, ECMOutputs
+from asoh.online.ukf import UnscentedKalmanFilter
+from asoh.models.ecm import SingleResistorModel, ECMState, ECMInput, ECMMeasurements
 
 
 @fixture()
@@ -31,7 +31,7 @@ def test_ukf(initial_ecm_model):
     assert np.isclose(mean_point[2:], 0).all()  # Noise parameters start at 0
 
     # Test computing the time update for the sigma points
-    u = ECMControl(current=1.)
+    u = ECMInput(current=1.)
     cov_xy_k_minus, y_hat_k, cov_y_k = ukf.estimation_update(sigma, u, 1.)
     assert cov_xy_k_minus.shape == (2, 1)
     assert cov_y_k.shape == (1, 1)
@@ -40,4 +40,4 @@ def test_ukf(initial_ecm_model):
 
     # Step, giving outputs which agree given the currently-supposed state
     #  After 1 second of charging at 1 A, the OCV should be 1 + 1/3600 V, and the voltage from the resistor should be 1 V
-    ukf.step(u, ECMOutputs(terminal_voltage=2. + 1. / 3600), t_step=1)
+    ukf.step(u, ECMMeasurements(terminal_voltage=2. + 1. / 3600), t_step=1)

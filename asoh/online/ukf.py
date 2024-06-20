@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from .base import OnlineEstimator, UpdateResult
-from ..models.base import ControlState, Outputs, HealthModel, InstanceState
+from ..models.base import InputState, Measurements, HealthModel, SystemState
 
 
 class UnscentedKalmanFilter(OnlineEstimator):
@@ -33,12 +33,12 @@ class UnscentedKalmanFilter(OnlineEstimator):
     cov_v: np.ndarray = ...
     """Noise associated with measuring the outputs of the system"""
 
-    u_old: Optional[ControlState] = None
+    u_old: Optional[InputState] = None
     """Control signal of the previous timestep"""
 
     def __init__(self,
                  model: HealthModel,
-                 state: InstanceState,
+                 state: SystemState,
                  alpha_param: float = 1.,
                  kappa_param: float = 0.,
                  beta_param: float = 2.,
@@ -87,7 +87,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
         cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
         self.cov_weights = cov_weights.copy()
 
-    def step(self, u: ControlState, y: Outputs, t_step: float):
+    def step(self, u: InputState, y: Measurements, t_step: float):
         # Step 0: Create Sigma points of augmented state
         sigma_pts = self.build_sigma_pts()
         # Step 1: perform update on the estimates of hidden state
@@ -132,7 +132,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
         assert sigma_pts.shape == (2 * self._aug_len + 1, self._aug_len), 'Dimensions of Sigma Points are incorrect!'
         return sigma_pts
 
-    def estimation_update(self, sigma_pts: np.ndarray, u_new: ControlState, t_step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def estimation_update(self, sigma_pts: np.ndarray, u_new: InputState, t_step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update state estimation given the control signal and current state
 
         Updates the mean and covariance matrix of :attr:`state`
@@ -229,7 +229,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
         """Compute the gain matrix"""
         return np.matmul(cov_xy, np.linalg.inv(cov_y))
 
-    def correction_update(self, new_measure: Outputs, y_hat_k: np.ndarray, cov_xy, cov_y) -> np.ndarray:
+    def correction_update(self, new_measure: Measurements, y_hat_k: np.ndarray, cov_xy, cov_y) -> np.ndarray:
         """Determine a correction to the state estimate, both mean and covariance
 
         Args:
