@@ -2,11 +2,46 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union
+from typing import Union, Optional
+from abc import abstractmethod
 
 import numpy as np
 from scipy.integrate import solve_ivp, OdeSolution
 from pydantic import BaseModel, Field, model_validator
+
+class InputQuantities(BaseModel, 
+                      arbitrary_types_allowed = True, 
+                      validate_assignment = True):
+    """
+    Inputs quantities to a battery model, such as time, current, and temperature
+    readings.
+    """
+    time: Union[float, np.ndarray] = \
+        Field(description = 'Timestamp(s) of inputs. Units: s')
+    current: Union[float, np.ndarray] = \
+        Field(description = 'Current(s) applied to the storage system. Units: A')
+    temperature: Optional[Union[float, np.ndarray]] = \
+        Field(default = 'Not provided!', 
+              description = 'Temperature reading(s). Units: °C')
+    
+    def to_numpy(self, 
+                 additional_inputs: tuple[str, ...] = ()) -> np.ndarray:
+        """
+        Outputs a numpy.ndarray where each entry is a np.ndarray corresponding 
+        to one input vector. This input vector ALWAYS has as its first two 
+        elements [time, current]. If provided, 'temperature' is the third 
+        element. Other additional inputs are appear in the order provided
+        """
+        combined = np.vstack((self.time, self.current))
+        # The default value is a string, which is not an allowed type for this 
+        # attribute. That means that, if it was provided, then it cannot
+        # possibly be a string
+        if not isinstance(self.temperature, str):
+            combined = np.vstack((combined, self.temperature))
+        for input_name in additional_inputs:
+            combined = np.vstack((combined, getattr(self, input_name)))
+        return combined.T
+
 
 
 # TODO (wardlt): Consider an implementation where we store the parameters as a single numpy array, then provide helper classes for the parameters.
