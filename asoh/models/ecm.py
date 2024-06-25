@@ -7,8 +7,9 @@ from scipy.interpolate import interp1d
 from .base import InputQuantities, OutputMeasurements, HealthParameter
 from .base import AdvancedStateOfHealth
 
+
 ################################################################################
-##                              INPUTS & OUTPUT                               ##
+#                               INPUTS & OUTPUT                                #
 ################################################################################
 class ECM_Input(InputQuantities):
     """
@@ -16,7 +17,8 @@ class ECM_Input(InputQuantities):
     """
     pass
 
-# TODO (vventuri): Remeber we need to implement ways to denoise SOC, Qt, R0, 
+
+# TODO (vventuri): Remeber we need to implement ways to denoise SOC, Qt, R0,
 #                   which require more outputs
 class ECM_Measurement(OutputMeasurements):
     """
@@ -24,8 +26,9 @@ class ECM_Measurement(OutputMeasurements):
     """
     pass
 
+
 ################################################################################
-##                               HEALTH METRICS                               ##
+#                                HEALTH METRICS                                #
 ################################################################################
 class MaxTheoreticalCapacity(HealthParameter):
     """
