@@ -37,16 +37,16 @@ class InputQuantities(GeneralContainer,
               description='Temperature reading(s). Units: °C')
 
     def to_numpy(self,
-                 additional_inputs: tuple[str, ...]=()) -> np.ndarray:
+                 additional_inputs: tuple[str, ...] = ()) -> np.ndarray:
         """
-        Outputs a numpy.ndarray where each entry is a np.ndarray corresponding 
-        to one input vector. This input vector ALWAYS has as its first two 
-        elements [time, current]. If provided, 'temperature' is the third 
+        Outputs a numpy.ndarray where each entry is a np.ndarray corresponding
+        to one input vector. This input vector ALWAYS has as its first two
+        elements [time, current]. If provided, 'temperature' is the third
         element. Other additional inputs are appear in the order provided
         """
-        combined=[]
+        combined = []
         for field in self.names:
-            value=getattr(self, field)
+            value = getattr(self, field)
             # since default for temperature is a string, we can hack it out
             if not isinstance(value, str):
                 combined.append(value)
@@ -59,13 +59,13 @@ class OutputMeasurements(GeneralContainer,
                          arbitrary_types_allowed=True,
                          validate_assignment=True):
     """
-    Ouput measurement of a battery model. Must include terminal voltage. 
+    Ouput measurement of a battery model. Must include terminal voltage.
     """
     terminal_voltage: float = \
         Field(description='Voltage output of a battery cell/model. Units: V')
 
     def to_numpy(self,
-                 additional_outputs: tuple[str, ...]=()) -> np.ndarray:
+                 additional_outputs: tuple[str, ...] = ()) -> np.ndarray:
         combined = [getattr(self, field) for field in self.names]
         combined += [getattr(self, add_out) for add_out in additional_outputs]
         return np.array(combined)
@@ -76,9 +76,9 @@ class HiddenVector(GeneralContainer,
                    validate_assignment=True):
     """
     Holds the physical transient hidden state quantities (example: SOC, etc.)
-    """    
+    """
     def to_numpy(self) -> np.ndarray:
-        transient_state = tuple(getattr(self, hid_var) \
+        transient_state = tuple(getattr(self, hid_var)
                                 for hid_var in self.names)
         return np.hstack(transient_state)
 
@@ -98,10 +98,10 @@ class AdvancedStateOfHealth(GeneralContainer,
                             arbitrary_types_allowed=True,
                             validate_assignment=True):
     """
-    Holds the collection of HealthParameters that defines the A-SOH 
+    Holds the collection of HealthParameters that defines the A-SOH.
     """
     def to_numpy(self,
-                 additional_health: tuple[str, ...]=()) -> np.ndarray:
+                 additional_health: tuple[str, ...] = ()) -> np.ndarray:
         asoh = np.array([])
         for health_param in self.names:
             asoh = np.hstack((asoh, getattr(self, health_param).to_numpy()))
@@ -112,7 +112,7 @@ class JointState(BaseModel,
                  arbitrary_types_allowed=True,
                  validate_assignment=True):
     """
-    This class is used to hold the joint state of a model at a given instant. 
+    This class is used to hold the joint state of a model at a given instant.
     That is, it stores the physical transient hidden state (example: SOC, etc.),
     as well as the A-SOH model parameters (example: Q_total, R_0, etc.)
     """
@@ -133,7 +133,7 @@ class JointState(BaseModel,
 class HealthModel():
     """
     Base health model. At a minimum, it must be able to:
-        1. given physical transient hidden state(s) and the A-SOH(s), output  
+        1. given physical transient hidden state(s) and the A-SOH(s), output
             corresponding terminal voltage prediction(s)
         2. given physical transient hidden state(s), A-SOH(s), and new input(s),
             output new physical transient hidden state(s)
@@ -141,21 +141,21 @@ class HealthModel():
 
     @abstractmethod
     def update_transient_state(
-        self,
-        transient_state: Union[HiddenVector, List[HiddenVector]],
-        input: InputQuantities,
-        asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
-        *args, **kwargs) -> HiddenVector:
+            self,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            input: InputQuantities,
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> HiddenVector:
         pass
 
     @abstractmethod
     def predict_output(
-        self,
-        transient_state: Union[HiddenVector, List[HiddenVector]],
-        input: InputQuantities,
-        asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
-        *args, **kwargs) -> OutputMeasurements:
+            self,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            input: InputQuantities,
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> OutputMeasurements:
         """
-        Compute expected terminal voltage of a the model
+        Compute expected output (terminal voltage, etc.) of a the model.
         """
         pass
