@@ -35,11 +35,11 @@ class MaxTheoreticalCapacity(HealthParameter):
     Defines maximum theoretical discharge capacity of a cell
     """
     Q_t: float = \
-        Field(description=\
-              'Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
-    updatable: bool = Field(default=True,
-                            description=\
-                            'Define if external model can update this variable.')
+        Field(
+            description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
+    updatable: bool = \
+        Field(default=True,
+              description='Define if external model can update this variable.')
 
     @property
     def value(self) -> float:
@@ -59,13 +59,13 @@ class SeriesResistance(HealthParameter):
     Defines the series resistance component of an ECM.
     """
     internal_parameters: Union[float, List, np.ndarray] = \
-        Field(description=\
-              'Values of series resistance at specified SOCs. Units: Ohm')
+        Field(
+            description='Values of series resistance at specified SOCs. Units: Ohm')
     soc_pinpoints: Optional[Union[List, np.ndarray]] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
-    updatable: bool = Field(default=True,
-                            description=\
-                            'Define if external model can update this variable.')
+    updatable: bool = \
+        Field(default=True,
+              description='Define if external model can update this variable.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                 'quadratic', 'cubic', 'previous', 'next'] = \
