@@ -13,6 +13,7 @@ class GeneralContainer(BaseModel):
     @property
     def names(self) -> tuple[str, ...]:
         return tuple(self.model_fields.keys())
+    
     @property
     def all_names(self) -> tuple[str, ...]:
         all_names=self.names
@@ -21,20 +22,21 @@ class GeneralContainer(BaseModel):
         return all_names
 
 
-class InputQuantities(GeneralContainer, 
-                      arbitrary_types_allowed=True, 
+class InputQuantities(GeneralContainer,
+                      arbitrary_types_allowed=True,
                       validate_assignment=True):
     """
     Inputs quantities to a battery model, such as time, current, and temperature
     readings.
     """
     time: float=Field(description='Timestamp(s) of inputs. Units: s')
-    current: float=Field(description='Current(s) applied to the storage system. Units: A')
+    current: float=Field(
+        description='Current(s) applied to the storage system. Units: A')
     temperature: Optional[float]=\
         Field(default='Not provided!',
               description='Temperature reading(s). Units: °C')
     
-    def to_numpy(self, 
+    def to_numpy(self,
                  additional_inputs: tuple[str, ...]=()) -> np.ndarray:
         """
         Outputs a numpy.ndarray where each entry is a np.ndarray corresponding 
@@ -70,7 +72,7 @@ class OutputMeasurements(GeneralContainer,
 
 
 class HiddenVector(GeneralContainer,
-                   arbitrary_types_allowed=True, 
+                   arbitrary_types_allowed=True,
                    validate_assignment=True):
     """
     Holds the physical transient hidden state quantities (example: SOC, etc.)
@@ -83,7 +85,7 @@ class HiddenVector(GeneralContainer,
 
 class HealthParameter(BaseModel,
                       arbitrary_types_allowed=True,
-                      validate_assignment=True): 
+                      validate_assignment=True):
     """
     Base definition for a health parameter, such as Q_total, R_0, etc.
     """
@@ -94,11 +96,11 @@ class HealthParameter(BaseModel,
 
 class AdvancedStateOfHealth(GeneralContainer,
                             arbitrary_types_allowed=True,
-                            validate_assignment=True): 
+                            validate_assignment=True):
     """
     Holds the collection of HealthParameters that defines the A-SOH 
     """
-    def to_numpy(self, 
+    def to_numpy(self,
                  additional_health: tuple[str, ...]=()) -> np.ndarray:
         asoh=np.array([])
         for health_param in self.names:
@@ -106,7 +108,7 @@ class AdvancedStateOfHealth(GeneralContainer,
         return asoh
 
 
-class JointState(BaseModel, 
+class JointState(BaseModel,
                  arbitrary_types_allowed=True,
                  validate_assignment=True):
     """
@@ -124,7 +126,7 @@ class JointState(BaseModel,
         return self.transient_state.names + self.asoh.names
     
     def to_numpy(self) -> np.ndarray:
-        return np.hstack((self.transient_state.to_numpy(), 
+        return np.hstack((self.transient_state.to_numpy(),
                           self.asoh.to_numpy()))
 
 
@@ -139,8 +141,8 @@ class HealthModel():
 
     @abstractmethod
     def update_transient_state(
-        self, 
-        transient_state: Union[HiddenVector, List[HiddenVector]], 
+        self,
+        transient_state: Union[HiddenVector, List[HiddenVector]],
         input: InputQuantities,
         asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
         *args, **kwargs) -> HiddenVector:
@@ -149,7 +151,7 @@ class HealthModel():
     @abstractmethod
     def predict_output(
         self,
-        transient_state: Union[HiddenVector, List[HiddenVector]], 
+        transient_state: Union[HiddenVector, List[HiddenVector]],
         input: InputQuantities,
         asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
         *args, **kwargs) -> OutputMeasurements:
