@@ -119,6 +119,10 @@ class HealthVariable(BaseModel,
             total_len += self._get_internal_len(internal_name)
         return total_len
 
+    # TODO (vventuri): we should write a validator for the updatable field, to
+    #                   make sure the parameters listed are all numbers.Number
+    #                   or iterables composed of numbers.Number-s
+
     def get_updatable_parameter_values(self) -> List:
         """
         Function to obtain parameters used internally for health variable
