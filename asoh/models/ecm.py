@@ -183,13 +183,14 @@ class RCComponent(HealthVariable):
     r_reference_temperature: Optional[float] = \
         Field(default=25,
               description='Reference temperature for resistive parameters. Units: °C')
-    temperature_dependence_factor: Optional[float] = \
+    r_temperature_dependence_factor: Optional[float] = \
         Field(default=0,
               description='Exponential R temperature dependence factor. Units: 1/°C')
     updatable: Union[Literal[False], tuple[str, ...]] = \
         Field(default=('r_base_values', 'c_base_values',),
               description='Define updatable parameters (if any)')
 
+    # TODO (vventuri): consider removing base_values from HealthVariable
     def model_post_init(self, __context: Any) -> None:
         """
         Removing 'base_values' field inherited from HealthVariable
