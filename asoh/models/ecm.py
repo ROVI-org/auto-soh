@@ -4,14 +4,14 @@ from pydantic import Field, computed_field
 from pydantic.fields import FieldInfo
 from scipy.interpolate import interp1d
 
-from .base import InputQuantities, OutputMeasurements, HealthParameter
+from .base import InputQuantities, OutputMeasurements, HealthVariable
 from .base import AdvancedStateOfHealth
 
 
 ################################################################################
 #                               INPUTS & OUTPUT                                #
 ################################################################################
-class ECM_Input(InputQuantities):
+class ECMInput(InputQuantities):
     """
     Control of a battery based on the feed current, temperature
     """
@@ -20,7 +20,7 @@ class ECM_Input(InputQuantities):
 
 # TODO (vventuri): Remeber we need to implement ways to denoise SOC, Qt, R0,
 #                   which require more outputs
-class ECM_Measurement(OutputMeasurements):
+class ECMMeasurement(OutputMeasurements):
     """
     Controls the outputs of the ECM.
     """
@@ -30,41 +30,39 @@ class ECM_Measurement(OutputMeasurements):
 ################################################################################
 #                                HEALTH METRICS                                #
 ################################################################################
-class MaxTheoreticalCapacity(HealthParameter):
+class MaxTheoreticalCapacity(HealthVariable):
     """
     Defines maximum theoretical discharge capacity of a cell
     """
-    Q_t: float = \
+    base_values: float = \
         Field(
             description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
-    updatable: bool = \
-        Field(default=True,
-              description='Define if external model can update this variable.')
 
     @property
     def value(self) -> float:
-        return self.Q_t
+        return self.base_values
 
-    def to_numpy(self) -> np.array:
+    # We need to redefine this function to provide capacity in Amp-seconds
+    def get_updatable_parameter_values(self) -> List:
         """
         Returns maximum theoretical discharge capacity in Amp-seconds.
         """
         if self.updatable:
-            return 3600 * np.array(self.Q_t)
-        return np.array([])
+            return [3600 * self.base_values]
+        return []
 
 
-class SeriesResistance(HealthParameter):
+class SeriesResistance(HealthVariable):
     """
     Defines the series resistance component of an ECM.
     """
-    internal_parameters: Union[float, List, np.ndarray] = \
+    internal_parameters: Union[float, List] = \
         Field(
             description='Values of series resistance at specified SOCs. Units: Ohm')
-    soc_pinpoints: Optional[Union[List, np.ndarray]] = \
+    soc_pinpoints: Optional[Union[List]] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
-    updatable: bool = \
-        Field(default=True,
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=('internal_parameters',),
               description='Define if external model can update this variable.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
@@ -93,10 +91,15 @@ class SeriesResistance(HealthParameter):
                         fill_value='extrapolate')
         return func
 
-    def value(self, soc, temp=None) -> Union[float, np.ndarray]:
+    def value(self,
+              soc: Union[float, List, np.ndarray],
+              temp: Union[float, List, np.ndarray] | None = None
+              ) -> Union[float, np.ndarray]:
         """
         Computes value of series resistance at a given SOC and temperature.
         """
+        if isinstance(self.internal_parameters, float):
+            return self.internal_parameters
         reference_value = self._interp_func(soc)
         if temp is None or self.temperature_dependence_factor == 0:
             return reference_value
@@ -105,10 +108,10 @@ class SeriesResistance(HealthParameter):
         new_value = reference_value * np.exp(- gamma * deltaT)
         return new_value
 
-    def to_numpy(self) -> np.ndarray:
-        if self.updatable:
-            return self.internal_parameters
-        return np.array([])
+    def get_updatable_parameters(self) -> List:
+        if not self.updatable:
+            return []
+        return self.internal_parameters
 
 
 class ECM_ASOH(AdvancedStateOfHealth):
