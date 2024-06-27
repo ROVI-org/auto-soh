@@ -63,7 +63,7 @@ class CoulombicEfficiency(HealthVariable):
         return self.base_values
 
 
-class SeriesResistance(HealthVariable):
+class Resistance(HealthVariable):
     """
     Defines the series resistance component of an ECM.
     """
@@ -117,7 +117,7 @@ class SeriesResistance(HealthVariable):
         return new_value
 
 
-class SeriesCapacitance(HealthVariable):
+class Capacitance(HealthVariable):
     """
     Defines the series capacitance component of the ECM
     """
