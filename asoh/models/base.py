@@ -2,11 +2,12 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union, Optional, List
+from typing import Union, Optional, Literal, List
 from abc import abstractmethod
+from warnings import warn
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field, validate_call, ConfigDict
 
 
 class GeneralContainer(BaseModel):
@@ -89,13 +90,88 @@ class HealthVariable(BaseModel,
     """
     Base definition for a health parameter, such as Q_total, R_0, etc.
     """
-    @abstractmethod
-    def get_updatable_parameters(self) -> List:
+    base_values: Union[float, List] = \
+        Field(
+            description='Values used to parametrize health metric.')
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=('base_values',),
+              description='Define updatable parameters (if any)')
+
+    def _get_internal_len(self, parameter_name: str) -> int:
+        """
+        Function to calculate length of a given parameter
+        """
+        param = getattr(self, parameter_name)
+        if hasattr(param, '__len__'):
+            return len(param)
+        return 1
+
+    @computed_field
+    @property
+    def updatable_len(self) -> int:
+        """
+        Denotes total length of a list containing all updatable parameters
+        """
+        if not self.updatable:
+            return 0
+        total_len = 0
+        for internal_name in self.updatable:
+            total_len += self._get_internal_len(internal_name)
+        return total_len
+
+    def get_updatable_parameter_values(self) -> List:
         """
         Function to obtain parameters used internally for health variable
         definition
         """
-        pass
+        all_params = []
+        if not self.updatable:
+            return all_params
+
+        for internal_param in self.updatable:
+            param = getattr(self, internal_param)
+            if hasattr(param, '__len__'):
+                all_params += list(param)
+            else:
+                all_params.append(param)
+        return all_params
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def update(self,
+               new_values: Union[float, List, np.ndarray],
+               parameters: Union[tuple[str, ...], None] = None) -> None:
+        """
+        Method used to update updatable internal parameters with a new set of
+        provided values.
+        """
+        if not self.updatable:
+            warn('Attempt to update HealthVariable with no updatable parameters!')
+            return
+        if not parameters:
+            parameters = self.updatable
+        if isinstance(new_values, float):
+            for param_name in parameters:
+                if param_name in self.updatable:
+                    setattr(self, param_name, new_values)
+                else:
+                    msg = 'Attempted to set \'' + param_name + '\', but '
+                    msg += 'updatable parameters are ' + str(self.updatable)
+                    msg += '! Skipping this one...'
+                    warn(msg)
+            return
+        # Set index counter to determine where we need to read things from
+        begin_id = 0
+        for param_name in parameters:
+            if param_name in self.updatable:
+                param_len = self._get_internal_len(param_name)
+                end_id = begin_id + param_len
+                setattr(self, param_name, new_values[begin_id:end_id])
+                begin_id = end_id
+            else:
+                msg = 'Attempted to set \'' + param_name + '\', but '
+                msg += 'updatable parameters are ' + str(self.updatable)
+                msg += '!'
+                raise RuntimeError(msg)
 
 
 class AdvancedStateOfHealth(GeneralContainer,
@@ -104,10 +180,10 @@ class AdvancedStateOfHealth(GeneralContainer,
     """
     Holds the collection of HealthParameters that defines the A-SOH.
     """
-    def updatable_parameters(self) -> np.ndarray:
+    def updatable_parameter_values(self) -> np.ndarray:
         asoh = []
         for health_param in self.names:
-            asoh += getattr(self, health_param).get_updatable_parameters()
+            asoh += getattr(self, health_param).get_updatable_parameter_values()
         return np.array(asoh)
 
 
