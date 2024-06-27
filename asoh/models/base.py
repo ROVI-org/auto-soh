@@ -149,9 +149,9 @@ class HealthVariable(BaseModel,
         provided values.
         """
         if not self.updatable:
-            warn('Attempt to update HealthVariable with no updatable parameters!')
+            warn('Attempt to update HealthVariable with no updatable parameters!'),
             return
-        if not parameters:
+        if parameters is None:
             parameters = self.updatable
         if isinstance(new_values, float):
             for param_name in parameters:
@@ -175,7 +175,7 @@ class HealthVariable(BaseModel,
                 msg = 'Attempted to set \'' + param_name + '\', but '
                 msg += 'updatable parameters are ' + str(self.updatable)
                 msg += '!'
-                raise RuntimeError(msg)
+                raise ValueError(msg)
 
 
 class AdvancedStateOfHealth(GeneralContainer,
