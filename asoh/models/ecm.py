@@ -59,7 +59,7 @@ class SeriesResistance(HealthVariable):
     base_values: Union[float, List] = \
         Field(
             description='Values of series resistance at specified SOCs. Units: Ohm')
-    soc_pinpoints: Optional[Union[List]] = \
+    soc_pinpoints: Optional[List] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
