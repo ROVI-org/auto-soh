@@ -41,6 +41,23 @@ class InputQuantities(BaseModel,
         for input_name in additional_inputs:
             combined = np.vstack((combined, getattr(self, input_name)))
         return combined.T
+    
+class OutputMeasurements(BaseModel, 
+                         arbitrary_types_allowed=True,
+                         validate_assignment = True):
+    """
+    Ouput measurement of a battery model. Must include terminal voltage. 
+    """
+    terminal_voltage: Union[float, np.ndarray] = \
+        Field(description = 'Voltage output of a battery cell/model. Units: V')
+    
+    def to_numpy(self, 
+                 additional_outputs: tuple[str, ...] = ()) -> np.ndarray:
+        combined = self.terminal_voltage
+        for output_name in additional_outputs:
+            combined = np.vstack((combined, getattr(self, output_name)))
+        return combined.T
+    
 
 
 
