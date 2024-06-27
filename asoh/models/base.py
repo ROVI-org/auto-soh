@@ -2,7 +2,7 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union, Optional, Literal, List
+from typing import Union, Optional, Literal, Sized, List
 from abc import abstractmethod
 from warnings import warn
 
@@ -102,7 +102,7 @@ class HealthVariable(BaseModel,
         Function to calculate length of a given parameter
         """
         param = getattr(self, parameter_name)
-        if hasattr(param, '__len__'):
+        if isinstance(param, Sized):
             return len(param)
         return 1
 
@@ -140,7 +140,7 @@ class HealthVariable(BaseModel,
 
         for internal_param in self.updatable:
             param = getattr(self, internal_param)
-            if hasattr(param, '__len__'):
+            if isinstance(param, Sized):
                 all_params += list(param)
             else:
                 all_params.append(param)
