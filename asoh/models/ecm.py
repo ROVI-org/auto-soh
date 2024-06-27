@@ -52,6 +52,17 @@ class MaxTheoreticalCapacity(HealthVariable):
         return []
 
 
+class CoulombicEfficiency(HealthVariable):
+    """
+    Holds Coulombic efficiency of the cell
+    """
+    base_values: float = Field(default=1.0, description="Coulombic efficiency")
+
+    @property
+    def value(self) -> float:
+        return self.base_values
+
+
 class SeriesResistance(HealthVariable):
     """
     Defines the series resistance component of an ECM.
@@ -104,6 +115,47 @@ class SeriesResistance(HealthVariable):
         deltaT = np.array(temp) - self.reference_temperature
         new_value = reference_value * np.exp(- gamma * deltaT)
         return new_value
+
+
+class SeriesCapacitance(HealthVariable):
+    """
+    Defines the series capacitance component of the ECM
+    """
+    base_values: Union[float, List] = \
+        Field(
+            description='Values of series capacitance at specified SOCs. Units: F')
+    soc_pinpoints: Optional[List] = \
+        Field(default=[], description='SOC pinpoints for interpolation.')
+    interpolation_style: \
+        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
+                'quadratic', 'cubic', 'previous', 'next'] = \
+        Field(default='linear', description='Type of interpolation to perform')
+
+    @computed_field
+    @property
+    def _interp_func(self) -> Callable:
+        """
+        Interpolate values of C0. If soc_pinpoints have not been set, assume
+        internal_parameters are evenly spread on an SOC interval [0,1].
+        """
+        if not len(self.soc_pinpoints):
+            self.soc_pinpoints = np.linspace(0, 1, len(self.base_values))
+        func = interp1d(self.soc_pinpoints,
+                        self.base_values,
+                        kind=self.interpolation_style,
+                        bounds_error=False,
+                        fill_value='extrapolate')
+        return func
+
+    def value(self,
+              soc: Union[float, List, np.ndarray]
+              ) -> Union[float, np.ndarray]:
+        """
+        Computes value of series capacitance at given SOC
+        """
+        if isinstance(self.base_values, float):
+            return self.base_values
+        return self._interp_func(soc)
 
 
 class ECM_ASOH(AdvancedStateOfHealth):
