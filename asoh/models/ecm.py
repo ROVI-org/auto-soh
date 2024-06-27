@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union, Literal
+from typing import Any, Dict, List, Optional, Union, Literal, Callable
 import numpy as np
 from pydantic import Field, computed_field
 from pydantic.fields import FieldInfo
@@ -56,14 +56,11 @@ class SeriesResistance(HealthVariable):
     """
     Defines the series resistance component of an ECM.
     """
-    internal_parameters: Union[float, List] = \
+    base_values: Union[float, List] = \
         Field(
             description='Values of series resistance at specified SOCs. Units: Ohm')
     soc_pinpoints: Optional[Union[List]] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
-    updatable: Union[Literal[False], tuple[str, ...]] = \
-        Field(default=('internal_parameters',),
-              description='Define if external model can update this variable.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                 'quadratic', 'cubic', 'previous', 'next'] = \
@@ -77,15 +74,15 @@ class SeriesResistance(HealthVariable):
 
     @computed_field
     @property
-    def _interp_func(self) -> callable:
+    def _interp_func(self) -> Callable:
         """
         Interpolate values of R0. If soc_pinpoints have not been set, assume
         internal_parameters are evenly spread on an SOC interval [0,1].
         """
         if not len(self.soc_pinpoints):
-            self.soc_pinpoints = np.linspace(0, 1, len(self.internal_parameters))
+            self.soc_pinpoints = np.linspace(0, 1, len(self.base_values))
         func = interp1d(self.soc_pinpoints,
-                        self.internal_parameters,
+                        self.base_values,
                         kind=self.interpolation_style,
                         bounds_error=False,
                         fill_value='extrapolate')
@@ -93,25 +90,20 @@ class SeriesResistance(HealthVariable):
 
     def value(self,
               soc: Union[float, List, np.ndarray],
-              temp: Union[float, List, np.ndarray] | None = None
+              temp: Union[float, List, np.ndarray, None] = None
               ) -> Union[float, np.ndarray]:
         """
         Computes value of series resistance at a given SOC and temperature.
         """
-        if isinstance(self.internal_parameters, float):
-            return self.internal_parameters
+        if isinstance(self.base_values, float):
+            return self.base_values
         reference_value = self._interp_func(soc)
         if temp is None or self.temperature_dependence_factor == 0:
             return reference_value
         gamma = self.temperature_dependence_factor
-        deltaT = temp - self.reference_temperature
+        deltaT = np.array(temp) - self.reference_temperature
         new_value = reference_value * np.exp(- gamma * deltaT)
         return new_value
-
-    def get_updatable_parameters(self) -> List:
-        if not self.updatable:
-            return []
-        return self.internal_parameters
 
 
 class ECM_ASOH(AdvancedStateOfHealth):
