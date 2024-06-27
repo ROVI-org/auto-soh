@@ -158,6 +158,47 @@ class SeriesCapacitance(HealthVariable):
         return self._interp_func(soc)
 
 
+class RCComponent(HealthVariable):
+    """
+    Defines a RC component of the ECM
+    """
+    r_base_values: Union[float, List] = \
+        Field(description="Values of RC resistance at specified SOCs. Units: Ohm")
+    c_base_values: Union[float, List] = \
+        Field(description="Values of RC capacitance at specified SOCs. Units: F")
+    r_soc_pinpoints: Optional[List] = \
+        Field(default=[], description='SOC pinpoints for R interpolation.')
+    c_soc_pinpoints: Optional[List] = \
+        Field(default=[], description='SOC pinpoints for C interpolation.')
+    r_interpolation_style: \
+        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
+                'quadratic', 'cubic', 'previous', 'next'] = \
+        Field(default='linear',
+              description='Type of interpolation to perform on resistive element')
+    c_interpolation_style: \
+        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
+                'quadratic', 'cubic', 'previous', 'next'] = \
+        Field(default='linear',
+              description='Type of interpolation to perform on capacitive element')
+    r_reference_temperature: Optional[float] = \
+        Field(default=25,
+              description='Reference temperature for resistive parameters. Units: °C')
+    temperature_dependence_factor: Optional[float] = \
+        Field(default=0,
+              description='Exponential R temperature dependence factor. Units: 1/°C')
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=('r_base_values', 'c_base_values',),
+              description='Define updatable parameters (if any)')
+
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Removing 'base_values' field inherited from HealthVariable
+        """
+        del self.model_fields['base_values']
+        delattr(self, 'base_values')
+        return super().model_post_init(__context)
+
+
 class ECM_ASOH(AdvancedStateOfHealth):
     pass
 
