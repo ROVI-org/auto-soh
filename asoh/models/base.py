@@ -83,14 +83,18 @@ class HiddenVector(GeneralContainer,
         return np.hstack(transient_state)
 
 
-class HealthParameter(BaseModel,
-                      arbitrary_types_allowed=True,
-                      validate_assignment=True):
+class HealthVariable(BaseModel,
+                     arbitrary_types_allowed=True,
+                     validate_assignment=True):
     """
     Base definition for a health parameter, such as Q_total, R_0, etc.
     """
     @abstractmethod
-    def to_numpy(self) -> np.ndarray:
+    def get_updatable_parameters(self) -> List:
+        """
+        Function to obtain parameters used internally for health variable
+        definition
+        """
         pass
 
 
@@ -100,12 +104,11 @@ class AdvancedStateOfHealth(GeneralContainer,
     """
     Holds the collection of HealthParameters that defines the A-SOH.
     """
-    def to_numpy(self,
-                 additional_health: tuple[str, ...] = ()) -> np.ndarray:
-        asoh = np.array([])
+    def updatable_parameters(self) -> np.ndarray:
+        asoh = []
         for health_param in self.names:
-            asoh = np.hstack((asoh, getattr(self, health_param).to_numpy()))
-        return asoh
+            asoh += getattr(self, health_param).get_updatable_parameters()
+        return np.array(asoh)
 
 
 class JointState(BaseModel,
