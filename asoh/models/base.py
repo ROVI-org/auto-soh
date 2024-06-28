@@ -144,9 +144,7 @@ class HealthVariable(BaseModel,
 
         for internal_param in self.updatable:
             param = getattr(self, internal_param)
-            if isinstance(param, HealthVariable):
-                all_params += param.get_updatable_parameter_values()
-            elif isinstance(param, Sized):
+            if isinstance(param, Sized):
                 all_params += list(param)
             elif isinstance(param, Number):
                 all_params.append(param)
@@ -164,10 +162,7 @@ class HealthVariable(BaseModel,
             msg += '! Skipping this one...'
             warn(warn)
             return
-        if isinstance(getattr(self, parameter_name), HealthVariable):
-            getattr(self, parameter_name).update(new_values=new_value)
-        else:
-            setattr(self, parameter_name, new_value)
+        setattr(self, parameter_name, new_value)
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def update(self,
@@ -186,13 +181,6 @@ class HealthVariable(BaseModel,
             for param_name in parameters:
                 self._update_single_param(parameter_name=param_name,
                                           new_value=new_values)
-                # if param_name in self.updatable:
-                #     setattr(self, param_name, new_values)
-                # else:
-                #     msg = 'Attempted to set \'' + param_name + '\', but '
-                #     msg += 'updatable parameters are ' + str(self.updatable)
-                #     msg += '! Skipping this one...'
-                #     warn(msg)
             return
         # Set index counter to determine where we need to read things from
         begin_id = 0
@@ -202,7 +190,6 @@ class HealthVariable(BaseModel,
                 end_id = begin_id + param_len
                 self._update_single_param(parameter_name=param_name,
                                           new_value=new_values[begin_id:end_id])
-                # setattr(self, param_name, new_values[begin_id:end_id])
                 begin_id = end_id
             else:
                 msg = 'Attempted to set \'' + param_name + '\', but '
