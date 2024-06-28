@@ -2,11 +2,13 @@ from typing import Any, Dict, List, Optional, Union, Literal, Callable
 import numpy as np
 from pydantic import Field, computed_field, validate_call, ConfigDict
 from pydantic.fields import FieldInfo
-from pydantic.json_schema import SkipJsonSchema
 from scipy.interpolate import interp1d
 
-from .base import InputQuantities, OutputMeasurements, HealthVariable
-from .base import AdvancedStateOfHealth
+from .base import (InputQuantities,
+                   OutputMeasurements,
+                   HealthVariable,
+                   HealthVariableCollection,
+                   AdvancedStateOfHealth)
 
 
 ################################################################################
@@ -161,7 +163,7 @@ class Capacitance(HealthVariable):
         return self._interp_func(soc)
 
 
-class RCComponent(HealthVariable, extra='forbid'):
+class RCComponent(HealthVariableCollection, extra='forbid'):
     """
     Defines a RC component of the ECM
     """
@@ -170,9 +172,6 @@ class RCComponent(HealthVariable, extra='forbid'):
     updatable: Union[Literal[False], tuple[str, ...]] = \
         Field(default=('R', 'C',),
               description='Define updatable parameters (if any)')
-    base_values: SkipJsonSchema[Union[float, List]] = \
-        Field(default=0,
-              description='Values used to parametrize health metric.')
 
     # TODO (vventuri): consider removing base_values from HealthVariable
     def model_post_init(self, __context: Any) -> None:

@@ -2,12 +2,13 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union, Optional, Literal, Sized, List
+from typing import Union, Optional, Literal, Sized, Any, List
 from abc import abstractmethod
 from warnings import warn
 import numpy as np
 from numbers import Number
 from pydantic import BaseModel, Field, computed_field, validate_call, ConfigDict
+from pydantic.json_schema import SkipJsonSchema
 
 
 class GeneralContainer(BaseModel):
@@ -208,6 +209,59 @@ class HealthVariable(BaseModel,
                 msg += 'updatable parameters are ' + str(self.updatable)
                 msg += '!'
                 raise ValueError(msg)
+
+
+class HealthVariableCollection(HealthVariable,
+                               arbitrary_types_allowed=True,
+                               validate_assignment=True):
+    """
+    Class that contains a collection of HealthVariables.
+    NOTE: Everything in this class (other than 'updatable') MUST be a
+        HealthVariable
+    """
+    base_values: SkipJsonSchema[Union[float, List]] = \
+        Field(default=0,
+              description='Values used to parametrize health metric.')
+
+    # TODO (vventuri): consider removing base_values from HealthVariable
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Removing 'base_values' field inherited from HealthVariable
+        """
+        try:
+            del self.model_fields['base_values']
+            delattr(self, 'base_values')
+        except KeyError:
+            pass
+        return super().model_post_init(__context)
+
+    def get_updatable_parameter_values(self) -> List:
+        """
+        Function to obtain parameters used internally for definition of stored
+        health variables
+        """
+        all_params = []
+        if not self.updatable:
+            return all_params
+
+        for internal_param in self.updatable:
+            param = getattr(self, internal_param)
+            all_params += param.get_updatable_parameter_values()
+        return all_params
+
+    def _update_single_param(self,
+                             parameter_name: str,
+                             new_value: Union[float, List, np.ndarray]) -> None:
+        """
+        Helper function to update a single parameter
+        """
+        if parameter_name not in self.updatable:
+            msg = 'Attempted to set \'' + parameter_name + '\', but '
+            msg += 'updatable parameters are ' + str(self.updatable)
+            msg += '! Skipping this one...'
+            warn(warn)
+            return
+        getattr(self, parameter_name).update(new_values=new_value)
 
 
 class AdvancedStateOfHealth(GeneralContainer,
