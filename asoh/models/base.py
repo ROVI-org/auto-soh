@@ -140,10 +140,7 @@ class HealthVariable(BaseModel,
 
         for internal_param in self.updatable:
             param = getattr(self, internal_param)
-            get_updatable_func = getattr(param,
-                                         'get_updatable_parameter_values',
-                                         None)
-            if callable(get_updatable_func):
+            if isinstance(param, HealthVariable):
                 all_params += param.get_updatable_parameter_values()
             elif isinstance(param, Sized):
                 all_params += list(param)
@@ -163,8 +160,7 @@ class HealthVariable(BaseModel,
             msg += '! Skipping this one...'
             warn(warn)
             return
-        update_func = getattr(getattr(self, parameter_name), 'update', None)
-        if callable(update_func):
+        if isinstance(getattr(self, parameter_name), HealthVariable):
             getattr(self, parameter_name).update(new_values=new_value)
         else:
             setattr(self, parameter_name, new_value)
