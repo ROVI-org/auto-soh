@@ -2,13 +2,14 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union, Optional, Literal, Sized, Any, List
+from typing import Union, Optional, Literal, Sized, Any, List, Dict
 from abc import abstractmethod
 from warnings import warn
 import numpy as np
 from numbers import Number
 from pydantic import BaseModel, Field, computed_field, validate_call, ConfigDict
 from pydantic.json_schema import SkipJsonSchema
+from pydantic.fields import FieldInfo
 
 
 class GeneralContainer(BaseModel):
@@ -160,7 +161,7 @@ class HealthVariable(BaseModel,
             msg = 'Attempted to set \'' + parameter_name + '\', but '
             msg += 'updatable parameters are ' + str(self.updatable)
             msg += '! Skipping this one...'
-            warn(warn)
+            warn(msg)
             return
         setattr(self, parameter_name, new_value)
 
@@ -203,7 +204,7 @@ class HealthVariableCollection(HealthVariable,
                                validate_assignment=True):
     """
     Class that contains a collection of HealthVariables.
-    NOTE: Everything in this class (other than 'updatable') MUST be a
+    NOTE: Everything in this class listed in 'updatable' MUST be a
         HealthVariable
     """
     base_values: SkipJsonSchema[Union[float, List]] = \
@@ -246,9 +247,79 @@ class HealthVariableCollection(HealthVariable,
             msg = 'Attempted to set \'' + parameter_name + '\', but '
             msg += 'updatable parameters are ' + str(self.updatable)
             msg += '! Skipping this one...'
-            warn(warn)
+            warn(msg)
             return
         getattr(self, parameter_name).update(new_values=new_value)
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def add_health_variable(self,
+                            variable: Union[HealthVariable, float, List],
+                            name: Union[str, None] = None) -> None:
+        """
+        Method to add new HealthVariables to the collection.
+        Heavily inspired by discussion vv below vv:
+        https://github.com/pydantic/pydantic/issues/1937#issuecomment-1916448359
+        """
+        if name is None:
+            try:
+                name = variable.name
+            except AttributeError as AttErr:
+                raise Exception('Attribute \'name\' could not be found in '
+                                'new \'variable\', so it must be passed '
+                                'explicitly!') from AttErr
+        already_set = getattr(self, name, None)
+        if already_set is not None:
+            msg = 'Attribute \'' + name + '\' has already been set! '
+            msg += 'Please use a different name.'
+            raise ValueError(msg)
+
+        new_field: Dict[str, FieldInfo] = {}
+        new_annotation: Dict[str, Optional[type]] = {}
+        if isinstance(variable, HealthVariable):
+            if variable.updatable:
+                self.updatable += (name,)
+            var_annotation = type(variable)
+            new_annotation[name] = var_annotation
+            new_field[name] = FieldInfo(annotation=var_annotation)
+        else:
+            self.updatable += (name,)
+            variable = HealthVariable(base_values=variable)
+        self.model_fields.update(new_field)
+        self.__annotations__.update(new_annotation)
+        self.model_rebuild(force=True)
+        setattr(self, name, variable)
+
+    def _add_fields(cls, **field_definitions: Any):
+        """
+        General method to add fields.
+        Source: https://github.com/pydantic/pydantic/issues/1937#issuecomment-1916448359
+        """
+        new_fields: Dict[str, FieldInfo] = {}
+        new_annotations: Dict[str, Optional[type]] = {}
+
+        for f_name, f_def in field_definitions.items():
+            if isinstance(f_def, tuple):
+                try:
+                    f_annotation, f_value = f_def
+                except ValueError as e:
+                    raise Exception(
+                        'field definitions should either be a tuple of (<type>, <default>) or just a '
+                        'default value, unfortunately this means tuples as '
+                        'default values are not allowed'
+                    ) from e
+            else:
+                f_annotation, f_value = type(f_def), f_def
+
+            if f_annotation:
+                new_annotations[f_name] = f_annotation
+
+            new_fields[f_name] = FieldInfo(annotation=f_annotation,
+                                           default=f_value)
+
+        cls.model_fields.update(new_fields)
+        cls.__annotations__.update(new_annotations)
+        cls.model_rebuild(force=True)
+        setattr(cls, f_name, f_value)
 
 
 class AdvancedStateOfHealth(HealthVariableCollection,

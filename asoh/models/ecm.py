@@ -163,7 +163,7 @@ class Capacitance(HealthVariable):
         return self._interp_func(soc)
 
 
-class RCComponent(HealthVariableCollection, extra='forbid'):
+class RCComponent(HealthVariableCollection):  # , extra='forbid'):
     """
     Defines a RC component of the ECM
     """
@@ -177,16 +177,16 @@ class RCComponent(HealthVariableCollection, extra='forbid'):
     def value(self,
               soc: Union[float, List, np.ndarray],
               temp: Union[float, List, np.ndarray, None] = None
-              ) -> tuple[Union[float, np.ndarray], Union[float, np.ndarray]]:
+              ) -> List[Union[float, np.ndarray]]:
         """
         Returns values of resistance and capacitance at given SOC and temperature.
         """
         r_val = self.R.value(soc=soc, temp=temp)
         c_val = self.C.value(soc=soc)
-        return r_val, c_val
+        return [r_val, c_val]
 
 
-class ECM_ASOH(AdvancedStateOfHealth):
+class ECMASOH(AdvancedStateOfHealth):
     pass
 
     def add_fields(cls, **field_definitions: Any):
