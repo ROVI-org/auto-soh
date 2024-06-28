@@ -284,6 +284,8 @@ class HealthVariableCollection(HealthVariable,
         else:
             self.updatable += (name,)
             variable = HealthVariable(base_values=variable)
+            new_annotation[name] = HealthVariable
+            new_field[name] = FieldInfo(annotation=HealthVariable)
         self.model_fields.update(new_field)
         self.__annotations__.update(new_annotation)
         self.model_rebuild(force=True)
