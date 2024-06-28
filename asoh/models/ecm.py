@@ -100,6 +100,7 @@ class Resistance(HealthVariable):
                         fill_value='extrapolate')
         return func
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
               soc: Union[float, List, np.ndarray],
               temp: Union[float, List, np.ndarray, None] = None
@@ -148,6 +149,7 @@ class Capacitance(HealthVariable):
                         fill_value='extrapolate')
         return func
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
               soc: Union[float, List, np.ndarray]
               ) -> Union[float, np.ndarray]:
@@ -177,15 +179,18 @@ class RCComponent(HealthVariable):
         """
         Removing 'base_values' field inherited from HealthVariable
         """
-        del self.model_fields['base_values']
-        delattr(self, 'base_values')
+        try:
+            del self.model_fields['base_values']
+            delattr(self, 'base_values')
+        except KeyError:
+            pass
         return super().model_post_init(__context)
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
               soc: Union[float, List, np.ndarray],
               temp: Union[float, List, np.ndarray, None] = None
-              ) -> Union[float, np.ndarray]:
+              ) -> tuple[Union[float, np.ndarray], Union[float, np.ndarray]]:
         """
         Returns values of resistance and capacitance at given SOC and temperature.
         """
