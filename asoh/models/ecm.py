@@ -173,18 +173,6 @@ class RCComponent(HealthVariableCollection, extra='forbid'):
         Field(default=('R', 'C',),
               description='Define updatable parameters (if any)')
 
-    # TODO (vventuri): consider removing base_values from HealthVariable
-    def model_post_init(self, __context: Any) -> None:
-        """
-        Removing 'base_values' field inherited from HealthVariable
-        """
-        try:
-            del self.model_fields['base_values']
-            delattr(self, 'base_values')
-        except KeyError:
-            pass
-        return super().model_post_init(__context)
-
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
               soc: Union[float, List, np.ndarray],

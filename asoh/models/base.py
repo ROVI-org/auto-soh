@@ -251,17 +251,13 @@ class HealthVariableCollection(HealthVariable,
         getattr(self, parameter_name).update(new_values=new_value)
 
 
-class AdvancedStateOfHealth(GeneralContainer,
+class AdvancedStateOfHealth(HealthVariableCollection,
                             arbitrary_types_allowed=True,
                             validate_assignment=True):
     """
     Holds the collection of HealthParameters that defines the A-SOH.
     """
-    def updatable_parameter_values(self) -> np.ndarray:
-        asoh = []
-        for health_param in self.names:
-            asoh += getattr(self, health_param).get_updatable_parameter_values()
-        return np.array(asoh)
+    pass
 
 
 class JointState(BaseModel,
