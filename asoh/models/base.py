@@ -146,6 +146,24 @@ class HealthVariable(BaseModel,
                 all_params.append(param)
         return all_params
 
+    def _update_single_param(self,
+                             parameter_name: str,
+                             new_value: Union[float, List, np.ndarray]) -> None:
+        """
+        Helper function to update a single parameter
+        """
+        if parameter_name not in self.updatable:
+            msg = 'Attempted to set \'' + parameter_name + '\', but '
+            msg += 'updatable parameters are ' + str(self.updatable)
+            msg += '! Skipping this one...'
+            warn(warn)
+            return
+        update_func = getattr(getattr(self, parameter_name), 'update', None)
+        if callable(update_func):
+            getattr(self, parameter_name).update(new_values=new_value)
+        else:
+            setattr(self, parameter_name, new_value)
+
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def update(self,
                new_values: Union[float, List, np.ndarray],
@@ -161,13 +179,15 @@ class HealthVariable(BaseModel,
             parameters = self.updatable
         if isinstance(new_values, float):
             for param_name in parameters:
-                if param_name in self.updatable:
-                    setattr(self, param_name, new_values)
-                else:
-                    msg = 'Attempted to set \'' + param_name + '\', but '
-                    msg += 'updatable parameters are ' + str(self.updatable)
-                    msg += '! Skipping this one...'
-                    warn(msg)
+                self._update_single_param(parameter_name=param_name,
+                                          new_value=new_values)
+                # if param_name in self.updatable:
+                #     setattr(self, param_name, new_values)
+                # else:
+                #     msg = 'Attempted to set \'' + param_name + '\', but '
+                #     msg += 'updatable parameters are ' + str(self.updatable)
+                #     msg += '! Skipping this one...'
+                #     warn(msg)
             return
         # Set index counter to determine where we need to read things from
         begin_id = 0
@@ -175,7 +195,9 @@ class HealthVariable(BaseModel,
             if param_name in self.updatable:
                 param_len = self._get_internal_len(param_name)
                 end_id = begin_id + param_len
-                setattr(self, param_name, new_values[begin_id:end_id])
+                self._update_single_param(parameter_name=param_name,
+                                          new_value=new_values[begin_id:end_id])
+                # setattr(self, param_name, new_values[begin_id:end_id])
                 begin_id = end_id
             else:
                 msg = 'Attempted to set \'' + param_name + '\', but '
