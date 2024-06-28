@@ -5,8 +5,8 @@ and the mathematical model which links state, control, and outputs together."""
 from typing import Union, Optional, Literal, Sized, List
 from abc import abstractmethod
 from warnings import warn
-
 import numpy as np
+from numbers import Number
 from pydantic import BaseModel, Field, computed_field, validate_call, ConfigDict
 
 
@@ -125,9 +125,9 @@ class HealthVariable(BaseModel,
         """
         return self.updatable_len
 
-    # TODO (vventuri): we should write a validator for the updatable field, to
-    #                   make sure the parameters listed are all numbers.Number
-    #                   or iterables composed of numbers.Number-s
+    # TODO (vventuri): we must write a validator for the updatable field to make
+    #                   sure the parameters listed are all numbers.Number or 
+    #                   iterables composed of numbers.Number-s. 
 
     def get_updatable_parameter_values(self) -> List:
         """
@@ -140,9 +140,14 @@ class HealthVariable(BaseModel,
 
         for internal_param in self.updatable:
             param = getattr(self, internal_param)
-            if isinstance(param, Sized):
+            get_updatable_func = getattr(param,
+                                         'get_updatable_parameter_values',
+                                         None)
+            if callable(get_updatable_func):
+                all_params += param.get_updatable_parameter_values()
+            elif isinstance(param, Sized):
                 all_params += list(param)
-            else:
+            elif isinstance(param, Number):
                 all_params.append(param)
         return all_params
 
