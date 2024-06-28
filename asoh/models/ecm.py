@@ -1,7 +1,8 @@
 from typing import Any, Dict, List, Optional, Union, Literal, Callable
 import numpy as np
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, validate_call, ConfigDict
 from pydantic.fields import FieldInfo
+from pydantic.json_schema import SkipJsonSchema
 from scipy.interpolate import interp1d
 
 from .base import InputQuantities, OutputMeasurements, HealthVariable
@@ -151,7 +152,7 @@ class Capacitance(HealthVariable):
               soc: Union[float, List, np.ndarray]
               ) -> Union[float, np.ndarray]:
         """
-        Computes value of series capacitance at given SOC
+        Computes value of capacitance at given SOC
         """
         if isinstance(self.base_values, float):
             return self.base_values
@@ -162,33 +163,14 @@ class RCComponent(HealthVariable):
     """
     Defines a RC component of the ECM
     """
-    r_base_values: Union[float, List] = \
-        Field(description="Values of RC resistance at specified SOCs. Units: Ohm")
-    c_base_values: Union[float, List] = \
-        Field(description="Values of RC capacitance at specified SOCs. Units: F")
-    r_soc_pinpoints: Optional[List] = \
-        Field(default=[], description='SOC pinpoints for R interpolation.')
-    c_soc_pinpoints: Optional[List] = \
-        Field(default=[], description='SOC pinpoints for C interpolation.')
-    r_interpolation_style: \
-        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-                'quadratic', 'cubic', 'previous', 'next'] = \
-        Field(default='linear',
-              description='Type of interpolation to perform on resistive element')
-    c_interpolation_style: \
-        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-                'quadratic', 'cubic', 'previous', 'next'] = \
-        Field(default='linear',
-              description='Type of interpolation to perform on capacitive element')
-    r_reference_temperature: Optional[float] = \
-        Field(default=25,
-              description='Reference temperature for resistive parameters. Units: °C')
-    r_temperature_dependence_factor: Optional[float] = \
-        Field(default=0,
-              description='Exponential R temperature dependence factor. Units: 1/°C')
+    R: Resistance = Field(description='Resistive element of RC component')
+    C: Capacitance = Field(description='Capacitive element of RC component')
     updatable: Union[Literal[False], tuple[str, ...]] = \
-        Field(default=('r_base_values', 'c_base_values',),
+        Field(default=('R', 'C',),
               description='Define updatable parameters (if any)')
+    base_values: SkipJsonSchema[Union[float, List]] = \
+        Field(default=0,
+              description='Values used to parametrize health metric.')
 
     # TODO (vventuri): consider removing base_values from HealthVariable
     def model_post_init(self, __context: Any) -> None:
@@ -198,6 +180,18 @@ class RCComponent(HealthVariable):
         del self.model_fields['base_values']
         delattr(self, 'base_values')
         return super().model_post_init(__context)
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def value(self,
+              soc: Union[float, List, np.ndarray],
+              temp: Union[float, List, np.ndarray, None] = None
+              ) -> Union[float, np.ndarray]:
+        """
+        Returns values of resistance and capacitance at given SOC and temperature.
+        """
+        r_val = self.R.value(soc=soc, temp=temp)
+        c_val = self.C.value(soc=soc)
+        return r_val, c_val
 
 
 class ECM_ASOH(AdvancedStateOfHealth):
