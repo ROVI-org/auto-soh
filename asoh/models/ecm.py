@@ -161,7 +161,7 @@ class Capacitance(HealthVariable):
         return self._interp_func(soc)
 
 
-class RCComponent(HealthVariable):
+class RCComponent(HealthVariable, extra='forbid'):
     """
     Defines a RC component of the ECM
     """

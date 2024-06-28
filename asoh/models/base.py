@@ -126,8 +126,11 @@ class HealthVariable(BaseModel,
         return self.updatable_len
 
     # TODO (vventuri): we must write a validator for the updatable field to make
-    #                   sure the parameters listed are all numbers.Number or 
-    #                   iterables composed of numbers.Number-s. 
+    #                   sure the parameters listed are all numbers.Number or
+    #                   iterables composed of numbers.Number-s.
+    # TODO 2 (vventuri): maybe this doesn't make sense anymore, seeing as we now
+    #                   have HealthVariable children whose updatable parameters
+    #                   are other HealthVariable children
 
     def get_updatable_parameter_values(self) -> List:
         """
