@@ -2,7 +2,8 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 
-from typing import Union, Optional, Literal, Sized, Any, List, Dict
+from typing import Union, Optional, Literal, Sized, Iterable, Any, List, Dict
+from copy import deepcopy
 from abc import abstractmethod
 from warnings import warn
 import numpy as np
@@ -168,7 +169,7 @@ class HealthVariable(BaseModel,
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def update(self,
                new_values: Union[float, List, np.ndarray],
-               parameters: Union[tuple[str, ...], None] = None) -> None:
+               parameters: Union[tuple[str, ...], str, None] = None) -> None:
         """
         Method used to update updatable internal parameters with a new set of
         provided values.
@@ -178,6 +179,10 @@ class HealthVariable(BaseModel,
             return
         if parameters is None:
             parameters = self.updatable
+        if isinstance(parameters, str):
+            self._update_single_param(parameter_name=parameters,
+                                      new_value=new_values)
+            return
         if isinstance(new_values, float):
             for param_name in parameters:
                 self._update_single_param(parameter_name=param_name,
@@ -291,37 +296,30 @@ class HealthVariableCollection(HealthVariable,
         self.model_rebuild(force=True)
         setattr(self, name, variable)
 
-    def _add_fields(cls, **field_definitions: Any):
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def __add__(self,
+                variable: Union[HealthVariable, Iterable[HealthVariable]]
+                ):
         """
-        General method to add fields.
-        Source: https://github.com/pydantic/pydantic/issues/1937#issuecomment-1916448359
+        Overloading addition operator ('+') so this can be treated like a python
+        list
         """
-        new_fields: Dict[str, FieldInfo] = {}
-        new_annotations: Dict[str, Optional[type]] = {}
+        new_collection = deepcopy(self)
+        new_collection += variable
+        return new_collection
 
-        for f_name, f_def in field_definitions.items():
-            if isinstance(f_def, tuple):
-                try:
-                    f_annotation, f_value = f_def
-                except ValueError as e:
-                    raise Exception(
-                        'field definitions should either be a tuple of (<type>, <default>) or just a '
-                        'default value, unfortunately this means tuples as '
-                        'default values are not allowed'
-                    ) from e
-            else:
-                f_annotation, f_value = type(f_def), f_def
-
-            if f_annotation:
-                new_annotations[f_name] = f_annotation
-
-            new_fields[f_name] = FieldInfo(annotation=f_annotation,
-                                           default=f_value)
-
-        cls.model_fields.update(new_fields)
-        cls.__annotations__.update(new_annotations)
-        cls.model_rebuild(force=True)
-        setattr(cls, f_name, f_value)
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def __iadd__(self,
+                 variable: Union[HealthVariable, Iterable[HealthVariable]]):
+        """
+        Overloading '+=' operator
+        """
+        if isinstance(variable, HealthVariable):
+            self.add_health_variable(variable=variable)
+        elif isinstance(variable, Iterable):
+            for HV in variable:
+                self.add_health_variable(variable=HV)
+        return self
 
 
 class AdvancedStateOfHealth(HealthVariableCollection,
