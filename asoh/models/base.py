@@ -226,6 +226,17 @@ class HealthVariableCollection(HealthVariable,
             delattr(self, 'base_values')
         except KeyError:
             pass
+        # Now, remove all fields that are set to None
+        fields_to_remove = []
+        for field_name in self.model_fields.keys():
+            if getattr(self, field_name) is None:
+                fields_to_remove.append(field_name)
+        for bad_field in fields_to_remove:
+            msg = 'Field ' + bad_field + ' was set to None, so it is being'
+            msg += ' removed.'
+            del self.model_fields[bad_field]
+            delattr(self, bad_field)
+            warn(msg)
         return super().model_post_init(__context)
 
     def get_updatable_parameter_values(self) -> List:
