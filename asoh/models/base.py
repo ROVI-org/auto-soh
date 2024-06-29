@@ -209,7 +209,7 @@ class HealthVariableCollection(HealthVariable,
                                validate_assignment=True):
     """
     Class that contains a collection of HealthVariables.
-    NOTE: Everything in this class listed in 'updatable' MUST be a
+    NOTE: Everything in this class other than 'updatable' MUST be a
         HealthVariable
     """
     base_values: SkipJsonSchema[Union[float, List]] = \
@@ -284,13 +284,15 @@ class HealthVariableCollection(HealthVariable,
             if variable.updatable:
                 self.updatable += (name,)
             var_annotation = type(variable)
-            new_annotation[name] = var_annotation
-            new_field[name] = FieldInfo(annotation=var_annotation)
+            new_annotation[name] = Optional[var_annotation]
+            new_field[name] = FieldInfo(annotation=var_annotation,
+                                        default=None)
         else:
             self.updatable += (name,)
             variable = HealthVariable(base_values=variable)
-            new_annotation[name] = HealthVariable
-            new_field[name] = FieldInfo(annotation=HealthVariable)
+            new_annotation[name] = Optional[HealthVariable]
+            new_field[name] = FieldInfo(annotation=Optional[HealthVariable],
+                                        default=None)
         self.model_fields.update(new_field)
         self.__annotations__.update(new_annotation)
         self.model_rebuild(force=True)
@@ -308,13 +310,19 @@ class HealthVariableCollection(HealthVariable,
         new_collection += variable
         return new_collection
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __iadd__(self,
                  variable: Union[HealthVariable, Iterable[HealthVariable]]):
         """
         Overloading '+=' operator
         """
-        if isinstance(variable, HealthVariable):
+        if isinstance(variable, HealthVariableCollection):
+            for hv_name in variable.model_fields.keys():
+                if hv_name != 'updatable':
+                    self.add_health_variable(
+                        variable=getattr(variable, hv_name),
+                        name=hv_name)
+        elif isinstance(variable, HealthVariable):
             self.add_health_variable(variable=variable)
         elif isinstance(variable, Iterable):
             for HV in variable:
