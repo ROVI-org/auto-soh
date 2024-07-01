@@ -165,6 +165,18 @@ class Capacitance(HealthVariable):
         return self._interp_func(soc)
 
 
+class SeriesResistance(Resistance):
+    name: Literal['R0'] = Field(default='R0',
+                                description='Name',
+                                allow_mutation=False)
+
+
+class SeriesCapacitance(Capacitance):
+    name: Literal['C0'] = Field(default='C0',
+                                description='Name',
+                                allow_mutation=False)
+
+
 class RCComponent(HealthVariableCollection):  # , extra='forbid'):
     """
     Defines a RC component of the ECM
@@ -174,6 +186,7 @@ class RCComponent(HealthVariableCollection):  # , extra='forbid'):
     updatable: Union[Literal[False], tuple[str, ...]] = \
         Field(default=('R', 'C',),
               description='Define updatable parameters (if any)')
+    name: Optional[str] = Field(default='RC', description='Name')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
