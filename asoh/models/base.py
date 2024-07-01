@@ -37,7 +37,7 @@ class InputQuantities(GeneralContainer,
     current: float = Field(
         description='Current(s) applied to the storage system. Units: A')
     temperature: Optional[float] = \
-        Field(default='Not provided!',
+        Field(default=None,
               description='Temperature reading(s). Units: °C')
 
     def to_numpy(self,
@@ -52,7 +52,7 @@ class InputQuantities(GeneralContainer,
         for field in self.names:
             value = getattr(self, field)
             # since default for temperature is a string, we can hack it out
-            if not isinstance(value, str):
+            if value is not None:
                 combined.append(value)
         combined += [getattr(self, add_in) for add_in in additional_inputs]
 
