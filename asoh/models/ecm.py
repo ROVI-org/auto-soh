@@ -164,7 +164,7 @@ class SeriesCapacitance(Capacitance):
                                 allow_mutation=False)
 
 
-class RCComponent(HealthVariableCollection):  # , extra='forbid'):
+class RCComponent(HealthVariableCollection):
     """
     Defines a RC component of the ECM
     """
@@ -188,19 +188,49 @@ class RCComponent(HealthVariableCollection):  # , extra='forbid'):
         return [r_val, c_val]
 
 
-class OpenCircuitVoltage(HealthVariable):
+class ReferenceOCV(InterpolatedHealth):
     base_values: Union[float, List] = \
         Field(
-            description='Values of OCV at specified SOCs. Units: V')
-    soc_pinpoints: Optional[List] = \
-        Field(default=[], description='SOC pinpoints for interpolation.')
-    interpolation_style: \
-        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-                'quadratic', 'cubic', 'previous', 'next'] = \
-        Field(default='linear', description='Type of interpolation to perform')
+            description='Values of reference OCV at specified SOCs. Units: V')
+    reference_temperature: float = \
+        Field(default=25,
+              description='Reference temperature for OCV0. Units: °C')
+    name: Literal['OCV0'] = Field(default='OCV0', allow_mutation=False)
+
+
+class EntropicOCV(InterpolatedHealth):
+    base_values: Union[float, List] = \
+        Field(
+            default=0,
+            description='Values of entropic OCV term at specified SOCs. Units: V/°C')
+    name: Literal['OCVentropic'] = Field(default='OCVentropic',
+                                         allow_mutation=False)
+
+
+class OpenCircuitVoltage(HealthVariableCollection):
+    OCV0: ReferenceOCV = \
+        Field(description='Reference OCV at specified temperature')
+    OCVentropic: EntropicOCV = \
+        Field(description='Entropic OCV to determine temperature dependence')
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=False,
+              description='Define updatable parameters (if any)')
     name: Literal['OCV'] = Field(default='OCV',
-                                 description='Name',
                                  allow_mutation=False)
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def value(self,
+              soc: Union[float, List, np.ndarray],
+              temp: Union[float, List, np.ndarray, None] = None
+              ) -> Union[float, np.ndarray]:
+        """
+        Returns values of OCV at given SOC(s) and temperature(s).
+        """
+        T_ref = self.OCV0.reference_temperature
+        delta_T = temp - T_ref
+        ocv = self.OCV0.value(soc=soc)
+        ocv += delta_T * self.OCVentropic.value(soc=soc)
+        return ocv
 
 
 class ECMASOH(AdvancedStateOfHealth):
