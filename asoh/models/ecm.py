@@ -1,4 +1,6 @@
-from typing import List, Optional, Union, Literal, Callable
+from warnings import warn
+from numbers import Number
+from typing import List, Optional, Union, Literal, Callable, Sized
 import numpy as np
 from pydantic import Field, computed_field, validate_call, ConfigDict
 from scipy.interpolate import interp1d
@@ -248,6 +250,9 @@ class HysteresisParameters(InterpolatedHealth):
     gamma: float = Field(default=0.,
                          description='Exponential approach rate. Units: 1/V',
                          ge=0.)
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=('base_values', 'gamma'),
+              description='Define updatable parameters (if any)')
 
 
 class ECMASOH(AdvancedStateOfHealth):
@@ -318,6 +323,109 @@ class EquivalentCircuitModel(HealthModel):
         self.asoh = ASOH
         # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
         self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def provide_hidden_template(self,
+                                soc: float = 0.0,
+                                temp: Union[float, None] = None,
+                                capacitive_overpotential:
+                                    Union[float, None] = None,
+                                RC_overpotentials:
+                                    Union[float, List[float], None] = None,
+                                hysteresis: float = 0.0,
+                                num_copies: int = 1
+                                ) -> Union[ECMHiddenVector,
+                                           List[ECMHiddenVector]]:
+        """
+        Function to provide copies ECMHiddenVector specific to this ECM
+
+        Arguments
+        ---------
+        soc: float = 0.0
+            Value of SOC to be used.
+            Defaults to 0.0
+        temp: Union[float, None] = None
+            Value of temperature in °C to be used for computing values of
+            electrical properties.
+            Defaults to None
+        capacitive_overpotential: Union[float, None] = None
+            Potential across series capacitor.
+            Defaults to None
+        RC_overpotentials: Union[float, List[float], None] = None
+            Value(s) of potential difference accross RC components.
+            Defaults to None
+        hysteresis: float = 0.0
+            Value of hysteresis voltage in Volts.
+            Defaults to 0.0
+        num_copies: int = 1
+            Number of copies of a hidden state to provide. Copies can be helpful
+            in case we want to evolve the system differently.
+            Defaults to 1
+
+        Outputs
+        -------
+        hidden: Union[ECMHiddenVector, List[ECMHiddenVector]]
+            Either a single instance of ECMHiddenVector, in case num_copies==1,
+            or a list of num_copies copies of the ECMHiddenVector
+        """
+        # Dealing with q0 first
+        if capacitive_overpotential is not None and self.num_C0 == 0:
+            msg = 'No series capacitors found, so capacitive overpotential '
+            msg += 'will be ignored!'
+            warn(msg)
+            q0 = []
+        else:
+            try:
+                capacitance = self.asoh.C0.value(soc=soc)
+            except AttributeError as AttrErr:
+                raise ValueError('Remember to include C0 field in A-SOH!') \
+                    from AttrErr
+            q0 = capacitance * capacitive_overpotential
+
+        # Now, dealing with i_rc
+        i_rc = []
+        if RC_overpotentials is not None and self.num_RC == 0:
+            msg = 'No RC elements found, so RC overpotential(s) '
+            msg += 'will be ignored!'
+            warn(msg)
+        else:
+            if isinstance(RC_overpotentials, Sized):
+                if len(RC_overpotentials) != self.num_RC:
+                    raise ValueError('Mismatch between number of RC '
+                                     'overpotentials provided (' +
+                                     str(len(RC_overpotentials)) + ') and '
+                                     'number of RC elements set (' +
+                                     str(self.num_RC) + ')!')
+                for i, RC_dV in enumerate(RC_overpotentials):
+                    RC_name = 'RC_%d' % (i + 1)
+                    try:
+                        RC_resistor = getattr(self.asoh, RC_name).R
+                    except AttributeError as AttrErr:
+                        raise ValueError('Missing \'' + RC_name + '\' from '
+                                         'ASOH!') from AttrErr
+                    resistance = RC_resistor.value(soc=soc, temp=temp)
+                    i_rc.append(RC_dV / resistance)
+            elif isinstance(RC_overpotentials, Number):
+                for i in range(self.num_RC):
+                    RC_name = 'RC_%d' % (i + 1)
+                    try:
+                        RC_resistor = getattr(self.asoh, RC_name).R
+                    except AttributeError as AttrErr:
+                        raise ValueError('Missing \'' + RC_name + '\' from '
+                                         'ASOH!') from AttrErr
+                    resistance = RC_resistor.value(soc=soc, temp=temp)
+                    i_rc.append(RC_overpotentials / resistance)
+
+        # Now, we can build the hidden vector
+        hidden = ECMHiddenVector(soc=soc, q0=q0, i_rc=i_rc, hyst=hysteresis)
+        # Sanity check
+        if len(hidden) != self.len_hidden:
+            raise ValueError('Mismatch between expected and real length of '
+                             'hidden vector for this ECM!')
+
+        if num_copies == 1:
+            return hidden.model_copy()
+        return [hidden.model_copy() for _ in range(num_copies)]
 
     def update_transient_state(
             self,
