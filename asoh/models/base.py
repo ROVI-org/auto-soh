@@ -81,14 +81,83 @@ class HiddenVector(GeneralContainer,
     """
     Holds the physical transient hidden state quantities (example: SOC, etc.)
     """
+    def _get_internal_len(self, parameter_name: str) -> int:
+        """
+        Function to calculate length of a given parameter
+        """
+        param = getattr(self, parameter_name)
+        if isinstance(param, Sized):
+            return len(param)
+        return 1
 
     def __len__(self) -> int:
-        return len(self.names)
+        total_len = 0
+        for parameter_name in self.names:
+            total_len += self._get_internal_len(parameter_name=parameter_name)
+        return total_len
 
     def to_numpy(self) -> np.ndarray:
         transient_state = tuple(getattr(self, hid_var)
                                 for hid_var in self.names)
         return np.hstack(transient_state)
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def update(self,
+               new_values: Union[float, List, np.ndarray],
+               parameters: Union[tuple[str, ...], str, None] = None) -> None:
+        """
+        Helper function to update internal parameters
+        """
+        if parameters is None:
+            parameters = self.names
+        if isinstance(parameters, str):
+            param_len = self._get_internal_len(parameter_name=parameters)
+            if param_len > 1:
+                if param_len != len(new_values):
+                    raise ValueError('Attempting to set \'' + parameters + '\' '
+                                     'with a length of ' + str(param_len) + ', '
+                                     'but provided new values have length of ' +
+                                     str(len(new_values)) + '!')
+                setattr(self, parameters, new_values)
+                return
+            else:
+                if isinstance(new_values, Sized):
+                    if len(new_values) != 1:
+                        raise ValueError('Attempting to set single valued '
+                                         'parameter \'' + parameters + '\', but'
+                                         ' provided list of size ' +
+                                         str(len(new_values)) + '!')
+                    new_values = new_values[0]
+                setattr(self, parameters, new_values[0])
+                return
+
+        total_len = 0
+        for name in parameters:
+            total_len += self._get_internal_len(parameter_name=name)
+        if isinstance(new_values, Number):
+            if total_len != 1:
+                raise ValueError('Trying to update ' + str(parameters) + ' '
+                                 'with a total length of ' + str(total_len) + ','
+                                 ' but only provided a single value of ' +
+                                 str(new_values) + '!')
+            for param_name in parameters:
+                setattr(self, param_name, new_values)
+                return
+        if len(new_values) != total_len:
+            raise ValueError('Trying to update ' + str(parameters) + ' with '
+                             'a total length of ' + str(total_len) + ', but '
+                             'new_values iterable provided has a length of ' +
+                             str(len(new_values)) + '!')
+        begin_id = 0
+        for param_name in parameters:
+            param_len = self._get_internal_len(param_name)
+            end_id = begin_id + param_len
+            if param_len == 1:
+                setattr(self, param_name, new_values[begin_id])
+            else:
+                setattr(self, param_name, new_values[begin_id:end_id])
+            begin_id = end_id
+        return
 
 
 class HealthVariable(BaseModel,
