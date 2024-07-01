@@ -1,7 +1,6 @@
-from typing import Any, Dict, List, Optional, Union, Literal, Callable
+from typing import List, Optional, Union, Literal, Callable
 import numpy as np
 from pydantic import Field, computed_field, validate_call, ConfigDict
-from pydantic.fields import FieldInfo
 from scipy.interpolate import interp1d
 
 from .base import (InputQuantities,
@@ -61,38 +60,33 @@ class CoulombicEfficiency(HealthVariable):
     Holds Coulombic efficiency of the cell
     """
     base_values: float = Field(default=1.0, description="Coulombic efficiency")
-    name: Literal['CE'] = Field('Qt', description='Name', allow_mutation=False)
+    name: Literal['CE'] = Field('CE', description='Name', allow_mutation=False)
 
     @property
     def value(self) -> float:
         return self.base_values
 
 
-class Resistance(HealthVariable):
+class InterpolatedHealth(HealthVariable):
     """
-    Defines the series resistance component of an ECM.
+    Defines basic functionality for HealthVariables that need interpolation
+    between SOC pinpoints
     """
     base_values: Union[float, List] = \
-        Field(
-            description='Values of series resistance at specified SOCs. Units: Ohm')
+        Field(default=0,
+              description='Values at specified SOCs')
     soc_pinpoints: Optional[List] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                 'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
-    reference_temperature: Optional[float] = \
-        Field(default=25,
-              description='Reference temperature for internal parameters. Units: °C')
-    temperature_dependence_factor: Optional[float] = \
-        Field(default=0,
-              description='Factor determining dependence of R0 with temperature. Units: 1/°C')
 
     @computed_field
     @property
     def _interp_func(self) -> Callable:
         """
-        Interpolate values of R0. If soc_pinpoints have not been set, assume
+        Interpolate values. If soc_pinpoints have not been set, assume
         internal_parameters are evenly spread on an SOC interval [0,1].
         """
         if not len(self.soc_pinpoints):
@@ -103,6 +97,32 @@ class Resistance(HealthVariable):
                         bounds_error=False,
                         fill_value='extrapolate')
         return func
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def value(self,
+              soc: Union[float, List, np.ndarray]
+              ) -> Union[float, np.ndarray]:
+        """
+        Computes value(s) at given SOC(s)
+        """
+        if isinstance(self.base_values, float):
+            return self.base_values
+        return self._interp_func(soc)
+
+
+class Resistance(InterpolatedHealth):
+    """
+    Defines the series resistance component of an ECM.
+    """
+    base_values: Union[float, List] = \
+        Field(
+            description='Values of series resistance at specified SOCs. Units: Ohm')
+    reference_temperature: Optional[float] = \
+        Field(default=25,
+              description='Reference temperature for internal parameters. Units: °C')
+    temperature_dependence_factor: Optional[float] = \
+        Field(default=0,
+              description='Factor determining dependence of R0 with temperature. Units: 1/°C')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
@@ -123,46 +143,13 @@ class Resistance(HealthVariable):
         return new_value
 
 
-class Capacitance(HealthVariable):
+class Capacitance(InterpolatedHealth):
     """
     Defines the series capacitance component of the ECM
     """
     base_values: Union[float, List] = \
         Field(
             description='Values of series capacitance at specified SOCs. Units: F')
-    soc_pinpoints: Optional[List] = \
-        Field(default=[], description='SOC pinpoints for interpolation.')
-    interpolation_style: \
-        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-                'quadratic', 'cubic', 'previous', 'next'] = \
-        Field(default='linear', description='Type of interpolation to perform')
-
-    @computed_field
-    @property
-    def _interp_func(self) -> Callable:
-        """
-        Interpolate values of C0. If soc_pinpoints have not been set, assume
-        internal_parameters are evenly spread on an SOC interval [0,1].
-        """
-        if not len(self.soc_pinpoints):
-            self.soc_pinpoints = np.linspace(0, 1, len(self.base_values))
-        func = interp1d(self.soc_pinpoints,
-                        self.base_values,
-                        kind=self.interpolation_style,
-                        bounds_error=False,
-                        fill_value='extrapolate')
-        return func
-
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def value(self,
-              soc: Union[float, List, np.ndarray]
-              ) -> Union[float, np.ndarray]:
-        """
-        Computes value of capacitance at given SOC
-        """
-        if isinstance(self.base_values, float):
-            return self.base_values
-        return self._interp_func(soc)
 
 
 class SeriesResistance(Resistance):
@@ -201,31 +188,20 @@ class RCComponent(HealthVariableCollection):  # , extra='forbid'):
         return [r_val, c_val]
 
 
+class OpenCircuitVoltage(HealthVariable):
+    base_values: Union[float, List] = \
+        Field(
+            description='Values of OCV at specified SOCs. Units: V')
+    soc_pinpoints: Optional[List] = \
+        Field(default=[], description='SOC pinpoints for interpolation.')
+    interpolation_style: \
+        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
+                'quadratic', 'cubic', 'previous', 'next'] = \
+        Field(default='linear', description='Type of interpolation to perform')
+    name: Literal['OCV'] = Field(default='OCV',
+                                 description='Name',
+                                 allow_mutation=False)
+
+
 class ECMASOH(AdvancedStateOfHealth):
     pass
-
-    def add_fields(cls, **field_definitions: Any):
-        new_fields: Dict[str, FieldInfo] = {}
-        new_annotations: Dict[str, Optional[type]] = {}
-
-        for f_name, f_def in field_definitions.items():
-            if isinstance(f_def, tuple):
-                try:
-                    f_annotation, f_value = f_def
-                except ValueError as e:
-                    raise Exception(
-                        'field definitions should either be a tuple of (<type>, <default>) or just a '
-                        'default value, unfortunately this means tuples as '
-                        'default values are not allowed'
-                    ) from e
-            else:
-                f_annotation, f_value = None, f_def
-
-            if f_annotation:
-                new_annotations[f_name] = f_annotation
-
-            new_fields[f_name] = FieldInfo(annotation=f_annotation,
-                                           default=f_value)
-
-        cls.model_fields.update(new_fields)
-        cls.model_rebuild(force=True)
