@@ -40,6 +40,7 @@ class MaxTheoreticalCapacity(HealthVariable):
     base_values: float = \
         Field(
             description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
+    name: Literal['Qt'] = Field('Qt', description='Name', allow_mutation=False)
 
     @property
     def value(self) -> float:
@@ -60,6 +61,7 @@ class CoulombicEfficiency(HealthVariable):
     Holds Coulombic efficiency of the cell
     """
     base_values: float = Field(default=1.0, description="Coulombic efficiency")
+    name: Literal['CE'] = Field('Qt', description='Name', allow_mutation=False)
 
     @property
     def value(self) -> float:
