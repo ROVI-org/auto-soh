@@ -233,5 +233,19 @@ class OpenCircuitVoltage(HealthVariableCollection):
         return ocv
 
 
+class HysteresisParameters(InterpolatedHealth):
+    gamma: float = Field(default=0.,
+                         description='Exponential approach rate. Units: 1/V',
+                         ge=0.)
+
+
 class ECMASOH(AdvancedStateOfHealth):
-    pass
+    Qt: MaxTheoreticalCapacity = \
+        Field(description='Maximum theoretical discharge capacity (Qt).')
+    CE: CoulombicEfficiency = \
+        Field(default=CoulombicEfficiency(),
+              description='Coulombic effiency (CE)')
+    OCV: OpenCircuitVoltage = \
+        Field(description='Open Circuit Voltage (OCV)')
+    R0: SeriesResistance = \
+        Field(description='Series Resistance (R0)')
