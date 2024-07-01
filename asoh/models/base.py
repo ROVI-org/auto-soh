@@ -81,6 +81,10 @@ class HiddenVector(GeneralContainer,
     """
     Holds the physical transient hidden state quantities (example: SOC, etc.)
     """
+
+    def __len__(self) -> int:
+        return len(self.names)
+
     def to_numpy(self) -> np.ndarray:
         transient_state = tuple(getattr(self, hid_var)
                                 for hid_var in self.names)
