@@ -7,7 +7,8 @@ from .base import (InputQuantities,
                    OutputMeasurements,
                    HealthVariable,
                    HealthVariableCollection,
-                   AdvancedStateOfHealth)
+                   AdvancedStateOfHealth,
+                   HealthModel)
 
 
 ################################################################################
@@ -20,7 +21,7 @@ class ECMInput(InputQuantities):
     pass
 
 
-# TODO (vventuri): Remeber we need to implement ways to denoise SOC, Qt, R0,
+# TODO (vventuri): Remember we need to implement ways to denoise SOC, Qt, R0,
 #                   which require more outputs
 class ECMMeasurement(OutputMeasurements):
     """
@@ -232,6 +233,15 @@ class OpenCircuitVoltage(HealthVariableCollection):
         ocv += delta_T * self.OCVentropic.value(soc=soc)
         return ocv
 
+    def __call__(self,
+                 soc: Union[float, List, np.ndarray],
+                 temp: Union[float, List, np.ndarray, None] = None
+                 ) -> Union[float, np.ndarray]:
+        """
+        Allows this to be called and used as a function
+        """
+        return self.value(soc=soc, temp=temp)
+
 
 class HysteresisParameters(InterpolatedHealth):
     gamma: float = Field(default=0.,
@@ -249,3 +259,47 @@ class ECMASOH(AdvancedStateOfHealth):
         Field(description='Open Circuit Voltage (OCV)')
     R0: SeriesResistance = \
         Field(description='Series Resistance (R0)')
+
+
+################################################################################
+#                              MODEL DEFINITION                                #
+################################################################################
+class EquivalentCircuitModel(HealthModel):
+    """
+    Class to model a battery cell as an equivalent circuit
+    """
+
+    def __init__(self,
+                 use_series_capacitor: bool = False,
+                 number_RC_components: int = 0,
+                 ASOH: ECMASOH = None,
+                 current_behavior: Literal['constant', 'linear'] = 'constant'
+                 ) -> None:
+        """
+        Initialization of ECM.
+
+        Arguments
+        ---------
+        use_series_capacitor: bool = False
+            Boolean to determine whether or not to employ a series capacitor.
+            Defaults to False
+        number_RC_components: int = 0
+            Number of RC components of equivalent circuit. Must be non-negative.
+            Defaults to 0.0
+        ASOH: ECMASOH = None
+            Advanced State of Health (A-SOH) of the system. Used to parametrize
+            the dynamics of the system. It does not need to be provided on
+            initialization, but, if that is the case, it must be set on
+            subsequent function calls.
+            Defaults to None
+        current_behavior: Literal['constant', 'linear'] = 'constant'
+            Determines how to the total current behaves in-between time steps.
+            Can be either 'constant' or 'linear'.
+            Defaults to 'constant'
+        """
+        self.num_C0 = int(use_series_capacitor)
+        self.num_RC = number_RC_components
+        self.current_behavior = current_behavior
+        self.asoh = ASOH
+        # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
+        self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
