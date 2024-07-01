@@ -5,6 +5,7 @@ from scipy.interpolate import interp1d
 
 from .base import (InputQuantities,
                    OutputMeasurements,
+                   HiddenVector,
                    HealthVariable,
                    HealthVariableCollection,
                    AdvancedStateOfHealth,
@@ -262,6 +263,20 @@ class ECMASOH(AdvancedStateOfHealth):
 
 
 ################################################################################
+#                               HIDDEN VECTOR                                  #
+################################################################################
+class ECMHiddenVector(HiddenVector):
+    soc: float = Field(default=0.0, description='State of charge (SOC)')
+    q0: Optional[float] = \
+        Field(default=[],
+              description='Charge in the series capacitor. Units: Coulomb')
+    i_rc: Optional[Union[float, List]] = \
+        Field(default=[],
+              description='Currents through RC components. Units: Amp')
+    hyst: float = Field(default=0, description='Hysteresis voltage. Units: V')
+
+
+################################################################################
 #                              MODEL DEFINITION                                #
 ################################################################################
 class EquivalentCircuitModel(HealthModel):
@@ -303,3 +318,22 @@ class EquivalentCircuitModel(HealthModel):
         self.asoh = ASOH
         # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
         self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
+
+    def update_transient_state(
+            self,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            input: InputQuantities,
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> HiddenVector:
+        pass
+
+    def predict_output(
+            self,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            input: InputQuantities,
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> OutputMeasurements:
+        """
+        Compute expected output (terminal voltage, etc.) of a the model.
+        """
+        pass
