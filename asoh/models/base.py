@@ -470,8 +470,8 @@ class HealthModel():
     @abstractmethod
     def update_transient_state(
             self,
-            transient_state: Union[HiddenVector, List[HiddenVector]],
             input: InputQuantities,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
             asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
             *args, **kwargs) -> HiddenVector:
         pass
@@ -479,8 +479,8 @@ class HealthModel():
     @abstractmethod
     def predict_output(
             self,
-            transient_state: Union[HiddenVector, List[HiddenVector]],
             input: InputQuantities,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
             asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
             *args, **kwargs) -> OutputMeasurements:
         """
