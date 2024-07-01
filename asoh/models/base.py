@@ -215,11 +215,16 @@ class HealthVariableCollection(HealthVariable,
     base_values: SkipJsonSchema[Union[float, List]] = \
         Field(default=0,
               description='Values used to parametrize health metric.')
+    updatable: Union[Literal[False], tuple[str, ...]] = \
+        Field(default=(),
+              description='Define updatable parameters (if any)')
 
     # TODO (vventuri): consider removing base_values from HealthVariable
     def model_post_init(self, __context: Any) -> None:
         """
-        Removing 'base_values' field inherited from HealthVariable
+        Removing 'base_values' field inherited from HealthVariable, as well as
+        any fields set to None (by the user or by previous '+' and '+='
+        operations)
         """
         try:
             del self.model_fields['base_values']
@@ -328,7 +333,7 @@ class HealthVariableCollection(HealthVariable,
         Overloading '+=' operator
         """
         if isinstance(variable, HealthVariableCollection):
-            for hv_name in variable.model_fields.keys():
+            for hv_name in variable.__dict__.keys():
                 if hv_name != 'updatable':
                     self.add_health_variable(
                         variable=getattr(variable, hv_name),
