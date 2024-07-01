@@ -120,6 +120,10 @@ class HiddenVector(GeneralContainer,
                                      str(len(new_values)) + '!')
                 setattr(self, parameters, new_values)
                 return
+            elif param_len == 0:
+                msg = 'Parameter \'' + parameters + '\' had not been set, but '
+                msg += 'is now being updated to ' + str(new_values) + '!'
+                warn(msg)
             else:
                 if isinstance(new_values, Sized):
                     if len(new_values) != 1:
@@ -128,18 +132,22 @@ class HiddenVector(GeneralContainer,
                                          ' provided list of size ' +
                                          str(len(new_values)) + '!')
                     new_values = new_values[0]
-                setattr(self, parameters, new_values[0])
+                setattr(self, parameters, new_values)
                 return
 
         total_len = 0
         for name in parameters:
             total_len += self._get_internal_len(parameter_name=name)
         if isinstance(new_values, Number):
-            if total_len != 1:
+            if total_len > 1:
                 raise ValueError('Trying to update ' + str(parameters) + ' '
                                  'with a total length of ' + str(total_len) + ','
                                  ' but only provided a single value of ' +
                                  str(new_values) + '!')
+            elif total_len == 0:
+                msg = 'Parameter ' + str(parameters) + ' had not been set, but '
+                msg += 'are now being updated to ' + str(new_values) + '!'
+                warn(msg)
             for param_name in parameters:
                 setattr(self, param_name, new_values)
                 return
