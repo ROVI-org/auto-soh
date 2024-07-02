@@ -3,7 +3,7 @@
 import numpy as np
 from pydantic import BaseModel, Field
 
-from asoh.models.base import InputState, HealthModel, SystemState, Measurements
+from asoh.models.base import InputState, HealthModel, HealthVariable, Measurements
 
 
 class UpdateResult(BaseModel, extra='allow', arbitrary_types_allowed=True):
@@ -57,10 +57,10 @@ class OnlineEstimator:
     model: HealthModel
     """Model which defines the dynamics of the system being estimated"""
 
-    state: SystemState
+    state: HealthVariable
     """State estimate provided to and updated by the observer"""
 
-    def __init__(self, model: HealthModel, state: SystemState):
+    def __init__(self, model: HealthModel, state: HealthVariable):
         self.model = model
         self.state = state.copy(deep=True)
 

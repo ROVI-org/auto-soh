@@ -1,7 +1,7 @@
 import numpy as np
 from pydantic import Field
 
-from .base import HealthModel, InputState, SystemState, Measurements
+from .base import InputState, ParameterSet, Measurements
 
 
 class ECMInput(InputState):
@@ -10,41 +10,48 @@ class ECMInput(InputState):
     pass
 
 
-class ECMState(SystemState):
-    """State of a battery defined by an Equivalent circuit model"""
+class Resistor(ParameterSet):
+    """Represents a resistor that is affected by temperature and state-of-charge"""
 
-    charge: float = Field(0, description='State of charge of the battery element. Units: A-hr')
-    r_serial: float = Field(description='Resistance of resistor in series with the battery element', gt=0)
-    ocv_params: tuple[float, float] = Field(description='Parameters which define the open-circuit voltage of the battery element. '
-                                                        'Constant component (units: V), component which varies linearly with charge (units: V/A-hr)')
+    def get_resistance(self, soc: float, temp: float) -> float:
+        """Get the effective resistance of this resistor given the battery state"""
+        raise NotImplementedError()
 
-    state_params: tuple[str, ...] = ('charge',)
 
-    def compute_ocv(self) -> float:
+class ConstantResistor(Resistor):
+    """Resistor that always yields the same value"""
+
+    r: float = 1.
+
+    def get_resistance(self, soc: float, temp: float) -> float:
+        return self.r
+
+
+class OpenCircuitVoltage(ParameterSet):
+    """Represents the open-circuit voltage of a battery that is dependent on SOC"""
+
+    slope: float = 0.1
+    intercept: float = 0.1
+
+    def compute_ocv(self, soc: float) -> float:
         """Compute the open circuit voltage (OCV) given at the current state of charge
 
+        Args:
+            soc: State of charge for the battery
         Returns:
             OCV in Volts
         """
-        return self.ocv_params[0] + self.charge * self.ocv_params[1]
+        return self.intercept + soc * self.slope
+
+
+class ECMHealthState(ParameterSet):
+    """State of a health for battery defined by an equivalent circuit model"""
+
+    r_serial: ConstantResistor = Field(description='Resistance of resistor in series with the battery element', gt=0)
+    ocv: OpenCircuitVoltage = Field(description='Model for the open circuit voltage')
 
 
 class ECMMeasurements(Measurements):
     """The only observable from an ECM model is the terminal voltage"""
 
     terminal_voltage: float = Field(description='Voltage at the terminal')
-
-
-class SingleResistorModel(HealthModel):
-    """A battery system modeled by a single resistor and open-circuit voltage which depends only on state of charge."""
-
-    num_outputs = 1
-
-    def dx(self, state: ECMState, control: ECMInput) -> np.ndarray:
-        # The only change in the system is the state of charge increasing by the current
-        return np.array([control.current / 3600.])
-
-    def output(self, state: ECMState, control: InputState) -> ECMMeasurements:
-        return ECMMeasurements(
-            terminal_voltage=state.compute_ocv() + state.r_serial * control.current
-        )

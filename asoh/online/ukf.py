@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from .base import OnlineEstimator, UpdateResult
-from ..models.base import InputState, Measurements, HealthModel, SystemState
+from ..models.base import InputState, Measurements, HealthModel, HealthVariable
 
 
 class UnscentedKalmanFilter(OnlineEstimator):
@@ -38,7 +38,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
 
     def __init__(self,
                  model: HealthModel,
-                 state: SystemState,
+                 state: HealthVariable,
                  alpha_param: float = 1.,
                  kappa_param: float = 0.,
                  beta_param: float = 2.,
