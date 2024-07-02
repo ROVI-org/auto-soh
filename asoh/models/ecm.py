@@ -104,8 +104,8 @@ class InterpolatedHealth(HealthVariable):
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
-              soc: Union[float, List, np.ndarray]
-              ) -> Union[float, np.ndarray]:
+              soc: Union[float, List, np.ndarray],
+              *args, **kwargs) -> Union[float, np.ndarray]:
         """
         Computes value(s) at given SOC(s)
         """
@@ -265,6 +265,9 @@ class ECMASOH(AdvancedStateOfHealth):
         Field(description='Open Circuit Voltage (OCV)')
     R0: SeriesResistance = \
         Field(description='Series Resistance (R0)')
+    H0: HysteresisParameters = \
+        Field(default=HysteresisParameters(base_values=0.0, updatable=False),
+              description='Hysteresis component')
 
 
 ################################################################################
@@ -323,19 +326,20 @@ class EquivalentCircuitModel(HealthModel):
         self.asoh = ASOH
         # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
         self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
+        self.transient = self.provide_transient_template()
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def provide_hidden_template(self,
-                                soc: float = 0.0,
-                                temp: Union[float, None] = None,
-                                capacitive_overpotential:
-                                    Union[float, None] = None,
-                                RC_overpotentials:
-                                    Union[float, List[float], None] = None,
-                                hysteresis: float = 0.0,
-                                num_copies: int = 1
-                                ) -> Union[ECMHiddenVector,
-                                           List[ECMHiddenVector]]:
+    def provide_transient_template(self,
+                                   soc: float = 0.0,
+                                   temp: Union[float, None] = None,
+                                   capacitive_overpotential:
+                                   Union[float, None] = None,
+                                   RC_overpotentials:
+                                   Union[float, List[float], None] = None,
+                                   hysteresis: float = 0.0,
+                                   num_copies: int = 1
+                                   ) -> Union[ECMHiddenVector,
+                                              List[ECMHiddenVector]]:
         """
         Function to provide copies ECMHiddenVector specific to this ECM
 
@@ -383,7 +387,7 @@ class EquivalentCircuitModel(HealthModel):
             q0 = capacitance * capacitive_overpotential
 
         # Now, dealing with i_rc
-        i_rc = []
+        i_rc = [0 for _ in range(self.num_RC)]
         if RC_overpotentials is not None and self.num_RC == 0:
             msg = 'No RC elements found, so RC overpotential(s) '
             msg += 'will be ignored!'
@@ -404,7 +408,7 @@ class EquivalentCircuitModel(HealthModel):
                         raise ValueError('Missing \'' + RC_name + '\' from '
                                          'ASOH!') from AttrErr
                     resistance = RC_resistor.value(soc=soc, temp=temp)
-                    i_rc.append(RC_dV / resistance)
+                    i_rc[i] = RC_dV / resistance
             elif isinstance(RC_overpotentials, Number):
                 for i in range(self.num_RC):
                     RC_name = 'RC_%d' % (i + 1)
@@ -414,11 +418,11 @@ class EquivalentCircuitModel(HealthModel):
                         raise ValueError('Missing \'' + RC_name + '\' from '
                                          'ASOH!') from AttrErr
                     resistance = RC_resistor.value(soc=soc, temp=temp)
-                    i_rc.append(RC_overpotentials / resistance)
+                    i_rc[i] = RC_overpotentials / resistance
 
         # Now, we can build the hidden vector
         hidden = ECMHiddenVector(soc=soc, q0=q0, i_rc=i_rc, hyst=hysteresis)
-        # Sanity check
+        # Sanity check TODO (vventuri): remove after implementing unit tests
         if len(hidden) != self.len_hidden:
             raise ValueError('Mismatch between expected and real length of '
                              'hidden vector for this ECM!')
@@ -427,21 +431,83 @@ class EquivalentCircuitModel(HealthModel):
             return hidden.model_copy()
         return [hidden.model_copy() for _ in range(num_copies)]
 
-    def update_transient_state(
-            self,
-            transient_state: Union[HiddenVector, List[HiddenVector]],
-            input: InputQuantities,
-            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
-            *args, **kwargs) -> HiddenVector:
+    def update_transient_state(self,
+                               input: Union[ECMInput, List[ECMInput]],
+                               transient_state: Union[ECMHiddenVector,
+                                                      List[ECMHiddenVector],
+                                                      None] = None,
+                               asoh: Union[ECMASOH, List[ECMASOH], None] = None,
+                               *args, **kwargs
+                               ) -> Union[ECMHiddenVector, List[ECMHiddenVector]]:
+        """
+        Update transient state.
+        Remember how the hidden state is setup and meant to be updated assuming
+        constant current behavior:
+        soc_(k+1) = soc_k + (coulombic_eff * delta_t * current / Q_total)
+        q0_(k+1) = q0_(k) - delta_t * current
+        I_(j, k+1) = [exp(-delta_t/(R_(j,k)*C_(j,k))) * I_(j,k)] +
+                        + [1 - exp(-delta_t/(R_(j,k)*C_(j,k))) * current]
+        hyst_(k+1) = TODO (vventuri)
+        """
         pass
 
     def predict_output(
             self,
+            input: Union[ECMInput, List[ECMInput]],
             transient_state: Union[HiddenVector, List[HiddenVector]],
-            input: InputQuantities,
             asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
-            *args, **kwargs) -> OutputMeasurements:
+            *args, **kwargs) -> Union[ECMMeasurement, List[ECMMeasurement]]:
         """
-        Compute expected output (terminal voltage, etc.) of a the model.
+        Predicts model output, including terminal voltage.
         """
         pass
+
+    def calculate_terminal_voltage(
+            self,
+            input: ECMInput,
+            transient_state: Union[HiddenVector, None] = None,
+            asoh: Union[AdvancedStateOfHealth, None] = None,
+            *args, **kwargs) -> ECMMeasurement:
+        """
+        Compute expected output (terminal voltage, etc.) of a the model.
+        Recall the calculation of terminal voltage:
+        V_T = OCV(SOC,T) +
+                + [current * R0(SOC,T)] +
+                + [q_i / C0(SOC)] +
+                + Sum[I_j * R_j(SOC,T)] +
+                + hyst(SOC,T)
+        """
+        if transient_state is None:
+            transient_state = self.transient.model_copy()
+        if asoh is None:
+            asoh = self.asoh.model_copy()
+        # Start with OCV
+        Vt = asoh.OCV(soc=transient_state.soc, temp=input.temperature)
+
+        # Add I*R drop ('DCIR')
+        Vt += input.current * asoh.R0.value(soc=transient_state.soc,
+                                            temp=input.temperature)
+
+        # Check series capacitance
+        if transient_state.q0:
+            Vt += transient_state.q0 / asoh.C0.value(soc=transient_state.soc)
+
+        # Check RC elements
+        if transient_state.i_rc:
+            if isinstance(transient_state.i_rc, Number):
+                RC_resistor = asoh.RC_1.R
+                RC_resistance = RC_resistor.value(soc=transient_state.soc,
+                                                  temp=input.temperature)
+                Vt += transient_state.i_rc * RC_resistance
+            elif isinstance(transient_state.i_rc, Sized):
+                for i, i_rc in enumerate(transient_state.i_rc):
+                    RC_name = 'RC_%d' % (i + 1)
+                    RC_resistor = getattr(asoh, RC_name).R
+                    RC_resistance = RC_resistor.value(soc=transient_state.soc,
+                                                      temp=input.temperature)
+                    Vt += transient_state.i_rc * RC_resistance
+
+        # Include hysteresis
+        Vt += transient_state.hyst
+
+        return ECMMeasurement(terminal_voltage=Vt)
