@@ -1,7 +1,6 @@
-import numpy as np
 from pydantic import Field
 
-from .base import InputState, ParameterSet, Measurements
+from .base import InputState, HealthVariable, Measurements
 
 
 class ECMInput(InputState):
@@ -10,7 +9,7 @@ class ECMInput(InputState):
     pass
 
 
-class Resistor(ParameterSet):
+class Resistor(HealthVariable):
     """Represents a resistor that is affected by temperature and state-of-charge"""
 
     def get_resistance(self, soc: float, temp: float) -> float:
@@ -27,7 +26,7 @@ class ConstantResistor(Resistor):
         return self.r
 
 
-class OpenCircuitVoltage(ParameterSet):
+class OpenCircuitVoltage(HealthVariable):
     """Represents the open-circuit voltage of a battery that is dependent on SOC"""
 
     slope: float = 0.1
@@ -44,7 +43,7 @@ class OpenCircuitVoltage(ParameterSet):
         return self.intercept + soc * self.slope
 
 
-class ECMHealthState(ParameterSet):
+class ECMHealthState(HealthVariable):
     """State of a health for battery defined by an equivalent circuit model"""
 
     r_serial: ConstantResistor = Field(description='Resistance of resistor in series with the battery element', gt=0)
