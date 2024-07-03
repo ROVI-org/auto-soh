@@ -14,10 +14,10 @@ class SOCInterpolatedHealth(HealthVariable):
     Defines basic functionality for HealthVariables that need interpolation
     between SOC pinpoints
     """
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(default=0,
               description='Values at specified SOCs')
-    soc_pinpoints: Optional[List] = \
+    soc_pinpoints: Optional[np.ndarray] = \
         Field(default=[], description='SOC pinpoints for interpolation.')
     interpolation_style: \
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',

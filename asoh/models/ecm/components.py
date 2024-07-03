@@ -45,7 +45,7 @@ class Resistance(SOCInterpolatedHealth):
     """
     Defines the series resistance component of an ECM.
     """
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of series resistance at specified SOCs. Units: Ohm')
     reference_temperature: Optional[float] = \
@@ -81,7 +81,7 @@ class Capacitance(SOCInterpolatedHealth):
     """
     Defines the series capacitance component of the ECM
     """
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of series capacitance at specified SOCs. Units: F')
     updatable: Tuple[str, ...] = \
@@ -120,7 +120,7 @@ class RCComponent(HealthVariable):
 
 
 class ReferenceOCV(SOCInterpolatedHealth):
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of reference OCV at specified SOCs. Units: V')
     reference_temperature: float = \
@@ -132,7 +132,7 @@ class ReferenceOCV(SOCInterpolatedHealth):
 
 
 class EntropicOCV(SOCInterpolatedHealth):
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(
             default=0,
             description='Values of entropic OCV term at specified SOCs. Units: V/°C')
@@ -178,7 +178,7 @@ class OpenCircuitVoltage(HealthVariable):
 
 
 class HysteresisParameters(SOCInterpolatedHealth):
-    base_values: Union[float, List] = \
+    base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of maximum hysteresis at specified SOCs. Units: V')
     gamma: float = Field(default=0.,
