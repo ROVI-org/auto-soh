@@ -31,7 +31,14 @@ def example_hv() -> ExampleHealthVariable:
 
 
 def test_parameter_iterator(example_hv):
-    """Test the iterator over all parameters"""
+    """Test the iterator over parameters"""
+
+    # Test iterating over all variables
+    all_vars = list(example_hv.iter_parameters(updatable_only=False))
+    assert len(all_vars) == 2 + 1 + 2 + 1  # 2 attributes for this field, 1 from c, 1 each from 2 in d, 1 for from in e
+
+    top_vars = list(example_hv.iter_parameters(updatable_only=False, recurse=False))
+    assert len(top_vars) == 2
 
     # Nothing should be iterable at the beginning
     assert example_hv.updatable == set()

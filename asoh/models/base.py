@@ -142,6 +142,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """Iterate over all parameters which are treated as updatable
 
         Args:
+            updatable_only: Only iterate over variables which are updatable
             recurse: Whether to gather parameters from attributes which are also ``HealthVariable`` classes.
         Yields:
             Tuple of names and parameter values as numpy arrays. The name of parameters from attributes
@@ -160,17 +161,17 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 yield key, getattr(self, key)
             elif isinstance(field, HealthVariable) and recurse:
                 submodel: HealthVariable = getattr(self, key)
-                for subkey, subvalue in submodel.iter_parameters(recurse=recurse):
+                for subkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                     yield f'{key}.{subkey}', subvalue
             elif isinstance(field, (List, Tuple)) and recurse:
                 submodels: List[HealthVariable] = getattr(self, key)
                 for i, submodel in enumerate(submodels):
-                    for subkey, subvalue in submodel.iter_parameters(recurse=recurse):
+                    for subkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                         yield f'{key}.{i}.{subkey}', subvalue
             elif isinstance(field, Dict) and recurse:
                 submodels: Dict[str, HealthVariable] = getattr(self, key)
                 for subkey, submodel in submodels.items():
-                    for subsubkey, subvalue in submodel.iter_parameters(recurse=recurse):
+                    for subsubkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                         yield f'{key}.{subkey}.{subsubkey}', subvalue
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
