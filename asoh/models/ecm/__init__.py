@@ -3,7 +3,7 @@ from pydantic import Field
 from typing import Tuple
 
 # ASOH imports
-from asoh.models.base import HealthVariable, HealthModel
+from asoh.models.base import HealthVariable  # , HealthModel
 
 # Internal imports
 from .components import (MaxTheoreticalCapacity,
@@ -43,5 +43,5 @@ class ECMASOH(HealthVariable):
 ################################################################################
 #                                    MODEL                                     #
 ################################################################################
-class EquivalentCircuitModel(HealthModel):
-    pass
+# class EquivalentCircuitModel(HealthModel):
+#     pass
