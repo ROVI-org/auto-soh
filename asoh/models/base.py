@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict
+from typing import Iterator, Optional, List, Tuple, Dict, Union
 import logging
 
 import numpy as np
@@ -10,6 +10,9 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
+# TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
+# TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
+# TODO (wardlt): Consider making a special "list of Variables" class provides the same `update_function`.
 class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     """Base class for a container which holds the physical parameters of system and which ones
     are being treated as updatable.
@@ -65,8 +68,77 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 for submodel in getattr(self, key).values():
                     submodel.make_all_updatable()
 
+    def _get_associated_model(self, name: str) -> 'HealthVariable':
+        """Get the object which stores the parameters associated with a certain variable name
+
+        Used in the "get" and "update" operations to provide access to the location where
+        the reference associated with a variable is held, which will allow us to update it
+
+        Args:
+            names: List of variables to acquire
+        Yields:
+            The instance of the model which holds each variable, in the order the names are provided
+        """
+
+        if '.' not in name:
+            # Then we have reached the proper object
+            return self
+        else:
+            # Determine which object to recurse into
+            my_name, next_name = name.split(".", maxsplit=1)
+            attr = getattr(self, my_name)
+
+            if isinstance(attr, HealthVariable):
+                return attr._get_associated_model(next_name)
+            elif isinstance(attr, tuple):
+                # Recurse into the right member off the list
+                my_ind, next_name = next_name.split(".", maxsplit=1)
+                my_attr: HealthVariable = attr[int(my_ind)]
+                return my_attr._get_associated_model(next_name)
+            elif isinstance(attr, dict):
+                my_key, next_name = next_name.split(".", maxsplit=1)
+                next_attr: HealthVariable = attr[my_key]
+                return next_attr._get_associated_model(next_name)
+            else:
+                raise ValueError('There should be no other types of container')
+
+    def set_value(self, name: str, value: Union[float, np.ndarray]):
+        """Set the value of a certain variable by name
+
+        Args:
+            name: Name of the parameter to set.
+            value: Updated value
+        """
+
+        if '.' not in name:
+            attr = getattr(self, name)
+            # TODO (wardlt); Allow setting all variables of a HealthVariable in one go
+            if not isinstance(attr, (float, np.ndarray)):
+                raise ValueError(f'{name} is a health variable or collection of health variables.'
+                                 ' You must provide the name of which attribute in that variable to set.')
+
+            # The value belongs to this object
+            setattr(self, name, value)
+        else:
+            my_name, next_name = name.split(".", maxsplit=1)
+            attr = getattr(self, my_name)
+
+            if isinstance(attr, HealthVariable):
+                attr.set_value(next_name, value)
+            elif isinstance(attr, tuple):
+                my_ind, next_name = next_name.split(".", maxsplit=1)
+                my_attr = attr[int(my_ind)]
+                my_attr.set_value(next_name, value)
+            elif isinstance(attr, dict):
+                my_key, next_name = next_name.split(".", maxsplit=1)
+                attr[my_key].set_value(next_name, value)
+            else:
+                raise ValueError('There should be no other types of container')
+
     # TODO (wardlt): Will we ever need to iterate over all parameters, not just the updatable ones
-    def iter_parameters(self, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
+    # TODO (wardlt): Document that if a field is marked as "fixed" in the top class, any annotation of it as
+    #  updatable in the subclasses will be ignored
+    def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
         """Iterate over all parameters which are treated as updatable
 
         Args:
@@ -78,7 +150,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
 
         for key in self.model_fields:  # Iterate over fields and not updatable to have repeatable order
-            if key not in self.updatable:
+            if updatable_only and key not in self.updatable:
                 continue
 
             field = getattr(self, key)
@@ -113,14 +185,41 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
         raise NotImplementedError()
 
-    def set_parameters(self, values: np.ndarray, names: Optional[set[str]] = None):
-        """Set the value for learnable parameters given their names
+    def update_parameters(self, values: np.ndarray, names: Optional[list[str]] = None):
+        """Set the value for updatable parameters given their names
 
         Args:
             values: Values of the parameters to set
             names: Names of the parameters to set. If ``None``, then will return all updatable parameters
         """
-        raise NotImplementedError()
+
+        # Get all variables if no specific list is specified
+        if names is None:
+            names = list(k for k, v in self.iter_parameters())
+
+        end = pos = 0
+        for name in names:
+            # Get the associated model, and which attribute to set
+            model = self._get_associated_model(name)
+            attr = name.rsplit(".", maxsplit=1)[-1] if '.' in name else name
+
+            # Get the number of parameters
+            cur_value = getattr(model, attr)
+            num_params = np.size(cur_value)
+
+            # Get the parameters to use
+            end = pos + num_params
+            if pos + num_params > len(values):
+                raise ValueError(f'Required at least {end} values, but only provided {len(values)}')
+            new_value = values[pos:end]
+            setattr(model, attr, new_value)
+
+            # Increment the starting point for the next parameter
+            pos = end
+
+        # Check to make sure all were used
+        if end != len(values):
+            raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
 
 
 class InputState(BaseModel):

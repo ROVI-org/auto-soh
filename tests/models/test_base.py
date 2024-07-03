@@ -1,6 +1,6 @@
 import numpy as np
 from pydantic import Field
-from pytest import fixture
+from pytest import fixture, raises
 
 from asoh.models.base import HealthVariable
 
@@ -15,9 +15,10 @@ class TestHealthVariable(HealthVariable):
     """A HealthVariable class which uses all types of allowed variables"""
 
     a: float = 1.
-    b: np.ndarray = Field(default_factory=lambda: np.array([2.]))
+    """A parameters"""
+    b: np.ndarray = Field(default_factory=lambda: np.array([2., 3.]))
     c: SubHeathVariable = Field(default_factory=SubHeathVariable)
-    d: list[SubHeathVariable] = Field(default_factory=list)
+    d: tuple[SubHeathVariable, ...] = Field(default_factory=tuple)
     e: dict[str, SubHeathVariable] = Field(default_factory=dict)
 
 
@@ -44,7 +45,7 @@ def test_parameter_iterator(example_hv):
     assert len(parameters) == 2
     assert [k for k, _ in parameters] == ['a', 'b']
     assert np.isclose(parameters[0][1], [1.]).all()
-    assert np.isclose(parameters[1][1], [2.]).all()
+    assert np.isclose(parameters[1][1], [2., 3.]).all()
 
     # Test the submodel when no fields of the submodel are updatable
     example_hv.updatable = {'c'}
@@ -77,3 +78,49 @@ def test_parameter_iterator(example_hv):
     assert np.isclose(parameters['d.0.x'], [0.]).all()
     assert np.isclose(parameters['d.1.x'], [-2.]).all()
     assert np.isclose(parameters['e.first.x'], [1.]).all()
+
+
+def test_get_model(example_hv):
+    """Test getting the model which holds certain parameters.
+
+    This will be used in the `get` and `update` methods"""
+
+    # "is" tests whether it is not just equal, but _the same_ object
+    assert example_hv._get_associated_model('a') is example_hv
+    assert example_hv._get_associated_model('c.x') is example_hv.c
+    assert example_hv._get_associated_model('d.0.x') is example_hv.d[0]
+    assert example_hv._get_associated_model('e.first.x') is example_hv.e['first']
+
+
+def test_set_value(example_hv):
+    example_hv.set_value('a', 2.5)
+    assert example_hv.a == 2.5
+
+    example_hv.set_value('b', np.array([1., 2.]))
+    assert np.isclose(example_hv.b, [1., 2.]).all()
+
+    example_hv.set_value('e.first.x', -2.5)
+    assert example_hv.e['first'].x == -2.5
+
+
+def test_multiple_values(example_hv):
+    example_hv.update_parameters(np.array([2.5, 1., 2., -2.5]), ['a', 'b', 'e.first.x'])
+    assert example_hv.a == 2.5
+    assert np.isclose(example_hv.b, [1., 2.]).all()
+    assert example_hv.e['first'].x == -2.5
+
+    # Make sure the error conditions work
+    with raises(ValueError) as exc:
+        example_hv.update_parameters(np.array([2.5, 1., 2., -2.5, np.nan]), ['a', 'b', 'e.first.x'])
+    assert 'Did not use all' in str(exc)
+
+    with raises(ValueError) as exc:
+        example_hv.update_parameters(np.array([2.5, 1., 2.]), ['a', 'b', 'e.first.x'])
+    assert 'Required at least 4 values' in str(exc)
+
+    # Test setting only learnable parameters
+    example_hv.updatable.add('c')
+    example_hv.c.updatable.add('x')
+
+    example_hv.update_parameters(np.array([-10.]))
+    assert example_hv.c.x == -10.

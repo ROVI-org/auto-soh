@@ -46,7 +46,7 @@ class OpenCircuitVoltage(HealthVariable):
 class ECMHealthState(HealthVariable):
     """State of a health for battery defined by an equivalent circuit model"""
 
-    r_serial: ConstantResistor = Field(description='Resistance of resistor in series with the battery element', gt=0)
+    r_serial: Resistor = Field(description='Resistance of resistor in series with the battery element', gt=0)
     ocv: OpenCircuitVoltage = Field(description='Model for the open circuit voltage')
 
 
