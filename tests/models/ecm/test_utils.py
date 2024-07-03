@@ -17,6 +17,11 @@ def provide_soc() -> SOCInterpolatedHealth:
 
 
 @fixture
+def constant() -> SOCInterpolatedHealth:
+    return SOCInterpolatedHealth(base_values=np.pi)
+
+
+@fixture
 def linear_scale() -> SOCInterpolatedHealth:
     values = np.pi * np.linspace(0, 1, 10)
     return SOCInterpolatedHealth(base_values=values)
@@ -52,6 +57,13 @@ def test_provided(provide_soc):
     values = np.random.rand(100)
     assert np.isclose(values, provide_soc.value(values), atol=1e-12).all(), \
         'Wrong interpolation!'
+
+
+def test_constant(constant):
+    values = np.random.rand(100)
+    assert np.isclose([3.14159265358979323846264] * len(values),
+                      constant.value(values),
+                      atol=1e-12).all(), 'Wrong constant interpolation!'
 
 
 def test_scale(linear_scale):
