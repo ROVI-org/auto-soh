@@ -11,7 +11,7 @@ class SubHeathVariable(HealthVariable):
     x: float = -1.
 
 
-class TestHealthVariable(HealthVariable):
+class ExampleHealthVariable(HealthVariable):
     """A HealthVariable class which uses all types of allowed variables"""
 
     a: float = 1.
@@ -23,8 +23,8 @@ class TestHealthVariable(HealthVariable):
 
 
 @fixture
-def example_hv() -> TestHealthVariable:
-    return TestHealthVariable(
+def example_hv() -> ExampleHealthVariable:
+    return ExampleHealthVariable(
         d=[SubHeathVariable(x=0), SubHeathVariable(x=-2)],
         e={'first': SubHeathVariable(x=1)}
     )
