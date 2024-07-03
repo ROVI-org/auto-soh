@@ -7,17 +7,26 @@ fine_soc = np.linspace(0, 1, 100)
 
 
 def const_ocv(soc_vals: Union[float, np.ndarray]) -> float:
+    """
+    Returns constant OCV value
+    """
     return 3.5
 
 
 def linear_ocv(soc_vals: Union[float, np.ndarray]) -> Union[float, List[float]]:
-    volts = 3 + soc_vals
+    """
+    Returns OCV value that is linearly dependent of SOC provided
+    """
+    volts = np.array(3 + soc_vals)
     volts = volts.astype(float)
     return volts.tolist()
 
 
 def realistic_ocv(
         soc_vals: Union[float, np.ndarray]) -> Union[float, List[float]]:
+    """
+    Returns somewhat realistic OCV relationship to SOC
+    """
     x_scale = 0.9
     x_off = 0.05
     y_scale = 0.1
