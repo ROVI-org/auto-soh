@@ -68,14 +68,14 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 for submodel in getattr(self, key).values():
                     submodel.make_all_updatable()
 
-    def _get_associated_model(self, name: str) -> 'HealthVariable':
+    def _get_controling_model(self, name: str) -> 'HealthVariable':
         """Get the object which stores the parameters associated with a certain variable name
 
         Used in the "get" and "update" operations to provide access to the location where
         the reference associated with a variable is held, which will allow us to update it
 
         Args:
-            names: List of variables to acquire
+            name: Name of which hold
         Yields:
             The instance of the model which holds each variable, in the order the names are provided
         """
@@ -89,16 +89,16 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             attr = getattr(self, my_name)
 
             if isinstance(attr, HealthVariable):
-                return attr._get_associated_model(next_name)
+                return attr._get_controling_model(next_name)
             elif isinstance(attr, tuple):
                 # Recurse into the right member off the list
                 my_ind, next_name = next_name.split(".", maxsplit=1)
                 my_attr: HealthVariable = attr[int(my_ind)]
-                return my_attr._get_associated_model(next_name)
+                return my_attr._get_controling_model(next_name)
             elif isinstance(attr, dict):
                 my_key, next_name = next_name.split(".", maxsplit=1)
                 next_attr: HealthVariable = attr[my_key]
-                return next_attr._get_associated_model(next_name)
+                return next_attr._get_controling_model(next_name)
             else:
                 raise ValueError('There should be no other types of container')
 
@@ -184,7 +184,9 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         Returns:
             A numpy array of the values
         """
-        raise NotImplementedError()
+        # Get all variables if no specific list is specified
+        if names is None:
+            names = list(k for k, v in self.iter_parameters())
 
     def update_parameters(self, values: np.ndarray, names: Optional[list[str]] = None):
         """Set the value for updatable parameters given their names
@@ -201,7 +203,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         end = pos = 0
         for name in names:
             # Get the associated model, and which attribute to set
-            model = self._get_associated_model(name)
+            model = self._get_controling_model(name)
             attr = name.rsplit(".", maxsplit=1)[-1] if '.' in name else name
 
             # Get the number of parameters

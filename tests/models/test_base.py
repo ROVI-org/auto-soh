@@ -93,10 +93,10 @@ def test_get_model(example_hv):
     This will be used in the `get` and `update` methods"""
 
     # "is" tests whether it is not just equal, but _the same_ object
-    assert example_hv._get_associated_model('a') is example_hv
-    assert example_hv._get_associated_model('c.x') is example_hv.c
-    assert example_hv._get_associated_model('d.0.x') is example_hv.d[0]
-    assert example_hv._get_associated_model('e.first.x') is example_hv.e['first']
+    assert example_hv._get_controling_model('a') is example_hv
+    assert example_hv._get_controling_model('c.x') is example_hv.c
+    assert example_hv._get_controling_model('d.0.x') is example_hv.d[0]
+    assert example_hv._get_controling_model('e.first.x') is example_hv.e['first']
 
 
 def test_set_value(example_hv):
@@ -110,20 +110,18 @@ def test_set_value(example_hv):
     assert example_hv.e['first'].x == -2.5
 
 
-def test_multiple_values(example_hv):
+def test_update_multiple_values(example_hv):
     example_hv.update_parameters(np.array([2.5, 1., 2., -2.5]), ['a', 'b', 'e.first.x'])
     assert example_hv.a == 2.5
     assert np.isclose(example_hv.b, [1., 2.]).all()
     assert example_hv.e['first'].x == -2.5
 
     # Make sure the error conditions work
-    with raises(ValueError) as exc:
+    with raises(ValueError, match='^Did not use all'):
         example_hv.update_parameters(np.array([2.5, 1., 2., -2.5, np.nan]), ['a', 'b', 'e.first.x'])
-    assert 'Did not use all' in str(exc)
 
-    with raises(ValueError) as exc:
+    with raises(ValueError, match='^Required at least 4 values'):
         example_hv.update_parameters(np.array([2.5, 1., 2.]), ['a', 'b', 'e.first.x'])
-    assert 'Required at least 4 values' in str(exc)
 
     # Test setting only learnable parameters
     example_hv.updatable.add('c')
