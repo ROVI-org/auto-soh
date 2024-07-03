@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from .base import InputState, HealthVariable, Measurements
+from asoh.models.base import InputState, HealthVariable, Measurements
 
 
 class ECMInput(InputState):
