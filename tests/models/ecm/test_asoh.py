@@ -93,4 +93,7 @@ def full_pngv() -> ECMASOH:
 
 
 def test_basic_rint(basic_rint):
-    print(basic_rint.get_parameters())
+    assert basic_rint.updatable == tuple
+    assert np.allclose([10, 0.05, 0],  # [Qt, R0, OCVent]
+                       basic_rint.get_parameters(),
+                       atol=1e-12)
