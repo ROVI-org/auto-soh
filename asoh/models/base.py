@@ -253,7 +253,7 @@ class Measurements(BaseModel):
         return np.array(output)
 
 
-class HealthModel():
+class CellModel():
     """
     Base health model. At a minimum, it must be able to:
         1. given physical transient hidden state(s) and the A-SOH(s), output
