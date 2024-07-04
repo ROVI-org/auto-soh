@@ -75,7 +75,6 @@ class EquivalentCircuitModel(CellModel):
                                                       None] = None,
                                asoh: Union[ECMASOH, None] = None,
                                previous_input: Union[ECMInput, None] = None,
-                               save_new_input: bool = True,
                                *args, **kwargs
                                ) -> ECMTransientVector:
         """
@@ -141,7 +140,13 @@ class EquivalentCircuitModel(CellModel):
         hyst_kp1 = transient_state.hyst
         # Needed parameters
         M = asoh.H0.value(soc=soc_k)
-        M *= current_k / abs(current_k)  # >0 if chg, <0 if dischg
+        # Recall that, if charging, than M has to be >0, but, if dischargin, it
+        # has to be <0. The easiest way to check for that is to multiply by the
+        # current and divide by its absolute value
+        M *= current_k
+        if current_k != 0:
+            M *= current_k / abs(current_k)
+
         gamma = asoh.H0.gamma
         kappa = (coul_eff * gamma) / Qt
         # We need to figure out if the current changes sign during this process
