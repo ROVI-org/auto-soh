@@ -24,10 +24,16 @@ class MaxTheoreticalCapacity(HealthVariable):
 
     @property
     def value(self) -> float:
+        """
+        Returns capacity in Amp-second
+        """
         return 3600 * self.base_values
 
     @property
     def amp_hour(self) -> float:
+        """
+        Returns capacity in Amp-hour, as it was initialized.
+        """
         return self.base_values
 
 
