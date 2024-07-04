@@ -297,7 +297,7 @@ class CellModel():
         pass
 
     @abstractmethod
-    def get_voltage(
+    def calculate_terminal_voltage(
             self,
             input: InputQuantities,
             transient_state: HiddenVector,
