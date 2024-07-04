@@ -61,7 +61,7 @@ class SOCInterpolatedHealth(HealthVariable):
 #                               BASIC TEMPLATES                                #
 ################################################################################
 def realistic_fake_ocv(
-        soc_vals: Union[float, np.ndarray]) -> Union[float, List[float]]:
+        soc_vals: Union[float, np.ndarray]) -> np.ndarray:
     """
     Returns somewhat realistic OCV relationship to SOC
     """
@@ -75,7 +75,7 @@ def realistic_fake_ocv(
     volts *= y_scale
     volts += y_off
     volts = volts.astype(float)
-    return volts.tolist()
+    return volts
 
 
 ################################################################################
