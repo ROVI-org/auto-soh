@@ -1,7 +1,9 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Sized
+from abc import abstractmethod
+from numbers import Number
 import logging
 
 import numpy as np
@@ -223,42 +225,65 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
 
 
-class InputState(BaseModel):
+class GeneralContainer(BaseModel):
+    @property
+    def all_fields(self) -> tuple[str, ...]:
+        return tuple(self.model_fields.keys())
+
+    @property
+    def to_numpy(self) -> np.ndarray:
+        """
+        Ouputs everything that is stored as a np.ndarra
+        """
+        relevant_vals = []
+        for field_name in self.all_fields:
+            field = getattr(self, field_name, None)
+            if isinstance(field, Number):
+                relevant_vals.append(field)
+            elif isinstance(field, Sized):
+                relevant_vals += list(field)
+        return np.array(relevant_vals)
+
+
+class InputQuantities(GeneralContainer):
     """The control of a battery system, such as the terminal current
 
     Add new fields to subclassess of ``ControlState`` for more complex systems
     """
-
+    time: float = Field(description='Timestamp(s) of inputs. Units: s')
     current: float = Field(description='Current applied to the storage system. Units: A')
 
-    def to_numpy(self) -> np.ndarray:
-        """Control inputs as a numpy vector"""
-        output = [getattr(self, key) for key in self.model_fields.keys()]
-        return np.array(output)
 
-
-class Measurements(BaseModel):
+class OutputMeasurements(GeneralContainer):
     """Output for observables from a battery system
 
     Add new fields to subclasses of ``ControlState`` for more complex systems
     """
 
-    @property
-    def names(self) -> tuple[str, ...]:
-        return tuple(self.model_fields.keys())
+    terminal_voltage: float = \
+        Field(description='Voltage output of a battery cell/model. Units: V')
 
-    def to_numpy(self) -> np.ndarray:
-        """Outputs as a numpy vector"""
-        output = [getattr(self, key) for key in self.model_fields.keys()]
-        return np.array(output)
+
+class HiddenVector(GeneralContainer):
+    """
+    Stores physical transient/instantenous hidden state
+    """
+    pass
+
+
+class AdvancedStateOfHealth(HealthVariable):
+    """
+    Stores A-SOH
+    """
+    pass
 
 
 class CellModel():
     """
-    Base health model. At a minimum, it must be able to:
+    Base cell model. At a minimum, it must be able to:
         1. given physical transient hidden state(s) and the A-SOH(s), output
             corresponding terminal voltage prediction(s)
-        2. given a past physical transient hidden state(s), A-SOH(s), and new 
+        2. given a past physical transient hidden state(s), A-SOH(s), and new
             input(s), output new physical transient hidden state(s)
     """
 
@@ -266,8 +291,8 @@ class CellModel():
     def update_transient_state(
             self,
             input: InputQuantities,
-            transient_state: Union[HiddenVector, List[HiddenVector]],
-            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            transient_state: HiddenVector,
+            asoh: AdvancedStateOfHealth,
             *args, **kwargs) -> HiddenVector:
         pass
 
@@ -275,8 +300,8 @@ class CellModel():
     def get_voltage(
             self,
             input: InputQuantities,
-            transient_state: Union[HiddenVector, List[HiddenVector]],
-            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            transient_state: HiddenVector,
+            asoh: AdvancedStateOfHealth,
             *args, **kwargs) -> OutputMeasurements:
         """
         Compute expected output (terminal voltage, etc.) of a the model.
