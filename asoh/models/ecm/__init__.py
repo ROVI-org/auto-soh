@@ -13,6 +13,7 @@ from .components import (MaxTheoreticalCapacity,
                          RCComponent,
                          OpenCircuitVoltage,
                          HysteresisParameters)
+from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
 
 
 ################################################################################

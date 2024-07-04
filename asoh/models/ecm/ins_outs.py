@@ -1,6 +1,5 @@
 from pydantic import Field
-from asoh.models.base import (InputQuantities,
-                              OutputMeasurements)
+from asoh.models.base import InputQuantities, OutputMeasurements
 
 
 class ECMInput(InputQuantities):
