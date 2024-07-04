@@ -2,7 +2,7 @@
 from typing import Union, Optional, Sized, List
 from numbers import Number
 from pydantic import Field
-from numpy import ndarray
+import numpy as np
 
 # ASOH imports
 from asoh.models.base import HiddenVector
@@ -17,7 +17,7 @@ class ECMTransientVector(HiddenVector,
     q0: Optional[Union[float, None]] = \
         Field(default=None,
               description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: Optional[Union[None, ndarray]] = \
+    i_rc: Optional[Union[None, np.ndarray]] = \
         Field(default=None,
               description='Currents through RC components. Units: Amp')
     hyst: float = Field(default=0, description='Hysteresis voltage. Units: V')
@@ -31,7 +31,7 @@ def provide_transient_template(
         num_RC: float,
         soc: float = 0.0,
         q0: float = 0.0,
-        i_rc: Union[float, List] = None,
+        i_rc: Union[float, np.ndarray] = None,
         hysteresis: float = 0.0,
         num_copies: int = 1
         ) -> Union[ECMTransientVector, List[ECMTransientVector]]:
@@ -44,14 +44,14 @@ def provide_transient_template(
         hidden.q0 = q0
     if num_RC:
         if i_rc is None:
-            i_rc = [0 for _ in range(num_RC)]
+            i_rc = np.zeros(num_RC)
         elif isinstance(i_rc, Number):
-            i_rc = [i_rc for _ in range(num_RC)]
+            i_rc = i_rc * np.ones(num_RC)
         elif isinstance(i_rc, Sized):
             if len(i_rc) != num_RC:
                 raise ValueError('Mismatch between number of RC currents '
                                  'provided and number of RC elements!')
-        hidden.i_rc = i_rc
+        hidden.i_rc = np.array(i_rc)
 
     if num_copies == 1:
         return hidden
