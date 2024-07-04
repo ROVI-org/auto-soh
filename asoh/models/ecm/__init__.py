@@ -109,21 +109,18 @@ class EquivalentCircuitModel(CellModel):
             asoh = self.asoh.model_copy()
 
         # Set Coulombic efficiency to 1. if discharging
-        coul_eff = 1 if current_kp1 < 0 else asoh.CE.value
+        coul_eff = 1 if current_k < 0 else asoh.CE.value
 
         # Update SOC
         soc_k = transient_state.soc
         Qt = asoh.Qt.value
-        soc_kp1 = soc_k + coul_eff * ((current_k * delta_t) / Qt)
-        # Adjusting for the case of linear current behavior
-        soc_kp1 += coul_eff * (current_slope * delta_t * delta_t) / Qt
+        charge_cycled = delta_t * (current_k + ((current_slope * delta_t) / 2))
+        soc_kp1 = soc_k + (coul_eff * (charge_cycled / Qt))
 
         # Update q0
         q0_kp1 = transient_state.q0
         if q0_kp1 is not None:
-            q0_kp1 += current_k * delta_t
-            # Adjusting for the case of linear current behavior
-            q0_kp1 += current_slope * delta_t * delta_t
+            q0_kp1 += charge_cycled
 
         # Update i_RCs
         iRC_kp1 = transient_state.i_rc
