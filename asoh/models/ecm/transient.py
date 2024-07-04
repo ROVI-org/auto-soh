@@ -2,6 +2,7 @@
 from typing import Union, Optional, Sized, List
 from numbers import Number
 from pydantic import Field
+from numpy import ndarray
 
 # ASOH imports
 from asoh.models.base import HiddenVector
@@ -15,8 +16,8 @@ class ECMTransientVector(HiddenVector, validate_assignment=True):
     q0: Optional[Union[float, None]] = \
         Field(default=None,
               description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: Optional[Union[float, List]] = \
-        Field(default=[],
+    i_rc: Optional[Union[None, ndarray]] = \
+        Field(default=None,
               description='Currents through RC components. Units: Amp')
     hyst: float = Field(default=0, description='Hysteresis voltage. Units: V')
 
