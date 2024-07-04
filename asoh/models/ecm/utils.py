@@ -76,3 +76,52 @@ def realistic_fake_ocv(
     volts += y_off
     volts = volts.astype(float)
     return volts.tolist()
+
+
+################################################################################
+#                                   HELPERS                                    #
+################################################################################
+def hysteresis_solver_const_sign(
+        h0: float,
+        M: float,
+        kappa: float,
+        dt: float,
+        i0: float,
+        alpha: float) -> float:
+    """
+    Helper function to solve for hysteresis at time dt given initial conditions,
+    parameters, and current and current slope. Assumes current does not change
+    sign during time interval
+
+    Arguments
+    ---------
+    h0: float
+        Initial value of hysteresis, corresponding to h[0]
+    M: float
+        Asymptotic value of hysteresis at present condition (the value h[t]
+        should approach)
+    kappa: float
+        Constant representing the product of gamma (SOC-based rate at which
+        hysteresis approaches M), Coulombic efficienty, and 1/Qt
+    dt: float
+        Length of time interval
+    i0: float
+        Initial current
+    alpha:
+        Slope of current profile during time interval
+
+    Outputs
+    -------
+    h_dt: float
+        Hysteresis value at the end of the time interval
+    """
+    assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
+    exp_factor = kappa * dt
+    exp_factor *= (i0 + (0.5 * alpha * dt))
+    # Now, flip the sign depending if current is positive in the interval
+    if i0 > -(alpha * dt):  # this indicates (i0 + alpha * t) > 0
+        exp_factor = -exp_factor
+    exp_factor = np.exp(exp_factor)
+    h_dt = exp_factor * h0
+    h_dt += (1 - exp_factor) * M
+    return h_dt
