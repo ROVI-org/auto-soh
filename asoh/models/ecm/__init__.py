@@ -1,54 +1,68 @@
 # General imports
-from pydantic import Field
-from typing import Tuple, Union, Optional, Sized
+from typing import Union, Sized, Literal
 from numbers import Number
 
 # ASOH imports
-from asoh.models.base import HealthVariable, CellModel
+from asoh.models.base import CellModel
 
 # Internal imports
-from .components import (MaxTheoreticalCapacity,
-                         CoulombicEfficiency,
-                         Resistance,
-                         Capacitance,
-                         RCComponent,
-                         OpenCircuitVoltage,
-                         HysteresisParameters)
 from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
-from asoh.models.ecm.transient import ECMTransientVector
-
-
-################################################################################
-#                                    A-SOH                                     #
-################################################################################
-class ECMASOH(HealthVariable):
-    Qt: MaxTheoreticalCapacity = \
-        Field(description='Maximum theoretical discharge capacity (Qt).')
-    CE: CoulombicEfficiency = \
-        Field(default=CoulombicEfficiency(),
-              description='Coulombic effiency (CE)')
-    OCV: OpenCircuitVoltage = \
-        Field(description='Open Circuit Voltage (OCV)')
-    R0: Resistance = \
-        Field(description='Series Resistance (R0)')
-    C0: Optional[Capacitance] = \
-        Field(default_factory=None,
-              description='Series Capacitance (C0)',
-              max_length=1)
-    RCelements: Tuple[RCComponent, ...] = \
-        Field(default=tuple,
-              description='Tuple of RC components')
-    H0: HysteresisParameters = \
-        Field(default=HysteresisParameters(base_values=0.0, updatable=False),
-              description='Hysteresis component')
+from asoh.models.ecm.transient import (ECMTransientVector,
+                                       provide_transient_template)
+from .advancedSOH import ECMASOH, provide_asoh_template
 
 
 ################################################################################
 #                                    MODEL                                     #
 ################################################################################
 class EquivalentCircuitModel(CellModel):
-    def __init__(self) -> None:
-        pass
+    def __init__(self,
+                 use_series_capacitor: bool = False,
+                 number_RC_components: int = 0,
+                 ASOH: ECMASOH = None,
+                 transient: ECMTransientVector = None,
+                 current_behavior: Literal['constant', 'linear'] = 'constant'
+                 ) -> None:
+        """
+        Initialization of ECM.
+
+        Arguments
+        ---------
+        use_series_capacitor: bool = False
+            Boolean to determine whether or not to employ a series capacitor.
+            Defaults to False
+        number_RC_components: int = 0
+            Number of RC components of equivalent circuit. Must be non-negative.
+            Defaults to 0.0
+        ASOH: ECMASOH = None
+            Advanced State of Health (A-SOH) of the system. Used to parametrize
+            the dynamics of the system. It does not need to be provided on
+            initialization, but, if that is the case, it must be set on
+            subsequent function calls.
+            Defaults to None
+        current_behavior: Literal['constant', 'linear'] = 'constant'
+            Determines how to the total current behaves in-between time steps.
+            Can be either 'constant' or 'linear'.
+            Defaults to 'constant'
+        """
+        self.num_C0 = int(use_series_capacitor)
+        self.num_RC = number_RC_components
+        self.current_behavior = current_behavior
+        if ASOH is None:
+            ASOH = provide_asoh_template(has_C0=use_series_capacitor,
+                                         num_RC=number_RC_components)
+        self.asoh = ASOH
+        # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
+        self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
+        if not transient:
+            transient = provide_transient_template(has_C0=use_series_capacitor,
+                                                   num_RC=number_RC_components)
+        else:
+            if len(transient) != self.len_hidden:
+                raise ValueError('Mismatch between expected length of physical '
+                                 'transient hidden state and the transient '
+                                 'state provided!')
+        self.transient = transient
 
     def calculate_terminal_voltage(
             self,
