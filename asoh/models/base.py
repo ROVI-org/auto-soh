@@ -251,3 +251,34 @@ class Measurements(BaseModel):
         """Outputs as a numpy vector"""
         output = [getattr(self, key) for key in self.model_fields.keys()]
         return np.array(output)
+
+
+class HealthModel():
+    """
+    Base health model. At a minimum, it must be able to:
+        1. given physical transient hidden state(s) and the A-SOH(s), output
+            corresponding terminal voltage prediction(s)
+        2. given a past physical transient hidden state(s), A-SOH(s), and new 
+            input(s), output new physical transient hidden state(s)
+    """
+
+    @abstractmethod
+    def update_transient_state(
+            self,
+            input: InputQuantities,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> HiddenVector:
+        pass
+
+    @abstractmethod
+    def get_voltage(
+            self,
+            input: InputQuantities,
+            transient_state: Union[HiddenVector, List[HiddenVector]],
+            asoh: Union[AdvancedStateOfHealth, List[AdvancedStateOfHealth]],
+            *args, **kwargs) -> OutputMeasurements:
+        """
+        Compute expected output (terminal voltage, etc.) of a the model.
+        """
+        pass

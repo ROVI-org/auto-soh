@@ -149,8 +149,6 @@ class OpenCircuitVoltage(HealthVariable):
     updatable: Union[Literal[False], tuple[str, ...]] = \
         Field(default=False,
               description='Define updatable parameters (if any)')
-    name: Literal['OCV'] = Field(default='OCV',
-                                 allow_mutation=False)
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def value(self,
