@@ -230,12 +230,11 @@ class GeneralContainer(BaseModel,
     def all_fields(self) -> tuple[str, ...]:
         return tuple(self.model_fields.keys())
 
-    @property
     def to_numpy(self) -> np.ndarray:
         """
         Ouputs everything that is stored as a np.ndarra
         """
-        relevant_vals = tuple
+        relevant_vals = tuple()
         for field_name in self.all_fields:
             field = getattr(self, field_name, None)
             if field is not None:
