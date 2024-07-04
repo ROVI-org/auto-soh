@@ -60,7 +60,7 @@ class SOCInterpolatedHealth(HealthVariable):
 ################################################################################
 #                               BASIC TEMPLATES                                #
 ################################################################################
-def realistic_ocv(
+def realistic_fake_ocv(
         soc_vals: Union[float, np.ndarray]) -> Union[float, List[float]]:
     """
     Returns somewhat realistic OCV relationship to SOC
