@@ -1,9 +1,8 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Sized
+from typing import Iterator, Optional, List, Tuple, Dict, Union
 from abc import abstractmethod
-from numbers import Number
 import logging
 
 import numpy as np
@@ -235,14 +234,12 @@ class GeneralContainer(BaseModel):
         """
         Ouputs everything that is stored as a np.ndarra
         """
-        relevant_vals = []
+        relevant_vals = tuple
         for field_name in self.all_fields:
             field = getattr(self, field_name, None)
-            if isinstance(field, Number):
-                relevant_vals.append(field)
-            elif isinstance(field, Sized):
-                relevant_vals += list(field)
-        return np.array(relevant_vals)
+            if field is not None:
+                relevant_vals += (field,)
+        return np.hstack(relevant_vals)
 
 
 class InputQuantities(GeneralContainer):
