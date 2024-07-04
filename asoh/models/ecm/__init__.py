@@ -91,7 +91,7 @@ class EquivalentCircuitModel(CellModel):
         """
         # First, figure out what to do regarding the past input
         if previous_input is None:
-            previous_input = getattr(self, previous_input)
+            previous_input = self.previous_input.model_copy()
         # Get basic info
         delta_t = new_input.time - previous_input.time
         current_k = previous_input.current
@@ -176,7 +176,7 @@ class EquivalentCircuitModel(CellModel):
 
     def calculate_terminal_voltage(
             self,
-            ecm_input: ECMInput,
+            ecm_input: Union[ECMInput, None] = None,
             transient_state: Union[ECMTransientVector, None] = None,
             asoh: Union[ECMASOH, None] = None,
             *args, **kwargs) -> ECMMeasurement:
@@ -189,6 +189,8 @@ class EquivalentCircuitModel(CellModel):
                 + Sum[I_j * R_j(SOC,T)] +
                 + hyst(SOC,T)
         """
+        if ecm_input is None:
+            ecm_input = self.previous_input.model_copy()
         if transient_state is None:
             transient_state = self.transient.model_copy()
         if asoh is None:
