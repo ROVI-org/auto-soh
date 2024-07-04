@@ -12,8 +12,8 @@ from asoh.models.base import HiddenVector
 ################################################################################
 class ECMTransientVector(HiddenVector, validate_assignment=True):
     soc: float = Field(default=0.0, description='State of charge (SOC)')
-    q0: Optional[float] = \
-        Field(default=[],
+    q0: Optional[Union[float, None]] = \
+        Field(default=None,
               description='Charge in the series capacitor. Units: Coulomb')
     i_rc: Optional[Union[float, List]] = \
         Field(default=[],
