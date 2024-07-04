@@ -224,7 +224,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
 
 
-class GeneralContainer(BaseModel):
+class GeneralContainer(BaseModel,
+                       arbitrary_types_allowed=True):
     @property
     def all_fields(self) -> tuple[str, ...]:
         return tuple(self.model_fields.keys())
