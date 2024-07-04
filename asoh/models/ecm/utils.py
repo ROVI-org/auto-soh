@@ -9,6 +9,9 @@ from scipy.interpolate import interp1d
 from asoh.models.base import HealthVariable
 
 
+################################################################################
+#                                 ENHANCEMENTS                                 #
+################################################################################
 class SOCInterpolatedHealth(HealthVariable):
     """
     Defines basic functionality for HealthVariables that need interpolation
@@ -52,3 +55,24 @@ class SOCInterpolatedHealth(HealthVariable):
         if isinstance(self.base_values, float):
             return self.base_values
         return self._interp_func(soc)
+
+
+################################################################################
+#                               BASIC TEMPLATES                                #
+################################################################################
+def realistic_ocv(
+        soc_vals: Union[float, np.ndarray]) -> Union[float, List[float]]:
+    """
+    Returns somewhat realistic OCV relationship to SOC
+    """
+    x_scale = 0.9
+    x_off = 0.05
+    y_scale = 0.1
+    y_off = 3.5
+    mod_soc = x_scale * soc_vals
+    mod_soc += x_off
+    volts = np.log(mod_soc / (1 - mod_soc))
+    volts *= y_scale
+    volts += y_off
+    volts = volts.astype(float)
+    return volts.tolist()
