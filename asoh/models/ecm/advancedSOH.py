@@ -33,7 +33,7 @@ class ECMASOH(HealthVariable):
     R0: Resistance = \
         Field(description='Series Resistance (R0)')
     C0: Optional[Capacitance] = \
-        Field(default_factory=None,
+        Field(default=None,
               description='Series Capacitance (C0)',
               max_length=1)
     RCelements: Tuple[RCComponent, ...] = \
