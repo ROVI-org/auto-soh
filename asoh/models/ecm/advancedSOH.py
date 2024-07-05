@@ -86,7 +86,7 @@ class ECMASOH(HealthVariable):
                 RC_R = Resistance(base_values=0.01,
                                   temperature_dependence_factor=0.0025)
                 RC_C = Capacitance(base_values=2500)
-                RCcomps = tuple(RCComponent(R=RC_R, C=RC_C).model_copy()
+                RCcomps = tuple(RCComponent(r=RC_R, c=RC_C).model_copy()
                                 for _ in range(num_RC))
             else:
                 if len(RC) != num_RC:
@@ -99,7 +99,7 @@ class ECMASOH(HealthVariable):
                     RC_R = Resistance(base_values=R_info,
                                       temperature_dependence_factor=0.0025)
                     RC_C = Capacitance(base_values=C_info)
-                    RCcomps += (RCComponent(R=RC_R, C=RC_C).model_copy(),)
+                    RCcomps += (RCComponent(r=RC_R, c=RC_C).model_copy(),)
             asoh.rc_elements = RCcomps
 
         return asoh
