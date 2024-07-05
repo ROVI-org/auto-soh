@@ -1,16 +1,13 @@
-# General imports
+"""Models for the components of circuits"""
 from typing import List, Tuple, Optional, Union, Literal
-import numpy as np
-from pydantic import Field, validate_call, ConfigDict
 
-# ASOH imports
+from pydantic import Field, validate_call, ConfigDict
+import numpy as np
+
 from asoh.models.base import HealthVariable
 from .utils import SOCInterpolatedHealth
 
 
-################################################################################
-#                                HEALTH METRICS                                #
-################################################################################
 class MaxTheoreticalCapacity(HealthVariable):
     """
     Defines maximum theoretical discharge capacity of a cell

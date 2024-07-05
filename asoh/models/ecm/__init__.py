@@ -1,11 +1,9 @@
-# General imports
+"""Models that describe the state of health and transient state of an Equivalent Circuit Model"""
 from typing import Union, Literal
+
 import numpy as np
 
-# ASOH imports
 from asoh.models.base import CellModel
-
-# Internal imports
 from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
 from asoh.models.ecm.transient import (ECMTransientVector,
                                        provide_transient_template)
@@ -13,10 +11,23 @@ from .advancedSOH import ECMASOH, provide_asoh_template
 from .utils import hysteresis_solver_const_sign
 
 
-################################################################################
-#                                    MODEL                                     #
-################################################################################
 class EquivalentCircuitModel(CellModel):
+    """Equivalent Circuit Model (ECM) representation of a battery
+
+    Args:
+        use_series_capacitor
+            Boolean to determine whether to employ a series capacitor.
+        number_RC_components
+            Number of RC components of equivalent circuit. Must be non-negative.
+        ASOH
+            Advanced State of Health (A-SOH) of the system. Used to parametrize
+            the dynamics of the system. It does not need to be provided on
+            initialization, but, if that is the case, it must be set on
+            subsequent function calls.
+        current_behavior
+            Determines how to the total current behaves in-between time steps.
+            Can be either 'constant' or 'linear'.
+    """
     def __init__(self,
                  use_series_capacitor: bool = False,
                  number_RC_components: int = 0,
@@ -25,28 +36,6 @@ class EquivalentCircuitModel(CellModel):
                  initial_input: ECMInput = None,
                  current_behavior: Literal['constant', 'linear'] = 'constant'
                  ) -> None:
-        """
-        Initialization of ECM.
-
-        Arguments
-        ---------
-        use_series_capacitor: bool = False
-            Boolean to determine whether or not to employ a series capacitor.
-            Defaults to False
-        number_RC_components: int = 0
-            Number of RC components of equivalent circuit. Must be non-negative.
-            Defaults to 0.0
-        ASOH: ECMASOH = None
-            Advanced State of Health (A-SOH) of the system. Used to parametrize
-            the dynamics of the system. It does not need to be provided on
-            initialization, but, if that is the case, it must be set on
-            subsequent function calls.
-            Defaults to None
-        current_behavior: Literal['constant', 'linear'] = 'constant'
-            Determines how to the total current behaves in-between time steps.
-            Can be either 'constant' or 'linear'.
-            Defaults to 'constant'
-        """
         self.num_C0 = int(use_series_capacitor)
         self.num_RC = number_RC_components
         self.current_behavior = current_behavior
@@ -72,7 +61,7 @@ class EquivalentCircuitModel(CellModel):
     def update_transient_state(self,
                                new_input: ECMInput,
                                transient_state: Union[ECMTransientVector,
-                                                      None] = None,
+                               None] = None,
                                asoh: Union[ECMASOH, None] = None,
                                previous_input: Union[ECMInput, None] = None,
                                *args, **kwargs
@@ -86,7 +75,7 @@ class EquivalentCircuitModel(CellModel):
         q0_(k+1) = q0_k - delta_t * I_k
         i_(j, k+1) = [exp(-delta_t/Tau_j,k) * i_j,k] +
             + [(1 - exp(-delta_t/Tau_j,k) * (I_k - I_slope * Tau_j,k)]
-        hyst_(k+1) = TODO (vventuri)
+        hyst_(k+1) = [see code, it's messy]
         """
         # First, figure out what to do regarding the past input
         if previous_input is None:
@@ -130,7 +119,7 @@ class EquivalentCircuitModel(CellModel):
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
             iRC_kp1 += (1 - exp_factor) * \
-                (new_input.current - (current_slope * tau))
+                       (new_input.current - (current_slope * tau))
             iRC_kp1 += current_slope * delta_t
 
         # Update hysteresis
@@ -214,7 +203,7 @@ class EquivalentCircuitModel(CellModel):
                 [RC.R.value(soc=transient_state.soc,
                             temp=ecm_input.temperature)
                  for RC in asoh.RCelements]
-                 )
+            )
             V_drops = transient_state.i_rc * RC_Rs
             Vt += sum(V_drops)
 
