@@ -23,12 +23,12 @@ class ECMASOH(HealthVariable):
     ocv: OpenCircuitVoltage = Field(description='Open Circuit Voltage (OCV)')
     r0: Resistance = Field(description='Series Resistance (R0)')
     c0: Optional[Capacitance] = Field(default=None, description='Series Capacitance (C0)')
-    rc_elements: Tuple[RCComponent, ...] = Field(default=tuple, description='Tuple of RC components')
+    rc_elements: Tuple[RCComponent, ...] = Field(default_factory=tuple, description='Tuple of RC components')
     h0: HysteresisParameters = Field(default=HysteresisParameters(base_values=0.0),
                                      description='Hysteresis component')
 
     @classmethod
-    def make_simple_ecm(
+    def provide_template(
             cls,
             has_C0: bool,
             num_RC: int,
@@ -68,11 +68,11 @@ class ECMASOH(HealthVariable):
                                   interpolation_style='cubic')
         else:
             OCVref = ReferenceOCV(base_values=OCV)
-        OCV = OpenCircuitVoltage(OCVref=OCVref, OCVentropic=OCVent)
+        OCV = OpenCircuitVoltage(ocv_ref=OCVref, ocv_ent=OCVent)
         # H0 prep
         H0 = HysteresisParameters(base_values=H0, gamma=0.9)
         # Assemble minimal ASOH
-        asoh = ECMASOH(Qt=qt, CE=CE, OCV=OCV, R0=R0, H0=H0)
+        asoh = ECMASOH(q_t=qt, ce=CE, ocv=OCV, r0=R0, h0=H0)
         # C0 prep
         if has_C0:
             if C0 is None:
