@@ -73,7 +73,8 @@ def provide_asoh_template(
     OCVent = EntropicOCV(base_values=0.005)
     if OCV is None:
         socs = np.linspace(0, 1, 20)
-        OCVref = ReferenceOCV(base_values=realistic_fake_ocv(socs))
+        OCVref = ReferenceOCV(base_values=realistic_fake_ocv(socs),
+                              interpolation_style='cubic')
     else:
         OCVref = ReferenceOCV(base_values=OCV)
     OCV = OpenCircuitVoltage(OCVref=OCVref, OCVentropic=OCVent)
