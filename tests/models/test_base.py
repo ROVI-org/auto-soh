@@ -115,6 +115,12 @@ def test_get_model(example_hv):
         assert x is y
 
 
+def test_get_values(example_hv):
+    assert np.isclose(example_hv.get_parameters(['a']), [1.]).all()
+    assert np.isclose(example_hv.get_parameters(['a', 'b']), [1., 2., 3.]).all()
+    assert np.isclose(example_hv.get_parameters(['a', 'b', 'd.1.x']), [1., 2., 3., -2.]).all()
+
+
 def test_set_value(example_hv):
     example_hv.set_value('a', 2.5)
     assert example_hv.a == 2.5
@@ -162,18 +168,23 @@ def test_get_number_updatable(example_hv):
 
     example_hv.updatable.add('a')
     assert example_hv.num_updatable == 1
+    assert example_hv.updatable_names == ['a']
 
     example_hv.updatable.add('b')
     assert example_hv.num_updatable == 3
+    assert example_hv.updatable_names == ['a', 'b']
 
     example_hv.updatable.add('c')
     assert example_hv.num_updatable == 3  # Because c.x must be marked updatable too
+    assert example_hv.updatable_names == ['a', 'b']
 
     example_hv.c.mark_all_updatable()
     assert example_hv.num_updatable == 4
+    assert example_hv.updatable_names == ['a', 'b', 'c.x']
 
     example_hv.mark_all_updatable()
     assert example_hv.num_updatable == 3 + 1 + 2 + 1
+    assert example_hv.updatable_names == ['a', 'b', 'c.x', 'd.0.x', 'd.1.x', 'e.first.x']
 
 
 def test_mark_updatable(example_hv):

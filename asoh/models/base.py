@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
 import logging
 
 import numpy as np
@@ -31,13 +31,11 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     ---------------------
 
     The core purpose of the ``HealthVariable`` class is to serialize the parameters of system health
-    to a numpy vector and update the values of the system health back into the class structure from a numpy vector.
+    to a vector and update the values of the system health back into the class structure from a vector.
 
     ``HealthVariable`` will often be composed of submodels that are other ``HealthVariable`` or
     tuples and dictionaries of ``HealthVariable``.
-    The name of a variable within such hierarchical model contains the path to the submodel
-    and the name of the attribute of the submodel separated by periods.
-    For example, the resistance at fully charged of the following class is named "resistance.empty".
+    The following class shows a simple health model for a battery:
 
     .. code-block:: python
 
@@ -56,6 +54,29 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
         model = BatteryHealth(capacity=1., resistance={'full': 0.2, 'empty': 0.1})
 
+    Accessing the Values of Parameters
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    Access the value of a parameter from the Python attributes
+
+    .. code-block:: python
+
+        assert model.resistance.full == 0.2
+
+    or indirectly using :meth:`get_parameters`, which returns a list of floats
+
+    The name of a variable within such hierarchical model contains the path to the submodel
+    and the name of the attribute of the submodel separated by periods.
+    For example, the resistance at fully charged of the following class is named "resistance.empty".
+
+    .. code-block:: python
+
+        assert model.get_parameters(['resistance.full']) == [0.2]
+
+
+    Controlling which Parameters are Updatable
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     No parameters of the ``HealthVariable`` are treated as updatable by default.
     Mark a variable as updatable by marking the submodel(s) holding that variable as updatable and
     the variable as updatable in the submodel which holds by adding the names to the :attr:`updatable`
@@ -73,6 +94,33 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
         model.mark_updatable('resistance.empty')
 
+    All submodels along the path to a specific parameter must be marked as updatable for that
+    variable to be treated updatable. For example, "resistance.full" would not be considered updatable if
+    the "resistance" submodel is not updatable
+
+    .. code-block:: python
+
+        model.updatable.remove('resistance')
+        model.resistance.mark_updatable('full')  # Has no effect yet because 'resistance' is fixed
+
+    Setting Values of Parameters
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    Parameters which are marked as updatable can be altered using :meth:`update_parameters`.
+
+    Provide a list of new values and a list of names
+
+    .. code-block:: python
+
+        model.updatable.add('resistance')  # Allows resistance fields to be updated
+        model.update_parameters([0.1], ['resistance.full'])
+
+    or omit the specific names to set all updatable variables
+
+    .. code-block:: python
+
+        assert model.updatable_names == ['resistance.full', 'resistance.empty']
+        model.update_parameters([0.2, 0.1])
     """
 
     updatable: set[str] = Field(default_factory=set)
@@ -82,6 +130,11 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     def num_updatable(self):
         """Number of updatable parameters in this HealthVariable"""
         return sum(len(x) for _, x in self.iter_parameters())
+
+    @property
+    def updatable_names(self) -> list[str]:
+        """Names of all updatable parameters"""
+        return list(k for k, _ in self.iter_parameters())
 
     def mark_all_updatable(self, recurse: bool = True):
         """Make all fields in the model updatable
@@ -197,8 +250,6 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         # Set appropriately
         setattr(model, name, value)
 
-    # TODO (wardlt): Document that if a field is marked as "fixed" in the top class, any annotation of it as
-    #  updatable in the subclasses will be ignored
     def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
         """Iterate over all parameters which are treated as updatable
 
@@ -237,7 +288,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
 
-    def get_parameters(self, names: Optional[set[str]] = None) -> np.ndarray:
+    def get_parameters(self, names: Optional[list[str]] = None) -> List[float]:
         """Get updatable parameters as a numpy vector
 
         Args:
@@ -245,16 +296,27 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         Returns:
             A numpy array of the values
         """
+
         # Get all variables if no specific list is specified
         if names is None:
             names = list(k for k, v in self.iter_parameters())
 
-    def update_parameters(self, values: np.ndarray, names: Optional[list[str]] = None):
+        output = []
+        for name in names:
+            my_names, my_models = self._get_model_chain(name)
+            value = getattr(my_models[-1], my_names[-1])
+            if isinstance(value, Iterable):
+                output.extend(value)
+            else:
+                output.append(value)
+        return output
+
+    def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
         """Set the value for updatable parameters given their names
 
         Args:
             values: Values of the parameters to set
-            names: Names of the parameters to set. If ``None``, then will return all updatable parameters
+            names: Names of the parameters to set. If ``None``, then will set all updatable parameters
         """
 
         # Get all variables if no specific list is specified
@@ -264,18 +326,18 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         end = pos = 0
         for name in names:
             # Get the associated model, and which attribute to set
-            names, models = self._get_model_chain(name)
+            my_names, models = self._get_model_chain(name)
 
             # Raise an error if the attribute being set is not updatable
-            for i, (n, m) in enumerate(zip(names, models)):
+            for i, (n, m) in enumerate(zip(my_names, models)):
                 if n not in m.updatable:
                     raise ValueError(
-                        f'Variable {name} is not updatable because {n} is not updatable in self.{".".join(names[:i])}'
+                        f'Variable {name} is not updatable because {n} is not updatable in self.{".".join(my_names[:i])}'
                     )
 
             # Get the number of parameters
             model = models[-1]
-            attr = names[-1]
+            attr = my_names[-1]
             cur_value = getattr(model, attr)
             num_params = np.size(cur_value)
 
