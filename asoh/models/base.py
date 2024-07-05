@@ -137,30 +137,12 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             value: Updated value
         """
 
-        if '.' not in name:
-            attr = getattr(self, name)
-            # TODO (wardlt); Allow setting all variables of a HealthVariable in one go
-            if not isinstance(attr, (float, np.ndarray)):
-                raise ValueError(f'{name} is a health variable or collection of health variables.'
-                                 ' You must provide the name of which attribute in that variable to set.')
+        # Get the model which holds this value
+        names, models = self._get_model_chain(name)
+        name, model = names[-1], models[-1]
 
-            # The value belongs to this object
-            setattr(self, name, value)
-        else:
-            my_name, next_name = name.split(".", maxsplit=1)
-            attr = getattr(self, my_name)
-
-            if isinstance(attr, HealthVariable):
-                attr.set_value(next_name, value)
-            elif isinstance(attr, tuple):
-                my_ind, next_name = next_name.split(".", maxsplit=1)
-                my_attr = attr[int(my_ind)]
-                my_attr.set_value(next_name, value)
-            elif isinstance(attr, dict):
-                my_key, next_name = next_name.split(".", maxsplit=1)
-                attr[my_key].set_value(next_name, value)
-            else:
-                raise ValueError('There should be no other types of container')
+        # Set appropriately
+        setattr(model, name, value)
 
     # TODO (wardlt): Document that if a field is marked as "fixed" in the top class, any annotation of it as
     #  updatable in the subclasses will be ignored
