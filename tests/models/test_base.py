@@ -155,3 +155,22 @@ def test_fail_if_not_updatable(example_hv):
 
     with raises(ValueError, match='a is not updatable in self.$'):
         example_hv.update_parameters(np.array([1.]), ['a'])
+
+
+def test_get_number_updatable(example_hv):
+    assert example_hv.num_updatable == 0
+
+    example_hv.updatable.add('a')
+    assert example_hv.num_updatable == 1
+
+    example_hv.updatable.add('b')
+    assert example_hv.num_updatable == 3
+
+    example_hv.updatable.add('c')
+    assert example_hv.num_updatable == 3  # Because c.x must be marked updatable too
+
+    example_hv.c.mark_all_updatable()
+    assert example_hv.num_updatable == 4
+
+    example_hv.mark_all_updatable()
+    assert example_hv.num_updatable == 3 + 1 + 2 + 1

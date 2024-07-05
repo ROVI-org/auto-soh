@@ -38,8 +38,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     """Which fields are to be treated as updatable by a parameter estimator"""
 
     @property
-    def num_parameters(self):
-        """Number of updatable parameters in this class object"""
+    def num_updatable(self):
+        """Number of updatable parameters in this HealthVariable"""
         return sum(len(x) for _, x in self.iter_parameters())
 
     def mark_all_updatable(self, recurse: bool = True):
