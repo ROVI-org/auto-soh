@@ -125,7 +125,7 @@ class EquivalentCircuitModel(CellModel):
         # Update i_RCs
         iRC_kp1 = transient_state.i_rc
         if iRC_kp1 is not None:
-            tau = np.array([RC.R.value(soc=soc_k, temp=temp_k)
+            tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
                             for RC in asoh.RCelements])
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
