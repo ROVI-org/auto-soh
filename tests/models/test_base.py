@@ -61,7 +61,7 @@ def test_parameter_iterator(example_hv):
     assert len(parameters) == 0
 
     # Make the fields updatable
-    example_hv.c.make_all_updatable()
+    example_hv.c.mark_all_updatable()
     assert example_hv.c.updatable == {'x'}
 
     parameters = list(example_hv.iter_parameters())
@@ -69,7 +69,7 @@ def test_parameter_iterator(example_hv):
     assert parameters[0][0] == 'c.x'
 
     # Test marking all fields as updatable non-recursively
-    example_hv.make_all_updatable(recurse=False)
+    example_hv.mark_all_updatable(recurse=False)
     assert example_hv.updatable == {'a', 'b', 'c', 'd', 'e'}
 
     parameters = dict(example_hv.iter_parameters())
@@ -77,7 +77,7 @@ def test_parameter_iterator(example_hv):
     assert list(parameters.keys()) == ['a', 'b', 'c.x']
 
     # Now make _everything_ updatable
-    example_hv.make_all_updatable()
+    example_hv.mark_all_updatable()
 
     parameters = dict(example_hv.iter_parameters())
     assert len(parameters) == 6  # a, b, 1 from c, 2 from d, 1 from e
@@ -88,15 +88,31 @@ def test_parameter_iterator(example_hv):
 
 
 def test_get_model(example_hv):
-    """Test getting the model which holds certain parameters.
+    """Test getting the models which holds certain parameters.
 
     This will be used in the `get` and `update` methods"""
 
     # "is" tests whether it is not just equal, but _the same_ object
-    assert example_hv._get_controling_model('a') is example_hv
-    assert example_hv._get_controling_model('c.x') is example_hv.c
-    assert example_hv._get_controling_model('d.0.x') is example_hv.d[0]
-    assert example_hv._get_controling_model('e.first.x') is example_hv.e['first']
+    names, models = example_hv._get_model_chain('a')
+    assert names == ('a',)
+    assert len(models) == 1
+    assert models[0] is example_hv
+
+    # Test examples which involve recursing
+    names, models = example_hv._get_model_chain('c.x')
+    assert names == ('c', 'x')
+    for x, y in zip(models, (example_hv, example_hv.c)):
+        assert x is y
+
+    names, models = example_hv._get_model_chain('d.0.x')
+    assert names == ('d', 'x')
+    for x, y in zip(models, (example_hv, example_hv.d[0])):
+        assert x is y
+
+    names, models = example_hv._get_model_chain('e.first.x')
+    assert names == ('e', 'x')
+    for x, y in zip(models, (example_hv, example_hv.e['first'])):
+        assert x is y
 
 
 def test_set_value(example_hv):
@@ -111,6 +127,8 @@ def test_set_value(example_hv):
 
 
 def test_update_multiple_values(example_hv):
+    example_hv.mark_all_updatable(recurse=True)
+
     example_hv.update_parameters(np.array([2.5, 1., 2., -2.5]), ['a', 'b', 'e.first.x'])
     assert example_hv.a == 2.5
     assert np.isclose(example_hv.b, [1., 2.]).all()
@@ -124,8 +142,16 @@ def test_update_multiple_values(example_hv):
         example_hv.update_parameters(np.array([2.5, 1., 2.]), ['a', 'b', 'e.first.x'])
 
     # Test setting only learnable parameters
+    example_hv.mark_all_fixed()
     example_hv.updatable.add('c')
     example_hv.c.updatable.add('x')
 
     example_hv.update_parameters(np.array([-10.]))
     assert example_hv.c.x == -10.
+
+
+def test_fail_if_not_updatable(example_hv):
+    """Test that ``update_parameters`` will error if variables is not updatable"""
+
+    with raises(ValueError, match='a is not updatable in self.$'):
+        example_hv.update_parameters(np.array([1.]), ['a'])

@@ -42,7 +42,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """Number of updatable parameters in this class object"""
         return sum(len(x) for _, x in self.iter_parameters())
 
-    def make_all_updatable(self, recurse: bool = True):
+    def mark_all_updatable(self, recurse: bool = True):
         """Make all fields in the model updatable
 
         Args:
@@ -50,57 +50,84 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
 
         _allowed_field_types = (float, np.ndarray, HealthVariable, List, Tuple, Dict)
-        for key in self.model_fields:
-            # Add the field as updatable
-            field = getattr(self, key)
-            if isinstance(field, _allowed_field_types):
-                self.updatable.add(key)
 
-            # Recurse into submodels
-            if not recurse:
-                continue
-            elif isinstance(field, HealthVariable):
-                getattr(self, key).make_all_updatable()
+        models = self._iter_over_submodels() if recurse else (self,)
+        for model in models:
+            for key in model.model_fields.keys():
+                # Add the field as updatable
+                field = getattr(model, key)
+                if isinstance(field, _allowed_field_types):
+                    model.updatable.add(key)
+
+    def mark_all_fixed(self, recurse: bool = True):
+        """Mark all fields in the model as not updatable
+
+        Args:
+            recurse: Whether to mark all variables of submodels as not updatable
+        """
+
+        models = self._iter_over_submodels() if recurse else (self,)
+        for model in models:
+            model.updatable.clear()
+
+    def _iter_over_submodels(self) -> Iterator['HealthVariable']:
+        """Iterate over all models which compose this HealthVariable"""
+
+        yield self
+        for key in self.model_fields:
+            field = getattr(self, key)
+            if isinstance(field, HealthVariable):
+                yield from field._iter_over_submodels()
             elif isinstance(field, (List, Tuple)):
                 for submodel in getattr(self, key):
-                    submodel.make_all_updatable()
+                    yield from submodel._iter_over_submodels()
             elif isinstance(field, Dict):
                 for submodel in getattr(self, key).values():
-                    submodel.make_all_updatable()
+                    yield from submodel._iter_over_submodels()
 
-    def _get_controling_model(self, name: str) -> 'HealthVariable':
-        """Get the object which stores the parameters associated with a certain variable name
+    def _get_model_chain(self, name: str) -> tuple[tuple[str, ...], tuple['HealthVariable', ...]]:
+        """Get the series of ``HealthVariable`` associated with a certain parameter
+        such that self is the first member of the tuple and the ``HealthVariable``
+        which holds a reference to the value being request is the last.
+
+        For example, the chain for attribute "a" is ``(self,)`` because the variable "a" belongs to self.
+        The chain for attribute "b.a" is ``(self, self.b)`` because the variable "b.a" is attribute "a"
+        of the HealthVariable which is attribute "b" of self.
 
         Used in the "get" and "update" operations to provide access to the location where
         the reference associated with a variable is held, which will allow us to update it
 
         Args:
-            name: Name of which hold
-        Yields:
-            The instance of the model which holds each variable, in the order the names are provided
+            name: Name of the variable to acquire
+        Returns:
+            - The name of the attribute associated with the requested variable in each model along the chain
+            - The chain of HealthVariable instances which holds each variable
         """
 
         if '.' not in name:
             # Then we have reached the proper object
-            return self
+            return (name,), (self,)
         else:
             # Determine which object to recurse into
             my_name, next_name = name.split(".", maxsplit=1)
-            attr = getattr(self, my_name)
+            next_inst: HealthVariable = getattr(self, my_name)
 
-            if isinstance(attr, HealthVariable):
-                return attr._get_controling_model(next_name)
-            elif isinstance(attr, tuple):
+            # Select the appropriate next model from the collection
+            if isinstance(next_inst, HealthVariable):
+                pass
+            elif isinstance(next_inst, tuple):
                 # Recurse into the right member off the list
                 my_ind, next_name = next_name.split(".", maxsplit=1)
-                my_attr: HealthVariable = attr[int(my_ind)]
-                return my_attr._get_controling_model(next_name)
-            elif isinstance(attr, dict):
+                next_inst = next_inst[int(my_ind)]
+            elif isinstance(next_inst, dict):
                 my_key, next_name = next_name.split(".", maxsplit=1)
-                next_attr: HealthVariable = attr[my_key]
-                return next_attr._get_controling_model(next_name)
+                next_inst = next_inst[my_key]
             else:
                 raise ValueError('There should be no other types of container')
+
+            # Recurse
+            next_names, next_models = next_inst._get_model_chain(next_name)
+            return (my_name,) + next_names, (self,) + next_models
 
     def set_value(self, name: str, value: Union[float, np.ndarray]):
         """Set the value of a certain variable by name
@@ -135,7 +162,6 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 raise ValueError('There should be no other types of container')
 
-    # TODO (wardlt): Will we ever need to iterate over all parameters, not just the updatable ones
     # TODO (wardlt): Document that if a field is marked as "fixed" in the top class, any annotation of it as
     #  updatable in the subclasses will be ignored
     def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
@@ -203,10 +229,18 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         end = pos = 0
         for name in names:
             # Get the associated model, and which attribute to set
-            model = self._get_controling_model(name)
-            attr = name.rsplit(".", maxsplit=1)[-1] if '.' in name else name
+            names, models = self._get_model_chain(name)
+
+            # Raise an error if the attribute being set is not updatable
+            for i, (n, m) in enumerate(zip(names, models)):
+                if n not in m.updatable:
+                    raise ValueError(
+                        f'Variable {name} is not updatable because {n} is not updatable in self.{".".join(names[:i])}'
+                    )
 
             # Get the number of parameters
+            model = models[-1]
+            attr = names[-1]
             cur_value = getattr(model, attr)
             num_params = np.size(cur_value)
 
@@ -223,33 +257,3 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         # Check to make sure all were used
         if end != len(values):
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
-
-
-class InputState(BaseModel):
-    """The control of a battery system, such as the terminal current
-
-    Add new fields to subclassess of ``ControlState`` for more complex systems
-    """
-
-    current: float = Field(description='Current applied to the storage system. Units: A')
-
-    def to_numpy(self) -> np.ndarray:
-        """Control inputs as a numpy vector"""
-        output = [getattr(self, key) for key in self.model_fields.keys()]
-        return np.array(output)
-
-
-class Measurements(BaseModel):
-    """Output for observables from a battery system
-
-    Add new fields to subclasses of ``ControlState`` for more complex systems
-    """
-
-    @property
-    def names(self) -> tuple[str, ...]:
-        return tuple(self.model_fields.keys())
-
-    def to_numpy(self) -> np.ndarray:
-        """Outputs as a numpy vector"""
-        output = [getattr(self, key) for key in self.model_fields.keys()]
-        return np.array(output)

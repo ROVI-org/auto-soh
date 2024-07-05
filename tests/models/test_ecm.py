@@ -10,7 +10,7 @@ from asoh.models.ecm.components import ConstantResistor, ConstantCapacitor, RCEl
 @fixture()
 def single_rc() -> ECMASOH:
     return ECMASOH(
-        r_serial=ConstantResistor(base_value=0.01),
+        r0=ConstantResistor(base_value=0.01),
         rc_elements=[
             RCElement(
                 r=ConstantResistor(base_value=0.001),
@@ -22,7 +22,7 @@ def single_rc() -> ECMASOH:
 
 
 def test_update_fields(single_rc):
-    single_rc.make_all_updatable()
+    single_rc.mark_all_updatable()
     assert [k for k, _ in single_rc.iter_parameters()] == [
-        'r_serial.base_value', 'rc_elements.0.r.base_value', 'rc_elements.0.c.base_value', 'ocv.slope', 'ocv.intercept'
+        'r0.base_value', 'rc_elements.0.r.base_value', 'rc_elements.0.c.base_value', 'ocv.slope', 'ocv.intercept'
     ]

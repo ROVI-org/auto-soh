@@ -4,7 +4,7 @@ from asoh.models.base import HealthVariable
 
 
 class ConstantElement:
-    """Base class for elements which are constant regardless"""
+    """Base class for elements which are constant regardless of SOC or temperature"""
 
     base_value: float
 
