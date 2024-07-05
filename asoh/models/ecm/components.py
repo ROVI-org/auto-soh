@@ -1,80 +1,160 @@
 """Models for the components of circuits"""
+from typing import List, Optional, Union
+
+from pydantic import Field, validate_call, ConfigDict
+import numpy as np
 
 from asoh.models.base import HealthVariable
+from .utils import SOCInterpolatedHealth
 
 
-class ConstantElement:
-    """Base class for elements which are constant regardless of SOC or temperature"""
+class MaxTheoreticalCapacity(HealthVariable):
+    """Defines maximum theoretical discharge capacity of a cell"""
+    base_values: float = \
+        Field(description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
+    updatable: set[str] = Field(default_factory=lambda: {'base_values'})
 
-    base_value: float
-
-    def _compute(self, soc, temp):
-        return self.base_value
-
-
-class Resistor(HealthVariable):
-    """Represents a resistor that is affected by temperature and state-of-charge"""
-
-    def get_resistance(self, soc: float, temp: float) -> float:
-        """Get the effective resistance of this resistor given the battery state
-
-        Args:
-            soc: State of charge of the battery, unitless
-            temp: Temperature of the battery. Units: C
-        Returns:
-             The resistance of this element. Units: Ohm
+    @property
+    def value(self) -> float:
         """
-        raise NotImplementedError()
-
-
-class ConstantResistor(Resistor, ConstantElement):
-    """Resistor that always yields the same value"""
-
-    def get_resistance(self, soc: float, temp: float) -> float:
-        return self._compute(soc, temp)
-
-
-class Capacitor(HealthVariable):
-    """Base model for a capacitor"""
-
-    def get_capacitance(self, soc: float, temp: float) -> float:
-        """Get the expected capacitance for this element
-
-        Args:
-            soc: State of charge of the battery, unitless
-            temp: Temperature of the battery. Units: C
-        Returns:
-             The resistance of this element. Units: Farad
+        Returns capacity in Amp-second
         """
-        raise NotImplementedError()
+        return 3600 * self.base_values
+
+    @property
+    def amp_hour(self) -> float:
+        """
+        Returns capacity in Amp-hour, as it was initialized.
+        """
+        return self.base_values
 
 
-class ConstantCapacitor(Capacitor, ConstantElement):
-    """Capacitor that always yields the same value"""
+class Resistance(SOCInterpolatedHealth):
+    """
+    Defines the series resistance component of an ECM.
+    """
+    base_values: Union[float, np.ndarray] = \
+        Field(
+            description='Values of series resistance at specified SOCs. Units: Ohm')
+    reference_temperature: Optional[float] = \
+        Field(default=25,
+              description='Reference temperature for internal parameters. Units: °C')
+    temperature_dependence_factor: Optional[float] = \
+        Field(default=0,
+              description='Factor determining dependence of R0 with temperature. Units: 1/°C')
 
-    def get_capacitance(self, soc: float, temp: float) -> float:
-        return self._compute(soc, temp)
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> Union[float, np.ndarray]:
+        """
+        Computes value of series resistance at a given SOC and temperature.
+        """
+        if isinstance(self.base_values, float):
+            return self.base_values
+        reference_value = self._interp_func(soc)
+        if temp is None or self.temperature_dependence_factor == 0:
+            return reference_value
+        gamma = self.temperature_dependence_factor
+        deltaT = np.array(temp) - self.reference_temperature
+        new_value = reference_value * np.exp(- gamma * deltaT)
+        return new_value
+
+
+class Capacitance(SOCInterpolatedHealth):
+    """
+    Defines the series capacitance component of the ECM
+    """
+    base_values: Union[float, np.ndarray] = \
+        Field(
+            description='Values of series capacitance at specified SOCs. Units: F')
+
+
+class RCComponent(HealthVariable):
+    """
+    Defines a RC component of the ECM
+    """
+    r: Resistance = Field(description='Resistive element of RC component')
+    c: Capacitance = Field(description='Capacitive element of RC component')
+    updatable: set[str] = \
+        Field(default_factory=lambda: {'r', 'c'},
+              description='Define updatable parameters (if any)')
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> List[Union[float, np.ndarray]]:
+        """
+        Returns values of resistance and capacitance at given SOC and temperature.
+        """
+        r_val = self.r.get_value(soc=soc, temp=temp)
+        c_val = self.c.get_value(soc=soc)
+        return [r_val, c_val]
+
+    def time_constant(self,
+                      soc: Union[float, List, np.ndarray],
+                      temp: Union[float, List, np.ndarray, None] = None
+                      ) -> Union[float, np.ndarray]:
+        r, c = self.get_value(soc=soc, temp=temp)
+        return r * c
+
+
+class ReferenceOCV(SOCInterpolatedHealth):
+    base_values: Union[float, np.ndarray] = \
+        Field(
+            description='Values of reference OCV at specified SOCs. Units: V')
+    reference_temperature: float = \
+        Field(default=25,
+              description='Reference temperature for OCV0. Units: °C')
+
+
+class EntropicOCV(SOCInterpolatedHealth):
+    base_values: Union[float, np.ndarray] = \
+        Field(
+            default=0,
+            description='Values of entropic OCV term at specified SOCs. Units: V/°C')
 
 
 class OpenCircuitVoltage(HealthVariable):
-    """Represents the open-circuit voltage of a battery that is dependent on SOC"""
+    ocv_ref: ReferenceOCV = \
+        Field(description='Reference OCV at specified temperature')
+    ocv_ent: EntropicOCV = \
+        Field(description='Entropic OCV to determine temperature dependence')
 
-    slope: float = 0.1
-    intercept: float = 0.1
-
-    def compute_ocv(self, soc: float) -> float:
-        """Compute the open circuit voltage (OCV) given at the current state of charge
-
-        Args:
-            soc: State of charge for the battery
-        Returns:
-            OCV in Volts
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> Union[float, np.ndarray]:
         """
-        return self.intercept + soc * self.slope
+        Returns values of OCV at given SOC(s) and temperature(s).
+        """
+        ocv = self.ocv_ref.get_value(soc=soc)
+        if temp is not None:
+            T_ref = self.ocv_ref.reference_temperature
+            delta_T = temp - T_ref
+            ocv += delta_T * self.ocv_ent.get_value(soc=soc)
+        return ocv
+
+    def __call__(self,
+                 soc: Union[float, List, np.ndarray],
+                 temp: Union[float, List, np.ndarray, None] = None
+                 ) -> Union[float, np.ndarray]:
+        """
+        Allows this to be called and used as a function
+        """
+        return self.get_value(soc=soc, temp=temp)
 
 
-class RCElement(HealthVariable):
-    """A single RC element within a circuit"""
-
-    r: Resistor
-    c: Capacitor
+class HysteresisParameters(SOCInterpolatedHealth):
+    base_values: Union[float, np.ndarray] = \
+        Field(
+            description='Values of maximum hysteresis at specified SOCs. Units: V')
+    gamma: float = Field(default=0.,
+                         description='Exponential approach rate. Units: 1/V',
+                         ge=0.)
+    updatable: set[str] = \
+        Field(default_factory=lambda: {'base_values', 'gamma'},
+              description='Define updatable parameters (if any)')

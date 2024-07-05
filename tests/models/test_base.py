@@ -60,7 +60,7 @@ def test_parameter_iterator(example_hv):
     parameters = list(example_hv.iter_parameters())
     assert len(parameters) == 0
 
-    # Make the fields updatable
+    # mark the fields updatable
     example_hv.c.mark_all_updatable()
     assert example_hv.c.updatable == {'x'}
 
@@ -76,7 +76,7 @@ def test_parameter_iterator(example_hv):
     assert len(parameters) == 3  # d and e don't yet have any updatable parameters
     assert list(parameters.keys()) == ['a', 'b', 'c.x']
 
-    # Now make _everything_ updatable
+    # Now mark _everything_ updatable
     example_hv.mark_all_updatable()
 
     parameters = dict(example_hv.iter_parameters())
@@ -92,7 +92,6 @@ def test_get_model(example_hv):
 
     This will be used in the `get` and `update` methods"""
 
-    # "is" tests whether it is not just equal, but _the same_ object
     names, models = example_hv._get_model_chain('a')
     assert names == ('a',)
     assert len(models) == 1
@@ -132,15 +131,14 @@ def test_set_value(example_hv):
     assert example_hv.e['first'].x == -2.5
 
 
-def test_update_multiple_values(example_hv):
-    example_hv.mark_all_updatable(recurse=True)
-
+def test_multiple_values(example_hv):
+    example_hv.mark_all_updatable()
     example_hv.update_parameters(np.array([2.5, 1., 2., -2.5]), ['a', 'b', 'e.first.x'])
     assert example_hv.a == 2.5
     assert np.isclose(example_hv.b, [1., 2.]).all()
     assert example_hv.e['first'].x == -2.5
 
-    # Make sure the error conditions work
+    # mark sure the error conditions work
     with raises(ValueError, match='^Did not use all'):
         example_hv.update_parameters(np.array([2.5, 1., 2., -2.5, np.nan]), ['a', 'b', 'e.first.x'])
 

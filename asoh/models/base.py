@@ -2,6 +2,7 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
+from abc import abstractmethod
 import logging
 
 import numpy as np
@@ -142,7 +143,6 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         Args:
             recurse: Make all parameters of each submodel updatable too
         """
-
         _allowed_field_types = (float, np.ndarray, HealthVariable, List, Tuple, Dict)
 
         models = self._iter_over_submodels() if recurse else (self,)
@@ -332,7 +332,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             for i, (n, m) in enumerate(zip(my_names, models)):
                 if n not in m.updatable:
                     raise ValueError(
-                        f'Variable {name} is not updatable because {n} is not updatable in self.{".".join(my_names[:i])}'
+                        f'Variable {name} is not updatable because {n} '
+                        f'is not updatable in self.{".".join(my_names[:i])}'
                     )
 
             # Get the number of parameters
@@ -354,3 +355,85 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         # Check to make sure all were used
         if end != len(values):
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
+
+
+class GeneralContainer(BaseModel,
+                       arbitrary_types_allowed=True):
+    @property
+    def all_fields(self) -> tuple[str, ...]:
+        return tuple(self.model_fields.keys())
+
+    def to_numpy(self) -> np.ndarray:
+        """
+        Outputs everything that is stored as a np.ndarray
+        """
+        relevant_vals = tuple()
+        for field_name in self.all_fields:
+            field = getattr(self, field_name, None)
+            if field is not None:
+                relevant_vals += (field,)
+        return np.hstack(relevant_vals)
+
+
+class InputQuantities(GeneralContainer):
+    """The control of a battery system, such as the terminal current
+
+    Add new fields to subclassess of ``ControlState`` for more complex systems
+    """
+    time: float = Field(description='Timestamp(s) of inputs. Units: s')
+    current: float = Field(description='Current applied to the storage system. Units: A')
+
+
+class OutputMeasurements(GeneralContainer):
+    """Output for observables from a battery system
+
+    Add new fields to subclasses of ``ControlState`` for more complex systems
+    """
+
+    terminal_voltage: float = \
+        Field(description='Voltage output of a battery cell/model. Units: V')
+
+
+class HiddenVector(GeneralContainer):
+    """
+    Stores physical transient/instantenous hidden state
+    """
+    pass
+
+
+class AdvancedStateOfHealth(HealthVariable):
+    """
+    Stores A-SOH
+    """
+    pass
+
+
+class CellModel():
+    """
+    Base cell model. At a minimum, it must be able to:
+        1. given physical transient hidden state(s) and the A-SOH(s), output
+            corresponding terminal voltage prediction(s)
+        2. given a past physical transient hidden state(s), A-SOH(s), and new
+            input(s), output new physical transient hidden state(s)
+    """
+
+    @abstractmethod
+    def update_transient_state(
+            self,
+            input: InputQuantities,
+            transient_state: HiddenVector,
+            asoh: AdvancedStateOfHealth,
+            *args, **kwargs) -> HiddenVector:
+        pass
+
+    @abstractmethod
+    def calculate_terminal_voltage(
+            self,
+            input: InputQuantities,
+            transient_state: HiddenVector,
+            asoh: AdvancedStateOfHealth,
+            *args, **kwargs) -> OutputMeasurements:
+        """
+        Compute expected output (terminal voltage, etc.) of the model.
+        """
+        pass
