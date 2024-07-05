@@ -174,3 +174,12 @@ def test_get_number_updatable(example_hv):
 
     example_hv.mark_all_updatable()
     assert example_hv.num_updatable == 3 + 1 + 2 + 1
+
+
+def test_mark_updatable(example_hv):
+    example_hv.mark_updatable('a')
+    assert example_hv.updatable == {'a'}
+
+    example_hv.mark_updatable('d.0.x')
+    assert example_hv.updatable == {'a', 'd'}
+    assert example_hv.d[0].updatable == {'x'}

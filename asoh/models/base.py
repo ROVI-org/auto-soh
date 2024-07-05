@@ -32,6 +32,47 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     The core purpose of the ``HealthVariable`` class is to serialize the parameters of system health
     to a numpy vector and update the values of the system health back into the class structure from a numpy vector.
+
+    ``HealthVariable`` will often be composed of submodels that are other ``HealthVariable`` or
+    tuples and dictionaries of ``HealthVariable``.
+    The name of a variable within such hierarchical model contains the path to the submodel
+    and the name of the attribute of the submodel separated by periods.
+    For example, the resistance at fully charged of the following class is named "resistance.empty".
+
+    .. code-block:: python
+
+        class Resistance(HealthVariable):
+            full: float
+            '''Resistance at fully charged'''
+            empty: float
+            '''Resistance at fully discharged'''
+
+            def get_resistance(self, soc: float):
+                return self.empty + soc * (self.full - self.empty)
+
+        class BatteryHealth(HealthVariable):
+            capacity: float
+            resistance: Resistance
+
+        model = BatteryHealth(capacity=1., resistance={'full': 0.2, 'empty': 0.1})
+
+    No parameters of the ``HealthVariable`` are treated as updatable by default.
+    Mark a variable as updatable by marking the submodel(s) holding that variable as updatable and
+    the variable as updatable in the submodel which holds by adding the names to the :attr:`updatable`
+    set held by every ``HealthVariable`` class.
+    Marking "resistance.empty" is achieved by
+
+    .. code-block:: python
+
+        model.updatable.add('resistance')
+        model.resistance.updatable.add('empty')
+
+    or using the :meth:`mark_updatable` utility method
+
+    .. code-block:: python
+
+        model.mark_updatable('resistance.empty')
+
     """
 
     updatable: set[str] = Field(default_factory=set)
@@ -69,6 +110,18 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         models = self._iter_over_submodels() if recurse else (self,)
         for model in models:
             model.updatable.clear()
+
+    def mark_updatable(self, name: str):
+        """Mark a specific variable as updatable
+
+        Will mark any submodel along the path to the requested name as updatable.
+
+        Args:
+            name: Name of the variable to be set as updatable
+        """
+
+        for n, m in zip(*self._get_model_chain(name)):
+            m.updatable.add(n)
 
     def _iter_over_submodels(self) -> Iterator['HealthVariable']:
         """Iterate over all models which compose this HealthVariable"""
