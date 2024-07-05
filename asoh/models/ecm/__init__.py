@@ -28,6 +28,7 @@ class EquivalentCircuitModel(CellModel):
             Determines how to the total current behaves in-between time steps.
             Can be either 'constant' or 'linear'.
     """
+
     def __init__(self,
                  use_series_capacitor: bool = False,
                  number_RC_components: int = 0,
@@ -60,8 +61,7 @@ class EquivalentCircuitModel(CellModel):
 
     def update_transient_state(self,
                                new_input: ECMInput,
-                               transient_state: Union[ECMTransientVector,
-                               None] = None,
+                               transient_state: Union[ECMTransientVector, None] = None,
                                asoh: Union[ECMASOH, None] = None,
                                previous_input: Union[ECMInput, None] = None,
                                *args, **kwargs

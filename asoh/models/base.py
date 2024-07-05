@@ -332,7 +332,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             for i, (n, m) in enumerate(zip(my_names, models)):
                 if n not in m.updatable:
                     raise ValueError(
-                        f'Variable {name} is not updatable because {n} is not updatable in self.{".".join(my_names[:i])}'
+                        f'Variable {name} is not updatable because {n} '
+                        f'is not updatable in self.{".".join(my_names[:i])}'
                     )
 
             # Get the number of parameters
@@ -364,7 +365,7 @@ class GeneralContainer(BaseModel,
 
     def to_numpy(self) -> np.ndarray:
         """
-        Ouputs everything that is stored as a np.ndarra
+        Outputs everything that is stored as a np.ndarray
         """
         relevant_vals = tuple()
         for field_name in self.all_fields:
