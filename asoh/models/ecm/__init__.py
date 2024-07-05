@@ -5,9 +5,8 @@ import numpy as np
 
 from asoh.models.base import CellModel
 from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
-from asoh.models.ecm.transient import (ECMTransientVector,
-                                       provide_transient_template)
-from .advancedSOH import ECMASOH, provide_asoh_template
+from asoh.models.ecm.transient import ECMTransientVector
+from .advancedSOH import ECMASOH
 from .utils import hysteresis_solver_const_sign
 
 
@@ -32,7 +31,6 @@ class EquivalentCircuitModel(CellModel):
     def __init__(self,
                  use_series_capacitor: bool = False,
                  number_RC_components: int = 0,
-                 ASOH: ECMASOH = None,
                  transient: ECMTransientVector = None,
                  initial_input: ECMInput = None,
                  current_behavior: Literal['constant', 'linear'] = 'constant'
@@ -40,20 +38,8 @@ class EquivalentCircuitModel(CellModel):
         self.num_C0 = int(use_series_capacitor)
         self.num_RC = number_RC_components
         self.current_behavior = current_behavior
-        if ASOH is None:
-            ASOH = provide_asoh_template(has_C0=use_series_capacitor,
-                                         num_RC=number_RC_components)
-        self.asoh = ASOH
         # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
         self.len_hidden = int(1 + self.num_C0 + self.num_RC + 1)
-        if transient is None:
-            transient = provide_transient_template(has_C0=use_series_capacitor,
-                                                   num_RC=number_RC_components)
-        else:
-            if len(transient) != self.len_hidden:
-                raise ValueError('Mismatch between expected length of physical '
-                                 'transient hidden state and the transient '
-                                 'state provided!')
         self.transient = transient
         if initial_input is None:
             initial_input = ECMInput(time=0., current=0.)
@@ -98,11 +84,11 @@ class EquivalentCircuitModel(CellModel):
             asoh = self.asoh.model_copy()
 
         # Set Coulombic efficiency to 1. if discharging
-        coul_eff = 1 if current_k < 0 else asoh.CE.value
+        coul_eff = 1 if current_k < 0 else asoh.ce.value
 
         # Update SOC
         soc_k = transient_state.soc
-        Qt = asoh.Qt.value
+        Qt = asoh.q_t.value
         charge_cycled = delta_t * (current_k + ((current_slope * delta_t) / 2))
         soc_kp1 = soc_k + (coul_eff * (charge_cycled / Qt))
 
@@ -115,7 +101,7 @@ class EquivalentCircuitModel(CellModel):
         iRC_kp1 = transient_state.i_rc
         if iRC_kp1 is not None:
             tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
-                            for RC in asoh.RCelements])
+                            for RC in asoh.rc_elements])
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
             iRC_kp1 += (1 - exp_factor) * \
@@ -125,7 +111,7 @@ class EquivalentCircuitModel(CellModel):
         # Update hysteresis
         hyst_kp1 = transient_state.hyst
         # Needed parameters
-        M = asoh.H0.value(soc=soc_k)
+        M = asoh.h0.get_value(soc=soc_k)
         # Recall that, if charging, than M has to be >0, but, if dischargin, it
         # has to be <0. The easiest way to check for that is to multiply by the
         # current and divide by its absolute value
@@ -133,7 +119,7 @@ class EquivalentCircuitModel(CellModel):
         if current_k != 0:
             M *= current_k / abs(current_k)
 
-        gamma = asoh.H0.gamma
+        gamma = asoh.h0.gamma
         kappa = (coul_eff * gamma) / Qt
         # We need to figure out if the current changes sign during this process
         if current_k * current_kp1 >= 0:  # easier case
@@ -167,10 +153,9 @@ class EquivalentCircuitModel(CellModel):
 
     def calculate_terminal_voltage(
             self,
-            ecm_input: Union[ECMInput, None] = None,
+            new_inputs: Union[ECMInput, None] = None,
             transient_state: Union[ECMTransientVector, None] = None,
-            asoh: Union[ECMASOH, None] = None,
-            *args, **kwargs) -> ECMMeasurement:
+            asoh: Union[ECMASOH, None] = None) -> ECMMeasurement:
         """
         Compute expected output (terminal voltage, etc.) of a the model.
         Recall the calculation of terminal voltage:
@@ -180,29 +165,29 @@ class EquivalentCircuitModel(CellModel):
                 + Sum[I_j * R_j(SOC,T)] +
                 + hyst(SOC,T)
         """
-        if ecm_input is None:
-            ecm_input = self.previous_input.model_copy()
+        if new_inputs is None:
+            new_inputs = self.previous_input.model_copy()
         if transient_state is None:
             transient_state = self.transient.model_copy()
         if asoh is None:
             asoh = self.asoh.model_copy()
         # Start with OCV
-        Vt = asoh.OCV(soc=transient_state.soc, temp=ecm_input.temperature)
+        Vt = asoh.ocv(soc=transient_state.soc, temp=new_inputs.temperature)
 
         # Add I*R drop ('DCIR')
-        Vt += ecm_input.current * asoh.R0.value(soc=transient_state.soc,
-                                                temp=ecm_input.temperature)
+        Vt += new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
+                                                     temp=new_inputs.temperature)
 
         # Check series capacitance
         if transient_state.q0 is not None:
-            Vt += transient_state.q0 / asoh.C0.value(soc=transient_state.soc)
+            Vt += transient_state.q0 / asoh.c0.get_value(soc=transient_state.soc)
 
         # Check RC elements
         if transient_state.i_rc is not None:
             RC_Rs = np.array(
-                [RC.R.value(soc=transient_state.soc,
-                            temp=ecm_input.temperature)
-                 for RC in asoh.RCelements]
+                [RC.r.get_value(soc=transient_state.soc,
+                                temp=new_inputs.temperature)
+                 for RC in asoh.rc_elements]
             )
             V_drops = transient_state.i_rc * RC_Rs
             Vt += sum(V_drops)

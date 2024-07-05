@@ -1,5 +1,5 @@
 """Models for the components of circuits"""
-from typing import List, Tuple, Optional, Union, Literal
+from typing import List, Optional, Union
 
 from pydantic import Field, validate_call, ConfigDict
 import numpy as np
@@ -9,15 +9,10 @@ from .utils import SOCInterpolatedHealth
 
 
 class MaxTheoreticalCapacity(HealthVariable):
-    """
-    Defines maximum theoretical discharge capacity of a cell
-    """
+    """Defines maximum theoretical discharge capacity of a cell"""
     base_values: float = \
-        Field(
-            description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
+        Field(description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
+    updatable: set[str] = Field(default_factory=lambda: {'base_values'})
 
     @property
     def value(self) -> float:
@@ -34,20 +29,6 @@ class MaxTheoreticalCapacity(HealthVariable):
         return self.base_values
 
 
-class CoulombicEfficiency(HealthVariable):
-    """
-    Holds Coulombic efficiency of the cell
-    """
-    base_values: float = Field(default=1.0, description="Coulombic efficiency")
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
-
-    @property
-    def value(self) -> float:
-        return self.base_values
-
-
 class Resistance(SOCInterpolatedHealth):
     """
     Defines the series resistance component of an ECM.
@@ -61,15 +42,12 @@ class Resistance(SOCInterpolatedHealth):
     temperature_dependence_factor: Optional[float] = \
         Field(default=0,
               description='Factor determining dependence of R0 with temperature. Units: 1/°C')
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def value(self,
-              soc: Union[float, List, np.ndarray],
-              temp: Union[float, List, np.ndarray, None] = None
-              ) -> Union[float, np.ndarray]:
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> Union[float, np.ndarray]:
         """
         Computes value of series resistance at a given SOC and temperature.
         """
@@ -91,38 +69,35 @@ class Capacitance(SOCInterpolatedHealth):
     base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of series capacitance at specified SOCs. Units: F')
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
 
 
 class RCComponent(HealthVariable):
     """
     Defines a RC component of the ECM
     """
-    R: Resistance = Field(description='Resistive element of RC component')
-    C: Capacitance = Field(description='Capacitive element of RC component')
-    updatable: Union[Literal[False], tuple[str, ...]] = \
-        Field(default=('R', 'C',),
+    r: Resistance = Field(description='Resistive element of RC component')
+    c: Capacitance = Field(description='Capacitive element of RC component')
+    updatable: set[str] = \
+        Field(default_factory=lambda: {'r', 'c'},
               description='Define updatable parameters (if any)')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def value(self,
-              soc: Union[float, List, np.ndarray],
-              temp: Union[float, List, np.ndarray, None] = None
-              ) -> List[Union[float, np.ndarray]]:
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> List[Union[float, np.ndarray]]:
         """
         Returns values of resistance and capacitance at given SOC and temperature.
         """
-        r_val = self.R.value(soc=soc, temp=temp)
-        c_val = self.C.value(soc=soc)
+        r_val = self.r.get_value(soc=soc, temp=temp)
+        c_val = self.c.get_value(soc=soc)
         return [r_val, c_val]
 
     def time_constant(self,
                       soc: Union[float, List, np.ndarray],
                       temp: Union[float, List, np.ndarray, None] = None
                       ) -> Union[float, np.ndarray]:
-        r, c = self.value(soc=soc, temp=temp)
+        r, c = self.get_value(soc=soc, temp=temp)
         return r * c
 
 
@@ -133,9 +108,6 @@ class ReferenceOCV(SOCInterpolatedHealth):
     reference_temperature: float = \
         Field(default=25,
               description='Reference temperature for OCV0. Units: °C')
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
 
 
 class EntropicOCV(SOCInterpolatedHealth):
@@ -143,33 +115,27 @@ class EntropicOCV(SOCInterpolatedHealth):
         Field(
             default=0,
             description='Values of entropic OCV term at specified SOCs. Units: V/°C')
-    updatable: Tuple[str, ...] = \
-        Field(default=('base_values',),
-              description='Tuple of updatable attributes')
 
 
 class OpenCircuitVoltage(HealthVariable):
-    OCVref: ReferenceOCV = \
+    ocv_ref: ReferenceOCV = \
         Field(description='Reference OCV at specified temperature')
-    OCVentropic: EntropicOCV = \
+    ocv_ent: EntropicOCV = \
         Field(description='Entropic OCV to determine temperature dependence')
-    updatable: Union[Literal[False], tuple[str, ...]] = \
-        Field(default=False,
-              description='Define updatable parameters (if any)')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def value(self,
-              soc: Union[float, List, np.ndarray],
-              temp: Union[float, List, np.ndarray, None] = None
-              ) -> Union[float, np.ndarray]:
+    def get_value(self,
+                  soc: Union[float, List, np.ndarray],
+                  temp: Union[float, List, np.ndarray, None] = None
+                  ) -> Union[float, np.ndarray]:
         """
         Returns values of OCV at given SOC(s) and temperature(s).
         """
-        ocv = self.OCVref.value(soc=soc)
+        ocv = self.ocv_ref.get_value(soc=soc)
         if temp is not None:
-            T_ref = self.OCVref.reference_temperature
+            T_ref = self.ocv_ref.reference_temperature
             delta_T = temp - T_ref
-            ocv += delta_T * self.OCVentropic.value(soc=soc)
+            ocv += delta_T * self.ocv_ent.get_value(soc=soc)
         return ocv
 
     def __call__(self,
@@ -179,7 +145,7 @@ class OpenCircuitVoltage(HealthVariable):
         """
         Allows this to be called and used as a function
         """
-        return self.value(soc=soc, temp=temp)
+        return self.get_value(soc=soc, temp=temp)
 
 
 class HysteresisParameters(SOCInterpolatedHealth):
@@ -189,6 +155,6 @@ class HysteresisParameters(SOCInterpolatedHealth):
     gamma: float = Field(default=0.,
                          description='Exponential approach rate. Units: 1/V',
                          ge=0.)
-    updatable: Union[Literal[False], tuple[str, ...]] = \
-        Field(default=('base_values', 'gamma'),
+    updatable: set[str] = \
+        Field(default_factory=lambda: {'base_values', 'gamma'},
               description='Define updatable parameters (if any)')
