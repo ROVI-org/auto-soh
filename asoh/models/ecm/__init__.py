@@ -15,9 +15,6 @@ class EquivalentCircuitModel(CellModel):
     Equivalent Circuit Model (ECM) dynamics of a battery
     """
 
-    def __init__(self) -> None:
-        pass
-
     @staticmethod
     def update_transient_state(new_input: ECMInput,
                                transient_state: ECMTransientVector,
