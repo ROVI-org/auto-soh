@@ -29,15 +29,13 @@ class ECMSimulator():
                  current_behavior: Literal['constant', 'linear'] = 'constant',
                  keep_history: bool = False,
                  ) -> None:
-        self.has_C0 = asoh.c0 is not None
-        self.num_RC = len(asoh.rc_elements)
+        has_C0 = asoh.c0 is not None
+        num_RC = len(asoh.rc_elements)
         self.current_behavior = current_behavior
         self.asoh = asoh.model_copy(deep=True)
         self.keep_history = keep_history
-        # Lenght of hidden vector: SOC + q0 + I_RC_j + hysteresis
-        self.len_hidden = int(1 + int(self.has_C0) + self.num_RC + 1)
         if transient_state is None:
-            transient_state = ECMTransientVector.provide_template(has_C0=self.has_C0, num_RC=self.num_RC)
+            transient_state = ECMTransientVector.provide_template(has_C0=has_C0, num_RC=num_RC)
         self.transient = transient_state.model_copy(deep=True)
         if initial_input is None:
             initial_input = ECMInput(time=0., current=0.)
@@ -58,7 +56,7 @@ class ECMSimulator():
         Args:
             new_input: New ECM input to the system
 
-        Yields:
+        Returns:
             Tuple of the new transient state and corresponding measurement
         """
         # Get new transient
@@ -94,7 +92,7 @@ class ECMSimulator():
         Args
             inputs: List of ECMInput objects
 
-        Yields
+        Returns
             measurements: List of corresponding ECMMeasurements
         """
 
