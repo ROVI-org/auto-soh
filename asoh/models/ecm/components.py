@@ -52,8 +52,9 @@ class Resistance(SOCInterpolatedHealth):
         Computes value of series resistance at a given SOC and temperature.
         """
         if isinstance(self.base_values, float):
-            return self.base_values
-        reference_value = self._interp_func(soc)
+            reference_value = self.base_values
+        else:
+            reference_value = self._interp_func(soc)
         if temp is None or self.temperature_dependence_factor == 0:
             return reference_value
         gamma = self.temperature_dependence_factor
