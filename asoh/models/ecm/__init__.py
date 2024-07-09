@@ -82,7 +82,7 @@ class EquivalentCircuitModel(CellModel):
         gamma = asoh.h0.gamma
         kappa = (coul_eff * gamma) / Qt
         # We need to figure out if the current changes sign during this process
-        if current_k * current_kp1 >= 0:  # easier case
+        if current_k * current_kp1 >= 0 or current_behavior == 'constant':
             hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                     M=M,
                                                     kappa=kappa,
