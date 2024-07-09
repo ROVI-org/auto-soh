@@ -89,21 +89,25 @@ class EquivalentCircuitModel(CellModel):
                                                     dt=delta_t,
                                                     i0=current_k,
                                                     alpha=current_slope)
-        else:  # the current flips sign, so we need to treat two intervals
-            phi = -current_k / current_slope  # time when current == 0
+        # If the curret flips sign, we need to deal with two intervals
+        else: 
+            # solving for time until current == 0
+            phi = -current_k / current_slope
             h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                  M=M,
                                                  kappa=kappa,
                                                  dt=phi,
                                                  i0=current_k,
                                                  alpha=current_slope)
+            # Use this new value to update for the next interval. Remember to:
+            # 1. use the new hysteresis value
+            # 2. flip the sign of maximum hysteresis to follow current
+            # 3. use the starting current of 0.0
             hyst_kp1 = hysteresis_solver_const_sign(h0=h_mid,
-                                                    M=-M,  # change sign to
-                                                    # follow current
+                                                    M=-M,
                                                     kappa=kappa,
                                                     dt=phi,
-                                                    i0=0.0,  # recall I changed
-                                                    # sign
+                                                    i0=0.0,
                                                     alpha=current_slope)
 
         return ECMTransientVector(soc=soc_kp1,
