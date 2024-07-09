@@ -1,4 +1,5 @@
 from typing import List, Optional, Union, Literal, Callable
+from numbers import Number
 
 import numpy as np
 from pydantic import Field, computed_field, validate_call, ConfigDict
@@ -7,7 +8,7 @@ from scipy.interpolate import interp1d
 from asoh.models.base import HealthVariable
 
 
-class SOCInterpolatedHealth(HealthVariable):
+class SOCInterpolatedHealth(HealthVariable, validate_assignment=True):
     """Defines basic functionality for HealthVariables that need interpolation between SOC pinpoints
     """
     base_values: Union[float, np.ndarray] = \
@@ -40,7 +41,7 @@ class SOCInterpolatedHealth(HealthVariable):
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def get_value(self,
-                  soc: Union[float, List, np.ndarray]) -> Union[float, np.ndarray]:
+                  soc: Union[Number, List, np.ndarray]) -> Union[float, np.ndarray]:
         """Computes value(s) at given SOC(s)
 
         Args:
@@ -48,7 +49,7 @@ class SOCInterpolatedHealth(HealthVariable):
         Returns:
             Interpolated values
         """
-        if isinstance(self.base_values, float):
+        if isinstance(self.base_values, Number):
             return self.base_values
         return self._interp_func(soc)
 
