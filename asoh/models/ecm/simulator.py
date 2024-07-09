@@ -45,9 +45,9 @@ class ECMSimulator():
                                                             asoh=self.asoh)
 
         if self.keep_history:
-            self.input_history = [self.previous_input]
-            self.transient_history = [self.transient]
-            self.measurement_history = [self.measurement]
+            self.input_history = [self.previous_input.model_copy(deep=True)]
+            self.transient_history = [self.transient.model_copy(deep=True)]
+            self.measurement_history = [self.measurement.model_copy(deep=True)]
 
     def step(self, new_input: ECMInput) -> Tuple[ECMTransientVector, ECMMeasurement]:
         """
@@ -79,9 +79,9 @@ class ECMSimulator():
         self.measurement = new_measurement.model_copy(deep=True)
 
         if self.keep_history:
-            self.input_history += [self.previous_input]
-            self.transient_history += [self.transient]
-            self.measurement_history += [self.measurement]
+            self.input_history += [self.previous_input.model_copy(deep=True)]
+            self.transient_history += [self.transient.model_copy(deep=True)]
+            self.measurement_history += [self.measurement.model_copy(deep=True)]
 
         return new_transient, new_measurement
 
