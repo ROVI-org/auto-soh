@@ -90,7 +90,7 @@ class EquivalentCircuitModel(CellModel):
                                                     i0=current_k,
                                                     alpha=current_slope)
         # If the curret flips sign, we need to deal with two intervals
-        else: 
+        else:
             # solving for time until current == 0
             phi = -current_k / current_slope
             h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst,
