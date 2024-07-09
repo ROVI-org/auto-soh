@@ -77,7 +77,7 @@ class EquivalentCircuitModel(CellModel):
         # current and divide by its absolute value
         M *= current_k
         if current_k != 0:
-            M *= current_k / abs(current_k)
+            M /= abs(current_k)
 
         gamma = asoh.h0.gamma
         kappa = (coul_eff * gamma) / Qt
@@ -102,11 +102,12 @@ class EquivalentCircuitModel(CellModel):
             # Use this new value to update for the next interval. Remember to:
             # 1. use the new hysteresis value
             # 2. flip the sign of maximum hysteresis to follow current
-            # 3. use the starting current of 0.0
+            # 3. use the remaining time interval of delta_t - phi
+            # 4. use the starting current of 0.0
             hyst_kp1 = hysteresis_solver_const_sign(h0=h_mid,
                                                     M=-M,
                                                     kappa=kappa,
-                                                    dt=phi,
+                                                    dt=(delta_t - phi),
                                                     i0=0.0,
                                                     alpha=current_slope)
 
