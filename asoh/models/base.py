@@ -384,7 +384,7 @@ class InputQuantities(GeneralContainer):
     current: float = Field(description='Current applied to the storage system. Units: A')
 
 
-class OutputMeasurements(GeneralContainer):
+class OutputQuantities(GeneralContainer):
     """Output for observables from a battery system
 
     Add new fields to subclasses of ``ControlState`` for more complex systems
@@ -432,7 +432,7 @@ class CellModel():
             input: InputQuantities,
             transient_state: TransientVector,
             asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> OutputMeasurements:
+            *args, **kwargs) -> OutputQuantities:
         """
         Compute expected output (terminal voltage, etc.) of the model.
         """
