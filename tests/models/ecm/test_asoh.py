@@ -90,6 +90,17 @@ def full_pngv(fine_soc) -> ECMASOH:
                    h0=hyst)
 
 
+@fixture
+def full_asoh() -> ECMASOH:
+    r_rc1 = np.array([1, 2])
+    r_rc2 = np.array([3, 4])
+    c_rc1 = np.array([500, 600])
+    c_rc2 = np.array([600, 700])
+    ocv = realistic_fake_ocv(np.linspace(0, 1, 10))
+    asoh = ECMASOH.provide_template(has_C0=True, num_RC=2, OCV=ocv, RC=[(r_rc1, c_rc1), (r_rc2, c_rc2)])
+    return asoh
+
+
 @pytest.mark.xfail()
 def test_basic_rint(basic_rint):
     assert basic_rint.updatable == set()
@@ -97,3 +108,10 @@ def test_basic_rint(basic_rint):
     assert np.allclose([10, 0.05, 0],  # [q_t, r0, ocvent]
                        basic_rint.get_parameters(),
                        atol=1e-12)
+
+
+def test_full_asoh_template(full_asoh):
+    assert np.allclose(full_asoh.rc_elements[0].r.get_value(soc=0.5), 1.5), 'Wrong R_RC_1 value!'
+    assert np.allclose(full_asoh.rc_elements[1].r.get_value(soc=0.25), 3.25), 'Wrong R_RC_2 value!'
+    assert np.allclose(full_asoh.rc_elements[0].c.get_value(soc=0.75), 575), 'Wrong C_RC_1 value!'
+    assert np.allclose(full_asoh.rc_elements[1].c.get_value(soc=0.37), 637), 'Wrong R_RC_2 value!'

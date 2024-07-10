@@ -92,7 +92,7 @@ class ECMASOH(HealthVariable):
                 if len(RC) != num_RC:
                     raise ValueError('Amount of RC information provided does not '
                                      'match number of RC elements specified!')
-                RCcomps = tuple
+                RCcomps = tuple()
                 for RC_info in RC:
                     R_info = RC_info[0]
                     C_info = RC_info[1]
