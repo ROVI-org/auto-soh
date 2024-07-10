@@ -394,7 +394,7 @@ class OutputMeasurements(GeneralContainer):
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
-class HiddenVector(GeneralContainer):
+class TransientVector(GeneralContainer):
     """
     Stores physical transient/instantenous hidden state
     """
@@ -421,16 +421,16 @@ class CellModel():
     def update_transient_state(
             self,
             input: InputQuantities,
-            transient_state: HiddenVector,
+            transient_state: TransientVector,
             asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> HiddenVector:
+            *args, **kwargs) -> TransientVector:
         pass
 
     @abstractmethod
     def calculate_terminal_voltage(
             self,
             input: InputQuantities,
-            transient_state: HiddenVector,
+            transient_state: TransientVector,
             asoh: AdvancedStateOfHealth,
             *args, **kwargs) -> OutputMeasurements:
         """
