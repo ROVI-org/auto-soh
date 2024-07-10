@@ -38,6 +38,31 @@ class OutputMeasurements(MultivariateRandomVariable):
     pass
 
 
+class ControlVariables(MultivariateRandomVariable):
+    """
+    Define the container for the controls. We are setting as a random variable, but, for most purposes, its probability
+    distribution is to be considered a delta function centered on the mean.
+    """
+    pass
+
+
+class OnlineEstimator():
+    """
+    Defines the base structure of an online estimator
+    """
+
+    @abstractmethod
+    def step(self, u: ControlVariables, y: OutputMeasurements) -> None:
+        """
+        Function to step the estimator, provided new control variables and output measurements.
+
+        Args:
+            u: control variables
+            y: output measurements
+        """
+        pass
+
+
 class ModelFilterInterface():
     """
     Defines the interface between the cell model and the online estimators. Communication between these is established
