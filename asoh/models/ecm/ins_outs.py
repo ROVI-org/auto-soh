@@ -1,5 +1,5 @@
 from pydantic import Field
-from asoh.models.base import InputQuantities, OutputMeasurements
+from asoh.models.base import InputQuantities, OutputQuantities
 
 
 class ECMInput(InputQuantities):
@@ -12,7 +12,7 @@ class ECMInput(InputQuantities):
 
 # TODO (vventuri): Remember we need to implement ways to denoise SOC, Qt, R0,
 #                   which require more outputs
-class ECMMeasurement(OutputMeasurements):
+class ECMMeasurement(OutputQuantities):
     """
     Controls the outputs of the ECM.
     """

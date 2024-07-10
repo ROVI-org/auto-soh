@@ -4,10 +4,10 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from asoh.models.base import HiddenVector
+from asoh.models.base import TransientVector
 
 
-class ECMTransientVector(HiddenVector,
+class ECMTransientVector(TransientVector,
                          validate_assignment=True):
     """Description of the state of charge of an ECM and all components"""
 
