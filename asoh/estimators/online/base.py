@@ -1,104 +1,68 @@
 """
-Base classes to facilitate  definition of online estimators and hidden states, as well as to establish interfaces
-between online estimators and models, transient states, and A-SOH parameters.
+Base classes that are more specific than those in __init__.
 """
-from abc import abstractmethod
+from warnings import warn
+from typing_extensions import Self
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import Field, field_validator, computed_field, model_validator
 
-from asoh.models.base import CellModel
+from asoh.estimators.online.base import MultivariateRandomDistribution
 
 
-class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
+class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
     """
-    Base class to help represent a multivariate random variable
+    Class to describe a multivariate Gaussian distribution
     """
+    mean: np.ndarray = Field(default=np.array([0]),
+                             description='Mean of the multivariate Gaussian distribution',
+                             min_length=1)
+    covariance: np.ndarray = Field(default=np.array([[1]]),
+                                   description='Covariance of the multivariate Gaussian distribution',
+                                   min_length=1)
 
-    @abstractmethod
+    @field_validator('mean', mode='after')
+    @classmethod
+    def mean_1d(cls, mu: np.ndarray) -> np.ndarray:
+        """ Making sure the mean is a vector """
+        mean_shape = mu.shape
+        if not mean_shape:
+            raise ValueError('Mean must be Sized and have a non-empty shape!')
+        if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
+            raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
+        elif len(mean_shape) == 2:
+            msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
+                (mean_shape + (max(mean_shape),))
+            warn(msg)
+        return mu.flatten()
+
+    @field_validator('covariance', mode='after')
+    @classmethod
+    def cov_2d(cls, sigma: np.ndarray) -> np.ndarray:
+        """ Making sure the covariance is a 2D matrix """
+        cov_shape = sigma.shape
+        if len(cov_shape) != 2:
+            raise ValueError('Covariance must be a 2D matrix, but shape provided was ' + str(cov_shape) + '!')
+        return sigma
+
+    @model_validator(mode='after')
+    def fields_dim(self) -> Self:
+        """ Making sure dimensions match between mean and covariance """
+        dim = self.num_dimensions
+        if self.cov.shape != (dim, dim):
+            msg = 'Wrong dimensions! Mean has shape ' + str(self.mean.shape)
+            msg += ', but covariance has shape ' + str(self.cov.shape)
+            raise ValueError(msg)
+        return self
+
+    @computed_field
+    @property
+    def num_dimensions(self) -> int:
+        """ Number of dimensions of random variable """
+        return len(self.mean)
+
     def get_mean(self) -> np.ndarray:
-        """
-        Provides mean of distribution
-        """
-        pass
+        return self.mean.copy()
 
-
-class HiddenState(MultivariateRandomDistribution):
-    """
-    Defines the hidden state that is updated by the online estimator.
-    """
-    pass
-
-
-class OutputMeasurements(MultivariateRandomDistribution):
-    """
-    Defines a container for the outputs
-    """
-    pass
-
-
-class ControlVariables(MultivariateRandomDistribution):
-    """
-    Define the container for the controls. We are setting as a random variable, but, for most purposes, its probability
-    distribution is to be considered a delta function centered on the mean.
-    """
-    pass
-
-
-class OnlineEstimator():
-    """
-    Defines the base structure of an online estimator
-    """
-
-    @abstractmethod
-    def step(self, u: ControlVariables, y: OutputMeasurements) -> None:
-        """
-        Function to step the estimator, provided new control variables and output measurements.
-
-        Args:
-            u: control variables
-            y: output measurements
-        """
-        pass
-
-
-class ModelFilterInterface():
-    """
-    Defines the interface between the cell model and the online estimators. Communication between these is established
-    through the use of numpy.ndarray objects.
-
-    Args:
-        cell_model: CellModel object that knows how to update transient states from A-SOH and inputs, and knows how to
-            calculate outputs from A-SOH, inputs, and transient state
-    """
-
-    cell_model: CellModel
-
-    def __init__(self, cell_model: CellModel):
-        self.cell_model = cell_model
-
-    @abstractmethod
-    def update_hidden_states(self, hidden_state: HiddenState) -> HiddenState:
-        """
-        Function that updates the hidden state.
-
-        Args:
-            hidden_state: current hidden state of the system
-
-        Returns:
-            new_hidden: updated hidden state
-        """
-        pass
-
-    @abstractmethod
-    def predict_measurement(self, hidden_state: HiddenState) -> OutputMeasurements:
-        """
-        Function to predict measurement from the hidden state
-
-        Args:
-            hidden_state: current hidden state of the system
-
-        Returns:
-            pred_measurement: predicted measurement
-        """
-        pass
+    def get_covariance(self) -> np.ndarray:
+        return self.covariance.copy()
