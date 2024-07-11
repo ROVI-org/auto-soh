@@ -15,9 +15,8 @@ class MultivariateRandomVariable(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable
     """
 
-    @property
     @abstractmethod
-    def mean(self) -> np.ndarray:
+    def get_mean(self) -> np.ndarray:
         """
         Provides mean of distribution
         """
