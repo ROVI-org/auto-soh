@@ -31,24 +31,12 @@ class HiddenState(MultivariateRandomDistribution):
     """
     pass
 
-    @property
-    @abstractmethod
-    def num_params(self) -> int:
-        """ Specifies number of parameters stored """
-        pass
-
 
 class OutputMeasurements(MultivariateRandomDistribution):
     """
     Defines a container for the outputs
     """
     pass
-
-    @property
-    @abstractmethod
-    def num_params(self) -> int:
-        """ Specifies number of output values """
-        pass
 
 
 class ControlVariables(MultivariateRandomDistribution):
@@ -90,6 +78,18 @@ class ModelFilterInterface():
 
     def __init__(self, cell_model: CellModel):
         self.cell_model = cell_model
+
+    @property
+    @abstractmethod
+    def num_hidden_dimensions(self) -> int:
+        """ Outputs expected dimensionality of hidden state """
+        pass
+
+    @property
+    @abstractmethod
+    def num_output_dimensions(self) -> int:
+        """ Outputs expected dimensionality of output measurements """
+        pass
 
     @abstractmethod
     def update_hidden_states(self, hidden_state: HiddenState) -> HiddenState:
