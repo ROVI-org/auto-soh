@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from asoh.models.base import CellModel
 
 
-class MultivariateRandomVariable(BaseModel, arbitrary_types_allowed=True):
+class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     """
     Base class to help represent a multivariate random variable
     """
@@ -23,21 +23,21 @@ class MultivariateRandomVariable(BaseModel, arbitrary_types_allowed=True):
         pass
 
 
-class HiddenState(MultivariateRandomVariable):
+class HiddenState(MultivariateRandomDistribution):
     """
     Defines the hidden state that is updated by the online estimator.
     """
     pass
 
 
-class OutputMeasurements(MultivariateRandomVariable):
+class OutputMeasurements(MultivariateRandomDistribution):
     """
     Defines a container for the outputs
     """
     pass
 
 
-class ControlVariables(MultivariateRandomVariable):
+class ControlVariables(MultivariateRandomDistribution):
     """
     Define the container for the controls. We are setting as a random variable, but, for most purposes, its probability
     distribution is to be considered a delta function centered on the mean.
