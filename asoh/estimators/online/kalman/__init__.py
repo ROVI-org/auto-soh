@@ -1,59 +1,17 @@
 """ Colection of classes and functions pertinent to Kálmán filters """
-from warnings import warn
-from typing_extensions import Self
-
-import numpy as np
-from pydantic import Field, field_validator, computed_field, model_validator
-
-from asoh.estimators.online.base import (MultivariateRandomDistribution)
+from asoh.estimators.online import HiddenState, OutputMeasurements
+from asoh.estimators.online.base import MultivariateGaussian
 
 
-class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
+class KalmanHiddenState(MultivariateGaussian, HiddenState):
     """
-    Class to describe a multivariate Gaussian distribution
+    Hidden state to be used by Kálmán filters
     """
-    mean: np.ndarray = Field(default=np.array([0]),
-                             description='Mean of the multivariate Gaussian distribution',
-                             min_length=1)
-    covariance: np.ndarray = Field(default=np.array([[1]]),
-                                   description='Covariance of the multivariate Gaussian distribution',
-                                   min_length=1)
+    pass
 
-    @field_validator('mean', mode='after')
-    @classmethod
-    def mean_1d(cls, mu: np.ndarray) -> np.ndarray:
-        mean_shape = mu.shape
-        if not mean_shape:
-            raise ValueError('Mean must be Sized and have a non-empty shape!')
-        if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
-            raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
-        elif len(mean_shape) == 2:
-            msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
-                (mean_shape + (max(mean_shape),))
-            warn(msg)
-        return mu.flatten()
 
-    @field_validator('covariance', mode='after')
-    @classmethod
-    def cov_2d(cls, sigma: np.ndarray) -> np.ndarray:
-        cov_shape = sigma.shape
-        if len(cov_shape) != 2:
-            raise ValueError('Covariance must be a 2D matrix, but shape provided was ' + str(cov_shape) + '!')
-        return sigma
-
-    @model_validator(mode='after')
-    def fields_dim(self) -> Self:
-        dim = self.num_dimensions
-        if self.cov.shape != (dim, dim):
-            msg = 'Wrong dimensions! Mean has shape ' + str(self.mean.shape)
-            msg += ', but covariance has shape ' + str(self.cov.shape)
-            raise ValueError(msg)
-        return self
-
-    @computed_field
-    @property
-    def num_dimensions(self) -> int:
-        return len(self.mean)
-
-    def get_mean(self) -> np.ndarray:
-        return self.mean.copy()
+class KalmanOutputMeasurement(MultivariateGaussian, OutputMeasurements):
+    """
+    Ouput measurements for Kálmán filters
+    """
+    pass
