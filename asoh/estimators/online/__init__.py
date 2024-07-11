@@ -31,12 +31,24 @@ class HiddenState(MultivariateRandomDistribution):
     """
     pass
 
+    @property
+    @abstractmethod
+    def num_params(self) -> int:
+        """ Specifies number of parameters stored """
+        pass
+
 
 class OutputMeasurements(MultivariateRandomDistribution):
     """
     Defines a container for the outputs
     """
     pass
+
+    @property
+    @abstractmethod
+    def num_params(self) -> int:
+        """ Specifies number of output values """
+        pass
 
 
 class ControlVariables(MultivariateRandomDistribution):

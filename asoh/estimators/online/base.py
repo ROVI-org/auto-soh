@@ -61,6 +61,10 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         """ Number of dimensions of random variable """
         return len(self.mean)
 
+    @property
+    def num_params(self) -> int:
+        return self.num_dimensions
+
     def get_mean(self) -> np.ndarray:
         return self.mean.copy()
 
