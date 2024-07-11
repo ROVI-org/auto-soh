@@ -7,7 +7,7 @@ interfaces between online estimators and models, transient states, and A-SOH par
 from abc import abstractmethod
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from asoh.models.base import CellModel
 
@@ -17,26 +17,30 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable
     """
 
-    @abstractmethod
-    def get_mean(self) -> np.ndarray:
+    @property
+    def expected_value(self) -> np.ndarray:
         """
-        Provides mean of distribution
+        Provides expected value of distribution
         """
-        pass
+        if hasattr(self, 'mean'):
+            return getattr(self, 'mean')
+        raise ValueError('Mean not defined nor calculated! Expected value calculation not defined!')
 
 
 class HiddenState(MultivariateRandomDistribution):
     """
     Defines the hidden state that is updated by the online estimator.
     """
-    pass
+    mean: np.ndarray = Field(default=None,
+                             description='Mean of the random distribution that describes the hidden state')
 
 
 class OutputMeasurements(MultivariateRandomDistribution):
     """
     Defines a container for the outputs
     """
-    pass
+    mean: np.ndarray = Field(default=None,
+                             description='Mean of the random distribution that describes the output measurement')
 
 
 class ControlVariables(MultivariateRandomDistribution):
@@ -44,7 +48,8 @@ class ControlVariables(MultivariateRandomDistribution):
     Define the container for the controls. We are setting as a random variable, but, for most purposes, its probability
     distribution is to be considered a delta function centered on the mean.
     """
-    pass
+    mean: np.ndarray = Field(default=None,
+                             description='Mean of the random distribution that describes the control variables')
 
 
 class OnlineEstimator():
@@ -53,13 +58,16 @@ class OnlineEstimator():
     """
 
     @abstractmethod
-    def step(self, u: ControlVariables, y: OutputMeasurements) -> None:
+    def step(self, u: ControlVariables, y: OutputMeasurements) -> HiddenState:
         """
         Function to step the estimator, provided new control variables and output measurements.
 
         Args:
             u: control variables
             y: output measurements
+
+        Returns:
+            Corrected estimate of the hidden state of the system
         """
         pass
 
