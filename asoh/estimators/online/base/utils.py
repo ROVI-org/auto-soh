@@ -2,7 +2,6 @@
 import numpy as np
 
 
-# Check for positive semi-definiteness
 def ensure_positive_semi_definite(Sig: np.ndarray) -> np.ndarray:
     """
     Function to ensure the matrix is positive semi-definite. If the matrix is positive semi-definite, it simply returns
@@ -25,7 +24,6 @@ def ensure_positive_semi_definite(Sig: np.ndarray) -> np.ndarray:
         return enforce_positive_semi_defiteness(Sig).copy()
 
 
-# Enforce positive semi-definite covariances
 def enforce_positive_semi_defiteness(Sig: np.ndarray) -> np.ndarray:
     """
     Finds nearest positive semi-definite matrix to the one provided.

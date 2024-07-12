@@ -9,6 +9,18 @@ from asoh.estimators.online.base.utils import ensure_positive_semi_definite
 from asoh.estimators.online.base.kalman import KalmanHiddenState, KalmanOutputMeasurement
 
 
+def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
+    """
+    Function to calculate Kálmán gain, defined as
+    L = cov_xy * (cov_y^(-1))
+
+    Args:
+        cov_xy: covariance between x and y (hidden states and outputs, respectively)
+        cov_y: variance of y (output)
+    """
+    return np.matmul(cov_xy, np.linalg.inv(cov_y))
+
+
 class UnscentedKalmanFilter(OnlineEstimator):
     """
     Class that defines the basic functionality of the Unscented Kalman Filter
@@ -112,6 +124,8 @@ class UnscentedKalmanFilter(OnlineEstimator):
         x_k_minus, y_k, cov_xy = self.estimation_update(sigma_pts=sigma_pts, u=u)
         # Step 2: correction step, adjust hidden states based on new measurement
         self.correction_update(x_k_minus=x_k_minus, y_hat=y_k, cov_xy=cov_xy, y=y)
+        # Don't forget to update the internal control!
+        self.u = u.model_copy(deep=True)
         # Return
         return (y_k.model_copy(deep=True), self.state.model_copy(deep=True))
 
@@ -200,13 +214,29 @@ class UnscentedKalmanFilter(OnlineEstimator):
 
     def _get_unscented_covariance(self, array0: np.ndarray, array1: np.ndarray = None) -> np.ndarray:
         """
-        Functions that computes the unscented covariance between zero-mean arrays. If second array is not provided, 
-        this is equivalent to computing the unscented variance of the only provided array. 
+        Functions that computes the unscented covariance between zero-mean arrays. If second array is not provided,
+        this is equivalent to computing the unscented variance of the only provided array.
         """
         if array1 is None:
             array1 = array0
         cov = np.matmul(array0.T, np.matmul(np.diag(self.cov_weights), array1))
         return cov
+
+    def _predict_outputs(self,
+                         updated_hidden_states: np.ndarray,
+                         control: ControlVariables) -> np.ndarray:
+        """
+        Function to predict outputs from evolved Sigma points.
+
+        Args:
+            updated_hidden_states: numpy array of the updated hidden states (includes process noise already)
+            control: control to be used for predicting outpus
+
+        Returns:
+            y_preds: predicted outputs based on provided hidden states and control
+        """
+        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states, controls=control)
+        return y_preds
 
     def estimation_update(self,
                           sigma_pts: np.ndarray,
@@ -246,25 +276,30 @@ class UnscentedKalmanFilter(OnlineEstimator):
 
         return x_k_minus, y_k, cov_xy
 
-    def _predict_outputs(self,
-                         updated_hidden_states: np.ndarray,
-                         control: ControlVariables) -> np.ndarray:
-        """
-        Function to predict outputs from evolved Sigma points.
-
-        Args:
-            updated_hidden_states: numpy array of the updated hidden states (includes process noise already)
-            control: control to be used for predicting outpus
-
-        Returns:
-            y_preds: predicted outputs based on provided hidden states and control
-        """
-        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states, controls=control)
-        return y_preds
-
     def correction_update(self,
                           x_k_minus: KalmanHiddenState,
                           y_hat: KalmanOutputMeasurement,
                           cov_xy: np.ndarray,
                           y: OutputMeasurements) -> None:
-        pass
+        """
+        Function to perform the correction update of the hidden state, based on the real measured output values.
+
+        Args:
+            x_k_minus: estimate of the hidden state P(x_k|y_(k-1))
+            y_hat: output predictions P(y_k|y_k-1)
+            cov_xy: covariance between hidden state and predicted output
+            y: real measured output values
+        """
+        # Step 2a: calculate gain matrix
+        l_k = calculate_gain_matrix(cov_xy=cov_xy, cov_y=y_hat.covariance)
+
+        # Step 2b: compute Kálmán innovation (basically, the error in the output predictions)
+        innovation = y.mean - y_hat.mean
+
+        # Step 2c: update the hidden state mean and covariance
+        x_k_hat_plus = x_k_minus.mean + np.matmul(l_k, innovation)
+        cov_x_k_plus = x_k_minus.covariance - np.matmul(l_k, np.matmul(y_hat.covariance, l_k.T))
+        # Make sure this new covariance is positive semi-definite
+        cov_x_k_plus = ensure_positive_semi_definite(cov_x_k_plus)
+        # Set internal state
+        self.state = KalmanHiddenState(mean=x_k_hat_plus, covariance=cov_x_k_plus)
