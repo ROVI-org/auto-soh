@@ -105,7 +105,7 @@ class ModelFilterInterface():
         Function that updates the hidden state.
 
         Args:
-            hidden_states: current hidden states of the system as a numpy.ndarray object
+            hidden_states: current hidden states (and other parameters) of the system as a numpy.ndarray object
 
         Returns:
             new_hidden: updated hidden states as a numpy.ndarray object
@@ -118,7 +118,7 @@ class ModelFilterInterface():
         Function to predict measurement from the hidden state
 
         Args:
-            hidden_states: current hidden states of the system as a numpy.ndarray object
+            hidden_states: current hidden states (and other parameters) of the system as a numpy.ndarray object
 
         Returns:
             pred_measurement: predicted measurements as a numpy.ndarray object
