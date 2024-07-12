@@ -5,6 +5,7 @@ Here, we include base classes to facilitate  definition of online estimators and
 interfaces between online estimators and models, transient states, and A-SOH parameters.
 """
 from abc import abstractmethod
+from typing import Union, List
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -100,12 +101,16 @@ class ModelFilterInterface():
         pass
 
     @abstractmethod
-    def update_hidden_states(self, hidden_states: np.ndarray) -> np.ndarray:
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             u: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
         """
-        Function that updates the hidden state.
+        Function that updates the hidden state based on the control variables provided.
 
         Args:
-            hidden_states: current hidden states (and other parameters) of the system as a numpy.ndarray object
+            hidden_states: current hidden states of the system as a numpy.ndarray object
+            u: controls to be used in the hidden state update. If provided as a list, each entry must correspond to one
+                of the hidden states provided. Otherwise, it will use the same control for all hidden states.
 
         Returns:
             new_hidden: updated hidden states as a numpy.ndarray object
@@ -118,7 +123,7 @@ class ModelFilterInterface():
         Function to predict measurement from the hidden state
 
         Args:
-            hidden_states: current hidden states (and other parameters) of the system as a numpy.ndarray object
+            hidden_states: current hidden states of the system as a numpy.ndarray object
 
         Returns:
             pred_measurement: predicted measurements as a numpy.ndarray object
