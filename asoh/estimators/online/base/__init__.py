@@ -1,13 +1,11 @@
-"""
-Base classes that are more specific than those in __init__.
-"""
+""" Base online estimators, which are all model-agnostic """
 from warnings import warn
 from typing_extensions import Self
 
 import numpy as np
 from pydantic import Field, field_validator, computed_field, model_validator
 
-from asoh.estimators.online.base import MultivariateRandomDistribution
+from asoh.estimators.online import MultivariateRandomDistribution
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
