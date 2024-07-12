@@ -103,8 +103,8 @@ class ModelFilterInterface():
     @abstractmethod
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
-                             previous_control: Union[ControlVariables, List[ControlVariables]],
-                             new_control: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
+                             previous_controls: Union[ControlVariables, List[ControlVariables]],
+                             new_controls: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
         """
         Function that updates the hidden state based on the control variables provided.
 
@@ -122,12 +122,15 @@ class ModelFilterInterface():
         pass
 
     @abstractmethod
-    def predict_measurement(self, hidden_states: np.ndarray) -> np.ndarray:
+    def predict_measurement(self,
+                            hidden_states: np.ndarray,
+                            controls: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
         """
         Function to predict measurement from the hidden state
 
         Args:
             hidden_states: current hidden states of the system as a numpy.ndarray object
+            controls: controls to be used for predicting outputs
 
         Returns:
             pred_measurement: predicted measurements as a numpy.ndarray object
