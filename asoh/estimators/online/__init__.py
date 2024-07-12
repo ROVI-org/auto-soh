@@ -103,14 +103,18 @@ class ModelFilterInterface():
     @abstractmethod
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
-                             u: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
+                             previous_control: Union[ControlVariables, List[ControlVariables]],
+                             new_control: Union[ControlVariables, List[ControlVariables]]) -> np.ndarray:
         """
         Function that updates the hidden state based on the control variables provided.
 
         Args:
             hidden_states: current hidden states of the system as a numpy.ndarray object
-            u: controls to be used in the hidden state update. If provided as a list, each entry must correspond to one
-                of the hidden states provided. Otherwise, it will use the same control for all hidden states.
+            previous_control: controls at the time the hidden states are being reported. If provided as a list, each
+                entry must correspond to one of the hidden states provided. Otherwise, assumes same control for all
+                hidden states.
+            new_control: new controls to be used in the hidden state update. If provided as a list, each entry must
+                correspond to one of the hidden states provided. Otherwise, assumes same control for all hidden states.
 
         Returns:
             new_hidden: updated hidden states as a numpy.ndarray object
