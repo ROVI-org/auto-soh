@@ -100,27 +100,27 @@ class ModelFilterInterface():
         pass
 
     @abstractmethod
-    def update_hidden_states(self, hidden_state: HiddenState) -> HiddenState:
+    def update_hidden_states(self, hidden_states: np.ndarray) -> np.ndarray:
         """
         Function that updates the hidden state.
 
         Args:
-            hidden_state: current hidden state of the system
+            hidden_states: current hidden states of the system as a numpy.ndarray object
 
         Returns:
-            new_hidden: updated hidden state
+            new_hidden: updated hidden states as a numpy.ndarray object
         """
         pass
 
     @abstractmethod
-    def predict_measurement(self, hidden_state: HiddenState) -> OutputMeasurements:
+    def predict_measurement(self, hidden_states: np.ndarray) -> np.ndarray:
         """
         Function to predict measurement from the hidden state
 
         Args:
-            hidden_state: current hidden state of the system
+            hidden_states: current hidden states of the system as a numpy.ndarray object
 
         Returns:
-            pred_measurement: predicted measurement
+            pred_measurement: predicted measurements as a numpy.ndarray object
         """
         pass
