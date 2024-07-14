@@ -47,7 +47,7 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
     def fields_dim(self) -> Self:
         """ Making sure dimensions match between mean and covariance """
         dim = self.num_dimensions
-        if self.cov.shape != (dim, dim):
+        if self.covariance.shape != (dim, dim):
             msg = 'Wrong dimensions! Mean has shape ' + str(self.mean.shape)
             msg += ', but covariance has shape ' + str(self.cov.shape)
             raise ValueError(msg)
