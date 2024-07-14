@@ -78,9 +78,9 @@ class UnscentedKalmanFilter(OnlineEstimator):
                              (self._aug_len + kappa_param)) - self._aug_len
 
         # Taking care of covariances
-        if covariance_process_noise is None:  # assume std = 1.0e-4
+        if covariance_process_noise is None:  # assume std = 1.0e-8
             covariance_process_noise = 1.0e-08 * np.eye(self.model.num_hidden_dimensions)
-        if covariance_sensor_noise is None:  # assume std = 1.0e-4
+        if covariance_sensor_noise is None:  # assume std = 1.0e-8
             covariance_sensor_noise = 1.0e-08 * np.eye(self.model.num_output_dimensions)
         assert covariance_process_noise.shape[0] == covariance_process_noise.shape[1], \
             'Process noise covariance matrix must be square, but it has shape ' + \
