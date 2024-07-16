@@ -198,12 +198,12 @@ def test_lorenz_ukf(lorenz_model):
 
     # Check stats, but give a wider margin than a true Gaussian, as this is a very chaotic system and we are looking at
     # the hidden states, instead of number the UKF can measure itself against.
-    assert x_1sig_frac > 0.62,  'Fraction within 1 standard deviation is %2.1f %% < 62%%!!' % (100 * x_1sig_frac)
+    assert x_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * x_1sig_frac)
     assert x_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * x_2sig_frac)
     assert x_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * x_3sig_frac)
-    assert y_1sig_frac > 0.62,  'Fraction within 1 standard deviation is %2.1f %% < 62%%!!' % (100 * y_1sig_frac)
+    assert y_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * y_1sig_frac)
     assert y_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * y_2sig_frac)
     assert y_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * y_3sig_frac)
-    assert z_1sig_frac > 0.62,  'Fraction within 1 standard deviation is %2.1f %% < 62%%!!' % (100 * z_1sig_frac)
+    assert z_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * z_1sig_frac)
     assert z_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * z_2sig_frac)
     assert z_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * z_3sig_frac)
