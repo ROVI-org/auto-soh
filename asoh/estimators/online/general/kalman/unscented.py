@@ -295,6 +295,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
 
         # Step 2b: compute Kálmán innovation (basically, the error in the output predictions)
         innovation = y.mean - y_hat.mean
+        innovation = innovation.flatten()
 
         # Step 2c: update the hidden state mean and covariance
         x_k_hat_plus = x_k_minus.mean + np.matmul(l_k, innovation)
