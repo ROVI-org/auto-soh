@@ -16,14 +16,12 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable
     """
 
-    @property
-    def expected_value(self) -> np.ndarray:
+    @abstractmethod
+    def get_mean(self) -> np.ndarray:
         """
-        Provides expected value of distribution
+        Provides mean (first moment) of distribution
         """
-        if hasattr(self, 'mean'):
-            return getattr(self, 'mean')
-        raise ValueError('Mean not defined nor calculated! Expected value calculation not defined!')
+        pass
 
 
 class HiddenState(MultivariateRandomDistribution):
@@ -33,6 +31,9 @@ class HiddenState(MultivariateRandomDistribution):
     mean: np.ndarray = Field(default=None,
                              description='Mean of the random distribution that describes the hidden state')
 
+    def get_mean(self) -> np.ndarray:
+        return self.mean.copy()
+
 
 class OutputMeasurements(MultivariateRandomDistribution):
     """
@@ -40,6 +41,9 @@ class OutputMeasurements(MultivariateRandomDistribution):
     """
     mean: np.ndarray = Field(default=None,
                              description='Mean of the random distribution that describes the output measurement')
+
+    def get_mean(self) -> np.ndarray:
+        return self.mean.copy()
 
 
 class ControlVariables(MultivariateRandomDistribution):
@@ -49,6 +53,9 @@ class ControlVariables(MultivariateRandomDistribution):
     """
     mean: np.ndarray = Field(default=None,
                              description='Mean of the random distribution that describes the control variables')
+
+    def get_mean(self) -> np.ndarray:
+        return self.mean.copy()
 
 
 class OnlineEstimator():
