@@ -113,13 +113,13 @@ def test_lorenz_ukf(lorenz_model):
                                                       previous_controls=previous_control,
                                                       new_controls=u)
         real_values['state'] += [new_state.copy()]
-        new_state += np.random.multivariate_normal(mean=np.zeros(3), cov=process_noise)
+        new_state += rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)
         noisy_values['state'] += [new_state.copy()]
 
         # Get new measurement
         m = lorenz_model.predict_measurement(hidden_states=new_state, controls=u)
         real_values['measurements'] += [m.copy()]
-        m += np.random.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
+        m += rng.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
         noisy_values['measurements'] += [m.copy()]
 
         # Assemble measurement
