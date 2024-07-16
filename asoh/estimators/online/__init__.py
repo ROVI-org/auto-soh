@@ -10,8 +10,6 @@ from typing import Union, List
 import numpy as np
 from pydantic import BaseModel, Field
 
-from asoh.models.base import CellModel
-
 
 class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     """
@@ -55,8 +53,18 @@ class ControlVariables(MultivariateRandomDistribution):
 
 class OnlineEstimator():
     """
-    Defines the base structure of an online estimator
+    Defines the base structure of an online estimator.
+
+    Args:
+        initial_state: initial hidden state of the system
+        initial_control: initial control on the system
     """
+
+    def __init__(self,
+                 initial_state: HiddenState,
+                 initial_control: ControlVariables):
+        self.state = initial_state.model_copy(deep=True)
+        self.u = initial_control.model_copy(deep=True)
 
     @abstractmethod
     def step(self, u: ControlVariables, y: OutputMeasurements) -> HiddenState:
@@ -77,17 +85,7 @@ class ModelFilterInterface():
     """
     Defines the interface between the cell model and the online estimators. Communication between these is established
     through the use of numpy.ndarray objects.
-
-    Args:
-        cell_model: CellModel object that knows how to update transient states from A-SOH and inputs, and knows how to
-            calculate outputs from A-SOH, inputs, and transient state
     """
-
-    cell_model: CellModel
-
-    def __init__(self, cell_model: CellModel):
-        self.cell_model = cell_model
-
     @property
     @abstractmethod
     def num_hidden_dimensions(self) -> int:
