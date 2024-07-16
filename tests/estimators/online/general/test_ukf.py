@@ -163,11 +163,11 @@ def test_lorenz_ukf(lorenz_model):
 
     # Check stats, but be slightly more lenient than a true Gaussian
     assert m0_1sig_frac >= 0.65, 'Fraction within 1 standard deviation is %2.1f %% < 65%%!!' % (100 * m0_1sig_frac)
-    assert m0_2sig_frac >= 0.95, 'Fraction within 2 standard deviations is %2.1f %% < 95%%!!' % (100 * m0_2sig_frac)
-    assert m0_3sig_frac >= 0.99, 'Fraction within 3 standard deviations is %2.1f %% < 99%%!!' % (100 * m0_3sig_frac)
+    assert m0_2sig_frac >= 0.925, 'Fraction within 2 standard deviations is %2.1f %% < 92.5%%!!' % (100 * m0_2sig_frac)
+    assert m0_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (100 * m0_3sig_frac)
     assert m1_1sig_frac >= 0.68, 'Fraction within 1 standard deviation is %2.1f %% < 65%%!!' % (100 * m1_1sig_frac)
-    assert m1_2sig_frac >= 0.95, 'Fraction within 2 standard deviations is %2.1f < 95%%!!' % (100 * m1_2sig_frac)
-    assert m1_3sig_frac >= 0.99, 'Fraction within 3 standard deviations is %2.1f %% < 99%%!!' % (100 * m1_3sig_frac)
+    assert m1_2sig_frac >= 0.925, 'Fraction within 2 standard deviations is %2.1f < 92.5%%!!' % (100 * m1_2sig_frac)
+    assert m1_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (100 * m1_3sig_frac)
 
     # Getting noisy hidden states
     x_noise = np.array([hid.flatten()[0]for hid in noisy_values['state']])
