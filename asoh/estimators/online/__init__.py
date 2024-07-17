@@ -5,7 +5,7 @@ Here, we include base classes to facilitate  definition of online estimators and
 interfaces between online estimators and models, transient states, and A-SOH parameters.
 """
 from abc import abstractmethod
-from typing import Union, List
+from typing import Union, Tuple, List
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -74,7 +74,7 @@ class OnlineEstimator():
         self.u = initial_control.model_copy(deep=True)
 
     @abstractmethod
-    def step(self, u: ControlVariables, y: OutputMeasurements) -> HiddenState:
+    def step(self, u: ControlVariables, y: OutputMeasurements) -> Tuple[OutputMeasurements, HiddenState]:
         """
         Function to step the estimator, provided new control variables and output measurements.
 
