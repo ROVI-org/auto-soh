@@ -379,6 +379,10 @@ class GeneralContainer(BaseModel,
             return len(field_val)
         return 1
 
+    def __len__(self) -> int:
+        """ Returns total length of all numerical values stored """
+        return sum([self.length_field(field_name) for field_name in self.all_fields])
+
     def to_numpy(self) -> np.ndarray:
         """
         Outputs everything that is stored as a np.ndarray
