@@ -2,7 +2,12 @@
 Here, we have a collection of joint estimators for battery cell models.
 
 In joint estimation, the physical transident state and the model health variables are concatenated in a single vector,
-which is updated by a single online estimator at every new time step.
+which is updated by a single online estimator at every new time step. However, the interfaces between model and
+estimator must be able to:
+    1. break up a joint state into transient and A-SOH components
+    2. convert numpy representations of transient vectors, A-SOH components, and inputs/controls to the appropriate
+        objects
+    3. convert transient vectors, A-SOH, and input/control objects to numpy arrays and to the adequate joint states
 """
 from abc import abstractmethod
 from typing import Union, Tuple, List
@@ -23,10 +28,16 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
 
     Args:
         asoh: initial Advanced State of Health (A-SOH) of the system
+        transient: initial transiden hidden state of the syste
+        control: initial control to the system
     """
     def __init__(self,
-                 asoh: AdvancedStateOfHealth) -> None:
+                 asoh: AdvancedStateOfHealth,
+                 transient: TransientVector,
+                 control: InputQuantities) -> None:
         self.asoh = asoh.model_copy(deep=True)
+        self.transient = transient.model_copy(deep=True)
+        self.control = control.model_copy(deep=True)
 
     @property
     @abstractmethod
@@ -34,13 +45,27 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         """
         Outputs expected dimensionality of hidden state, which should include the transient state and the A-SOH
         """
-        return self.asoh.num_updatable
+        return self.asoh.num_updatable + len(self.transient)
 
     @property
     @abstractmethod
     def num_output_dimensions(self) -> int:
         """ Outputs expected dimensionality of output measurements """
         pass
+
+    @abstractmethod
+    def assemble_joint_state(self,
+                             transient: TransientVector = None,
+                             asoh: AdvancedStateOfHealth = None) -> HiddenState:
+        """
+        Method to assemble joint state
+        """
+        if transient is None:
+            transient = self.transient.to_numpy()
+        if asoh is None:
+            asoh = self.asoh
+        joint = np.hstack((transient.to_numpy(), asoh.get_parameters()))
+        return HiddenState(mean=joint)
 
     @abstractmethod
     def update_hidden_states(self,
@@ -91,22 +116,14 @@ class JointOnlineEstimator(OnlineEstimator):
     """
 
     def __init__(self,
-                 initial_transient: Union[HiddenState, TransientVector],
+                 initial_transient: TransientVector,
                  initial_asoh: AdvancedStateOfHealth,
-                 initial_control: Union[ControlVariables, InputQuantities]):
-        self.state = initial_transient.model_copy(deep=True)
-        self.asoh = initial_asoh.model_copy(deep=True)
-        self.u = initial_control.model_copy(deep=True)
-        self.interface = ModelJointEstimatorInterface(asoh=initial_asoh)
-        # Prepare the joint state
-        joint_state = initial_asoh.get_parameters().copy()
-        if isinstance(initial_transient, TransientVector):
-            joint_state = np.hstack((initial_transient.to_numpy(), joint_state))
-        elif isinstance(initial_transient, HiddenState):
-            joint_state = np.hstack((initial_transient.get_mean(), joint_state))
-        self.joint_state = HiddenState(mean=joint_state)
-        # Initialize the actual estimator
-        self.estimator = OnlineEstimator(initial_state=self.joint_state, initial_control=self.u)
+                 initial_control: InputQuantities):
+        self.interface = ModelJointEstimatorInterface(asoh=initial_asoh,
+                                                      transient=initial_transient,
+                                                      control=initial_control)
+        self.estimator = OnlineEstimator(initial_state=self.interface.assemble_joint_state(),
+                                         initial_control=self.u)
 
     @abstractmethod
     def step(self,
