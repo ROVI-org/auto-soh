@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable, Sized
 from abc import abstractmethod
 import logging
 
@@ -359,9 +359,25 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
 class GeneralContainer(BaseModel,
                        arbitrary_types_allowed=True):
+    """
+    General container class to store variables that are all numeric (that is, either floats or numpy arrays)
+    """
+
     @property
     def all_fields(self) -> tuple[str, ...]:
         return tuple(self.model_fields.keys())
+
+    def length_field(self, field_name: str) -> int:
+        """
+        Returns length of provided field name. If the field is a float, returns 1, otherwise, returns length of array.
+        If field is None, returns 0.
+        """
+        field_val = getattr(self, field_name, None)
+        if field_val is None:
+            return 0
+        elif isinstance(field_val, Sized):
+            return len(field_val)
+        return 1
 
     def to_numpy(self) -> np.ndarray:
         """
@@ -373,6 +389,19 @@ class GeneralContainer(BaseModel,
             if field is not None:
                 relevant_vals += (field,)
         return np.hstack(relevant_vals)
+
+    def from_numpy(self, values: np.ndarray) -> None:
+        """
+        Updates field values from a numpy array
+        """
+        # We need to know where to start reading from in the array
+        begin_index = 0
+        for field_name in self.all_fields:
+            field_len = self.length_field(field_name)
+            end_index = begin_index + field_len
+            new_field_values = values[begin_index:end_index]
+            setattr(self, field_name, new_field_values)
+            begin_index = end_index
 
 
 class InputQuantities(GeneralContainer):
