@@ -1,7 +1,7 @@
 """
 Definition of the Joint UKF Estimator for an ECM model
 """
-from functools import cache
+from functools import cached_property
 from typing import Literal
 
 import numpy as np
@@ -37,8 +37,7 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         self.output = ECM.calculate_terminal_voltage(new_input=control, transient_state=transient, asoh=asoh)
         self.current_behavior = current_behavior
 
-    @cache
-    @property
+    @cached_property
     def num_output_dimensions(self) -> int:
         """ Outputs expected dimensionality of output measurements """
         return len(self.output)
