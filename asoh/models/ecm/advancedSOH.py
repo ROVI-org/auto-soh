@@ -101,5 +101,7 @@ class ECMASOH(HealthVariable):
                     RC_C = Capacitance(base_values=C_info)
                     RCcomps += (RCComponent(r=RC_R, c=RC_C).model_copy(),)
             asoh.rc_elements = RCcomps
+        # Since we are providing a template, we don't want anything to be updatable
+        asoh.mark_all_fixed()
 
         return asoh
