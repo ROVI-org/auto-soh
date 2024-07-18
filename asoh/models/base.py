@@ -288,7 +288,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
 
-    def get_parameters(self, names: Optional[list[str]] = None) -> List[float]:
+    def get_parameters(self, names: Optional[list[str]] = None) -> np.ndarray:
         """Get updatable parameters as a numpy vector
 
         Args:
@@ -309,7 +309,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 output.extend(value)
             else:
                 output.append(value)
-        return output
+        return np.array(output)
 
     def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
         """Set the value for updatable parameters given their names
