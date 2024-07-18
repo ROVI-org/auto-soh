@@ -69,7 +69,7 @@ class JointUKFEstimator(JointOnlineEstimator):
         # Create initial joint state
         if covariance_joint is None:
             covariance_joint = block_diag(covariance_transient, covariance_asoh)
-        initial_joint = self.interface.assemble_joint_state(covariance_joint=covariance_joint)
+        initial_joint = self.interface.assemble_joint_state(joint_covariance=covariance_joint)
 
         # Creating initial control
         u = ControlVariables(mean=initial_control.to_numpy())
