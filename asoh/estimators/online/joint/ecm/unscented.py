@@ -116,9 +116,31 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
 class ECMJointUKF(JointUKFEstimator):
     """
     Class to define the ECM Joint UKF Estimator. Since all the main updates are performed in the interface, and the
-    parent JointUKFEstimator already takes care of initialization and stepping, there is nothing to do here.
+    parent JointUKFEstimator already takes care of most of the initialization and stepping, there is little to do here.
     """
-    pass
+    def __init__(self,
+                 initial_transient: ECMTransientVector,
+                 initial_asoh: ECMASOH,
+                 initial_control: ECMInput,
+                 covariance_joint: np.ndarray = None,
+                 covariance_transient: np.ndarray = None,
+                 covariance_asoh: np.ndarray = None,
+                 transient_noise: np.ndarray = None,
+                 asoh_noise: np.ndarray = None,
+                 sensor_noise: np.ndarray = None,
+                 current_behavior: Literal['constant', 'linear'] = 'constant',
+                 **tuning_params) -> None:
+        self.current_behavior = current_behavior
+        super().__init__(initial_transient=initial_transient,
+                         initial_asoh=initial_asoh,
+                         initial_control=initial_control,
+                         covariance_joint=covariance_joint,
+                         covariance_transient=covariance_transient,
+                         covariance_asoh=covariance_asoh,
+                         transient_noise=transient_noise,
+                         asoh_noise=asoh_noise,
+                         sensor_noise=sensor_noise,
+                         **tuning_params)
 
     def _init_interface(self,
                         asoh: ECMASOH,
@@ -129,4 +151,5 @@ class ECMJointUKF(JointUKFEstimator):
         """
         self.interface = ECMJointUKFInterface(asoh=asoh,
                                               transient=transient,
-                                              control=control)
+                                              control=control,
+                                              current_behavior=self.current_behavior)
