@@ -19,7 +19,6 @@ class SOCInterpolatedHealth(HealthVariable, validate_assignment=True):
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                 'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
-    updatable: set[str] = Field(default_factory=lambda: {'base_values'})
 
     # Let us cache the interpolation function so we don't have to re-do it every
     # time we want to get a value

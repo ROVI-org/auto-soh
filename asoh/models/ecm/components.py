@@ -12,7 +12,6 @@ class MaxTheoreticalCapacity(HealthVariable):
     """Defines maximum theoretical discharge capacity of a cell"""
     base_values: float = \
         Field(description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
-    updatable: set[str] = Field(default_factory=lambda: {'base_values'})
 
     @property
     def value(self) -> float:
@@ -78,9 +77,6 @@ class RCComponent(HealthVariable):
     """
     r: Resistance = Field(description='Resistive element of RC component')
     c: Capacitance = Field(description='Capacitive element of RC component')
-    updatable: set[str] = \
-        Field(default_factory=lambda: {'r', 'c'},
-              description='Define updatable parameters (if any)')
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def get_value(self,
@@ -156,6 +152,3 @@ class HysteresisParameters(SOCInterpolatedHealth):
     gamma: float = Field(default=0.,
                          description='Exponential approach rate. Units: 1/V',
                          ge=0.)
-    updatable: set[str] = \
-        Field(default_factory=lambda: {'base_values', 'gamma'},
-              description='Define updatable parameters (if any)')
