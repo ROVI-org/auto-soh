@@ -1,8 +1,8 @@
-from typing import List, Optional, Union, Literal, Callable
+from typing import List, Optional, Union, Literal, Callable, Sized
 from numbers import Number
 
 import numpy as np
-from pydantic import Field, computed_field, validate_call, ConfigDict
+from pydantic import Field, computed_field, validate_call, ConfigDict, field_validator
 from scipy.interpolate import interp1d
 
 from asoh.models.base import HealthVariable
@@ -19,6 +19,18 @@ class SOCInterpolatedHealth(HealthVariable, validate_assignment=True):
         Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                 'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
+
+    @field_validator('base_values', mode='after')
+    @classmethod
+    def squash_single_input_array(cls, values: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        """
+        This field validator is needed for cases when the base_values are passed as a np.ndarray of shape (1,)
+        This causes problems in the interpolator, so, if we spot there is only one value in the array, we extract it.
+        """
+        if isinstance(values, Sized):
+            if len(values) == 1:
+                values = float(values[0])
+        return values
 
     # Let us cache the interpolation function so we don't have to re-do it every
     # time we want to get a value
