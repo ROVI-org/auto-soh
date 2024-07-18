@@ -402,10 +402,11 @@ class GeneralContainer(BaseModel,
         begin_index = 0
         for field_name in self.all_fields:
             field_len = self.length_field(field_name)
-            end_index = begin_index + field_len
-            new_field_values = values[begin_index:end_index]
-            setattr(self, field_name, new_field_values)
-            begin_index = end_index
+            if field_len > 0:
+                end_index = begin_index + field_len
+                new_field_values = values[begin_index:end_index]
+                setattr(self, field_name, new_field_values)
+                begin_index = end_index
 
 
 class InputQuantities(GeneralContainer):
