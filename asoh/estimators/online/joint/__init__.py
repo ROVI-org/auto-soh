@@ -67,6 +67,16 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         joint = np.hstack((transient.to_numpy(), asoh.get_parameters()))
         return HiddenState(mean=joint)
 
+    def update_from_joint(self, joint_state: np.ndarray) -> None:
+        """
+        Method that updates the transient state and the A-SOH from a numpy representation of the joint state
+        """
+        if len(joint_state) != self.num_hidden_dimensions:
+            raise ValueError('Joint state has %d dimensions, but it should have %d!' %
+                             (len(joint_state), self.num_hidden_dimensions))
+        self.transient.from_numpy(joint_state[:len(self.transient)])
+        self.asoh.update_parameters(joint_state[-self.asoh.num_updatable:])
+
     @abstractmethod
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
@@ -127,8 +137,8 @@ class JointOnlineEstimator(OnlineEstimator):
 
     @abstractmethod
     def step(self,
-             u: Union[ControlVariables, InputQuantities],
-             y: Union[OutputMeasurements, OutputQuantities]) -> Tuple[OutputMeasurements, HiddenState]:
+             u: InputQuantities,
+             y: OutputQuantities) -> Tuple[OutputMeasurements, HiddenState]:
         """
         Function to step the estimator, provided new control variables and output measurements.
 
@@ -139,4 +149,9 @@ class JointOnlineEstimator(OnlineEstimator):
         Returns:
             Corrected estimate of the hidden state of the system
         """
-        return self.estimator.step(u=u, y=y)
+        # Get the measurement predictions and hidden state from estimator
+        estimator_prediction, estimator_hidden = self.estimator.step(u=u.to_numpy(), y=y.to_numpy())
+
+        # Update the transient state and A-SOH in the interface
+        self.interface.update_from_joint(joint_state=estimator_hidden.mean)
+        return estimator_prediction.model_copy(deep=True), estimator_hidden.model_copy(deep=True)
