@@ -24,7 +24,7 @@ class ModelJointUKFInterface(ModelJointEstimatorInterface):
         Method to assemble joint state
         """
         if transient is None:
-            transient = self.transient.to_numpy()
+            transient = self.transient
         if asoh is None:
             asoh = self.asoh
         joint = np.hstack((transient.to_numpy(), asoh.get_parameters()))
