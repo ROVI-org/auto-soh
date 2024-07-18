@@ -120,3 +120,14 @@ class ECMJointUKF(JointUKFEstimator):
     parent JointUKFEstimator already takes care of initialization and stepping, there is nothing to do here.
     """
     pass
+
+    def _init_interface(self,
+                        asoh: ECMASOH,
+                        transient: ECMTransientVector,
+                        control: ECMInput) -> None:
+        """
+        Helper class to initialize the model filter interface
+        """
+        self.interface = ECMJointUKFInterface(asoh=asoh,
+                                              transient=transient,
+                                              control=control)

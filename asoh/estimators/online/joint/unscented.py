@@ -64,9 +64,8 @@ class JointUKFEstimator(JointOnlineEstimator):
                  sensor_noise: np.ndarray = None,
                  **tuning_params) -> None:
         # Create interface
-        self.interface = ModelJointEstimatorInterface(asoh=initial_asoh,
-                                                      transient=initial_transient,
-                                                      control=initial_control)
+        self._init_interface(asoh=initial_asoh, transient=initial_transient, control=initial_control)
+
         # Create initial joint state
         if covariance_joint is None:
             covariance_joint = block_diag(covariance_transient, covariance_asoh)
@@ -82,3 +81,14 @@ class JointUKFEstimator(JointOnlineEstimator):
                              covariance_process_noise=block_diag(transient_noise, asoh_noise),
                              covariance_sensor_noise=sensor_noise,
                              **tuning_params)
+
+    def _init_interface(self,
+                        asoh: AdvancedStateOfHealth,
+                        transient: TransientVector,
+                        control: InputQuantities) -> None:
+        """
+        Helper class to initialize the model filter interface
+        """
+        self.interface = ModelJointEstimatorInterface(asoh=asoh,
+                                                      transient=transient,
+                                                      control=control)
