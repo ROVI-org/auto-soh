@@ -64,9 +64,9 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         new_hidden = []
 
         # Convert the controls to ECMInputs
-        self.control.from_numpy(previous_controls.mean)
+        self.control.from_numpy(previous_controls.get_mean())
         previous_input = self.control.model_copy(deep=True)
-        self.control.from_numpy(new_controls.mean)
+        self.control.from_numpy(new_controls.get_mean())
         new_input = self.control.model_copy(deep=True)
 
         # Update each transient state, joint state by joint state
@@ -77,7 +77,9 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
                                                        asoh=self.asoh,
                                                        previous_input=previous_input,
                                                        current_behavior=self.current_behavior)
-            new_hidden += [new_transient.to_numpy()]
+            # Don't forget to reinclude the A-SOH terms!
+            new_transient = np.hstack((new_transient.to_numpy(), self.asoh.get_parameters()))
+            new_hidden += [new_transient]
 
         return np.array(new_hidden)
 
@@ -98,7 +100,7 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         pred_measurement = []
 
         # Convert the controls
-        self.control.from_numpy(controls.mean)
+        self.control.from_numpy(controls.get_mean())
         ecm_input = self.control.model_copy(deep=True)
 
         # For each joint state, update transient and A-SOH and calculate output
