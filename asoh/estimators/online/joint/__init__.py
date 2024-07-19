@@ -30,14 +30,24 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         asoh: initial Advanced State of Health (A-SOH) of the system
         transient: initial transiden hidden state of the syste
         control: initial control to the system
+        normalize_joint_state: determines if the joint state should be made up of the raw values provided, or normalized
     """
     def __init__(self,
                  asoh: AdvancedStateOfHealth,
                  transient: TransientVector,
-                 control: InputQuantities) -> None:
+                 control: InputQuantities,
+                 normalize_joint_state: bool = False) -> None:
         self.asoh = asoh.model_copy(deep=True)
         self.transient = transient.model_copy(deep=True)
         self.control = control.model_copy(deep=True)
+        self.is_joint_normalized = normalize_joint_state
+        joint_normalization_factor = np.ones(self.num_hidden_dimensions)
+        if normalize_joint_state:
+            joint_normalization_factor = np.hstack((transient.to_numpy(), asoh.get_parameters()))
+            # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
+            # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
+            joint_normalization_factor = np.where(joint_normalization_factor == 0, 1., joint_normalization_factor)
+        self.joint_normalization_factor = joint_normalization_factor
 
     @property
     @abstractmethod
@@ -65,6 +75,8 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         if asoh is None:
             asoh = self.asoh
         joint = np.hstack((transient.to_numpy(), asoh.get_parameters()))
+        # Remember that this is in raw values that need to be normalized to the estimator!
+        joint /= self.joint_normalization_factor
         return HiddenState(mean=joint)
 
     def update_from_joint(self, joint_state: np.ndarray) -> None:
@@ -74,8 +86,10 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         if len(joint_state) != self.num_hidden_dimensions:
             raise ValueError('Joint state has %d dimensions, but it should have %d!' %
                              (len(joint_state), self.num_hidden_dimensions))
-        self.transient.from_numpy(joint_state[:len(self.transient)])
-        self.asoh.update_parameters(joint_state[-self.asoh.num_updatable:])
+        # Remember the joint state is in its "normalized" form, and needs to be converted to raw values!
+        raw_values_joint = joint_state * self.joint_normalization_factor
+        self.transient.from_numpy(raw_values_joint[:len(self.transient)])
+        self.asoh.update_parameters(raw_values_joint[-self.asoh.num_updatable:])
 
     @abstractmethod
     def update_hidden_states(self,
@@ -123,15 +137,18 @@ class JointOnlineEstimator(OnlineEstimator):
         initial_transient: specifies the initial transient state
         inial_asoh: specifies the initial A-SOH
         initial_control: specifies the initial controls/inputs
+        normalize_joint_state: determines if the joint state should be made up of the raw values provided, or normalized
     """
 
     def __init__(self,
                  initial_transient: TransientVector,
                  initial_asoh: AdvancedStateOfHealth,
-                 initial_control: InputQuantities):
+                 initial_control: InputQuantities,
+                 normalize_joint_state: bool = False):
         self.interface = ModelJointEstimatorInterface(asoh=initial_asoh,
                                                       transient=initial_transient,
-                                                      control=initial_control)
+                                                      control=initial_control,
+                                                      normalize_joint_state=normalize_joint_state)
         self.estimator = OnlineEstimator(initial_state=self.interface.assemble_joint_state(),
                                          initial_control=self.u)
 
