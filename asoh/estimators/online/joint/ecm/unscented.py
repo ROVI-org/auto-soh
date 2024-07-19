@@ -77,9 +77,8 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
                                                        asoh=self.asoh,
                                                        previous_input=previous_input,
                                                        current_behavior=self.current_behavior)
-            # Don't forget to reinclude the A-SOH terms!
-            new_transient = np.hstack((new_transient.to_numpy(), self.asoh.get_parameters()))
-            new_hidden += [new_transient]
+            # Don't forget to reassemble the joint state!
+            new_hidden += [self.assemble_joint_state(transient=new_transient)]
 
         return np.array(new_hidden)
 
