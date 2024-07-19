@@ -20,15 +20,16 @@ class ModelJointUKFInterface(ModelJointEstimatorInterface):
         asoh: initial Advanced State of Health (A-SOH) of the system
         transient: initial transiden hidden state of the syste
         control: initial control to the system
-        normalize_joint_state: determines if the joint state should be made up of the raw values provided, or normalized
+        normalize_asoh: determines if the numerical representation of the A-SOH  should be made up of raw values, or
+            normalized, so that the filter only deals with values close to 1.
     """
     def __init__(self,
                  asoh: AdvancedStateOfHealth,
                  transient: TransientVector,
                  control: InputQuantities,
-                 normalize_joint_state: bool = False) -> None:
+                 normalize_asoh: bool = False) -> None:
         # Initialize parent class
-        super().__init__(asoh=asoh, transient=transient, control=control, normalize_joint_state=normalize_joint_state)
+        super().__init__(asoh=asoh, transient=transient, control=control, normalize_asoh=normalize_asoh)
         # Because everything in the UKF formalism is a Gaussian variable, we need to make sure we know how to scale the
         # covariances according to the normalization factor: each entry should just be the product of the corresponding
         # factors in the joint_normalization_factor array.
@@ -79,6 +80,8 @@ class JointUKFEstimator(JointOnlineEstimator):
         transient_noise: specifies raw (un-normalized) noise covariance of transient update
         asoh_noise: specifies raw (un-normalized) noise covariance of A-SOH
         sensor_noise: specifies noise covariance of measurements
+        normalize_asoh: determines if the numerical representation of the A-SOH  should be made up of raw values, or
+            normalized, so that the filter only deals with values close to 1.
         tuning_params: keyword parameters used to tune the UKF (alpha_param, kappa_param, beta_param)
     """
 
@@ -92,13 +95,13 @@ class JointUKFEstimator(JointOnlineEstimator):
                  transient_noise: np.ndarray = None,
                  asoh_noise: np.ndarray = None,
                  sensor_noise: np.ndarray = None,
-                 normalize_joint_state: bool = False,
+                 normalize_asoh: bool = False,
                  **tuning_params) -> None:
         # Create interface
         self._init_interface(asoh=initial_asoh,
                              transient=initial_transient,
                              control=initial_control,
-                             normalize_joint_state=normalize_joint_state)
+                             normalize_asoh=normalize_asoh)
 
         # Create initial joint state
         if covariance_joint is None:
@@ -124,14 +127,14 @@ class JointUKFEstimator(JointOnlineEstimator):
                         asoh: AdvancedStateOfHealth,
                         transient: TransientVector,
                         control: InputQuantities,
-                        normalize_joint_state: bool = False,) -> None:
+                        normalize_asoh: bool = False,) -> None:
         """
         Helper class to initialize the model filter interface
         """
         self.interface = ModelJointUKFInterface(asoh=asoh,
                                                 transient=transient,
                                                 control=control,
-                                                normalize_joint_state=normalize_joint_state)
+                                                normalize_asoh=normalize_asoh)
 
     @abstractmethod
     def step(self,

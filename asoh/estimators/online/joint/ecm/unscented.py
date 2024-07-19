@@ -31,8 +31,8 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
                  transient: ECMTransientVector,
                  control: ECMInput,
                  current_behavior: Literal['constant', 'linear'] = 'constant',
-                 normalize_joint_state: bool = False) -> None:
-        super().__init__(asoh=asoh, transient=transient, control=control, normalize_joint_state=normalize_joint_state)
+                 normalize_asoh: bool = False) -> None:
+        super().__init__(asoh=asoh, transient=transient, control=control, normalize_asoh=normalize_asoh)
         self.output = ECM.calculate_terminal_voltage(new_input=control, transient_state=transient, asoh=asoh)
         self.current_behavior = current_behavior
 
@@ -129,7 +129,7 @@ class ECMJointUKF(JointUKFEstimator):
                  asoh_noise: np.ndarray = None,
                  sensor_noise: np.ndarray = None,
                  current_behavior: Literal['constant', 'linear'] = 'constant',
-                 normalize_joint_state: bool = False,
+                 normalize_asoh: bool = False,
                  **tuning_params) -> None:
         self.current_behavior = current_behavior
         super().__init__(initial_transient=initial_transient,
@@ -141,14 +141,14 @@ class ECMJointUKF(JointUKFEstimator):
                          transient_noise=transient_noise,
                          asoh_noise=asoh_noise,
                          sensor_noise=sensor_noise,
-                         normalize_joint_state=normalize_joint_state,
+                         normalize_asoh=normalize_asoh,
                          **tuning_params)
 
     def _init_interface(self,
                         asoh: ECMASOH,
                         transient: ECMTransientVector,
                         control: ECMInput,
-                        normalize_joint_state: bool = False,) -> None:
+                        normalize_asoh: bool = False,) -> None:
         """
         Helper class to initialize the model filter interface
         """
@@ -156,4 +156,4 @@ class ECMJointUKF(JointUKFEstimator):
                                               transient=transient,
                                               control=control,
                                               current_behavior=self.current_behavior,
-                                              normalize_joint_state=normalize_joint_state)
+                                              normalize_asoh=normalize_asoh)
