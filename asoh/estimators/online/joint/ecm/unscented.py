@@ -41,6 +41,19 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         """ Outputs expected dimensionality of output measurements """
         return len(self.output)
 
+    def _check_joint_states(self, joint_states: np.ndarray) -> np.ndarray:
+        """
+        This is a helper function to check a joint state and make sure the parameters associated with A-SOH are never
+        negative. Due to the additive nature of the UKF sigma points, it has a tendency to probe negative values on
+        occasion, which can be very problematic for most A-SOH parameters, such as R0, RC elements, etc.
+        TODO (vventuri): this is another terrible hotfix here, since some ECM parameters may need to be negative!
+        """
+        valid_joints = joint_states.copy()
+        # Make sure that the A-SOH components are always positive
+        valid_joints[:, -self.asoh.num_updatable:] = np.where(valid_joints[:, -self.asoh.num_updatable:] < 0, 1.0e-16,
+                                                              valid_joints[:, -self.asoh.num_updatable:])
+        return valid_joints
+
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
                              previous_controls: ControlVariables,
@@ -68,8 +81,11 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         self.control.from_numpy(new_controls.get_mean())
         new_input = self.control.model_copy(deep=True)
 
+        # Verify hidden states
+        valid_joints = self._check_joint_states(hidden_states)
+
         # Update each transient state, joint state by joint state
-        for joint_state in hidden_states:
+        for joint_state in valid_joints:
             self.update_from_joint(joint_state=joint_state)
             new_transient = ECM.update_transient_state(new_input=new_input,
                                                        transient_state=self.transient,

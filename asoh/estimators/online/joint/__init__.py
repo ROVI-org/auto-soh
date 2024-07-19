@@ -89,9 +89,6 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
                              (len(joint_state), self.num_hidden_dimensions))
         # Remember the joint state is in its "normalized" form, and needs to be converted to raw values!
         raw_values_joint = joint_state * self.joint_normalization_factor
-        # Make sure that the A-SOH components are always positive
-        raw_values_joint[-self.asoh.num_updatable:] = np.where(raw_values_joint[-self.asoh.num_updatable:] < 0, 1.0e-16,
-                                                               raw_values_joint[-self.asoh.num_updatable:])
         self.transient.from_numpy(raw_values_joint[:len(self.transient)])
         self.asoh.update_parameters(raw_values_joint[-self.asoh.num_updatable:])
 
