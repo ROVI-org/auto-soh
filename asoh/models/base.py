@@ -358,7 +358,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
 
 class GeneralContainer(BaseModel,
-                       arbitrary_types_allowed=True):
+                       arbitrary_types_allowed=True,
+                       validate_assignment=True):
     """
     General container class to store variables that are all numeric (that is, either floats or numpy arrays)
     """
@@ -409,26 +410,24 @@ class GeneralContainer(BaseModel,
                 begin_index = end_index
 
 
-class InputQuantities(GeneralContainer):
-    """The control of a battery system, such as the terminal current
-
-    Add new fields to subclassess of ``ControlState`` for more complex systems
+class InputQuantities(GeneralContainer, validate_assignment=True):
+    """
+    The control of a battery system, such as the terminal current
     """
     time: float = Field(description='Timestamp(s) of inputs. Units: s')
     current: float = Field(description='Current applied to the storage system. Units: A')
 
 
-class OutputQuantities(GeneralContainer):
-    """Output for observables from a battery system
-
-    Add new fields to subclasses of ``ControlState`` for more complex systems
+class OutputQuantities(GeneralContainer, validate_assignment=True):
+    """
+    Output for observables from a battery system
     """
 
     terminal_voltage: float = \
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
-class TransientVector(GeneralContainer):
+class TransientVector(GeneralContainer, validate_assignment=True):
     """
     Stores physical transient/instantenous hidden state
     """
