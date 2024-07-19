@@ -149,8 +149,11 @@ class JointOnlineEstimator(OnlineEstimator):
         Returns:
             Corrected estimate of the hidden state of the system
         """
+        # Convert the model related quantities to the filter related quantities
+        u_estimator = ControlVariables(mean=u.to_numpy())
+        y_estimator = OutputMeasurements(mean=y.to_numpy())
         # Get the measurement predictions and hidden state from estimator
-        estimator_prediction, estimator_hidden = self.estimator.step(u=u.to_numpy(), y=y.to_numpy())
+        estimator_prediction, estimator_hidden = self.estimator.step(u=u_estimator, y=y_estimator)
 
         # Update the transient state and A-SOH in the interface
         self.interface.update_from_joint(joint_state=estimator_hidden.mean)
