@@ -30,20 +30,21 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
         asoh: initial Advanced State of Health (A-SOH) of the system
         transient: initial transiden hidden state of the syste
         control: initial control to the system
-        normalize_joint_state: determines if the joint state should be made up of the raw values provided, or normalized
+        normalize_asoh: determines if the numerical representation of the A-SOH  should be made up of raw values, or
+            normalized, so that the filter only deals with values close to 1.
     """
     def __init__(self,
                  asoh: AdvancedStateOfHealth,
                  transient: TransientVector,
                  control: InputQuantities,
-                 normalize_joint_state: bool = False) -> None:
+                 normalize_asoh: bool = False) -> None:
         self.asoh = asoh.model_copy(deep=True)
         self.transient = transient.model_copy(deep=True)
         self.control = control.model_copy(deep=True)
-        self.is_joint_normalized = normalize_joint_state
+        self.is_joint_normalized = normalize_asoh
         joint_normalization_factor = np.ones(self.num_hidden_dimensions)
-        if normalize_joint_state:
-            joint_normalization_factor = np.hstack((transient.to_numpy(), asoh.get_parameters()))
+        if normalize_asoh:
+            joint_normalization_factor[len(transient):] = asoh.get_parameters()
             # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
             # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
             joint_normalization_factor = np.where(joint_normalization_factor == 0, 1., joint_normalization_factor)
@@ -137,18 +138,19 @@ class JointOnlineEstimator(OnlineEstimator):
         initial_transient: specifies the initial transient state
         inial_asoh: specifies the initial A-SOH
         initial_control: specifies the initial controls/inputs
-        normalize_joint_state: determines if the joint state should be made up of the raw values provided, or normalized
+        normalize_asoh: determines if the numerical representation of the A-SOH  should be made up of raw values, or
+            normalized, so that the filter only deals with values close to 1.
     """
 
     def __init__(self,
                  initial_transient: TransientVector,
                  initial_asoh: AdvancedStateOfHealth,
                  initial_control: InputQuantities,
-                 normalize_joint_state: bool = False):
+                 normalize_asoh: bool = False):
         self.interface = ModelJointEstimatorInterface(asoh=initial_asoh,
                                                       transient=initial_transient,
                                                       control=initial_control,
-                                                      normalize_joint_state=normalize_joint_state)
+                                                      normalize_asoh=normalize_asoh)
         self.estimator = OnlineEstimator(initial_state=self.interface.assemble_joint_state(),
                                          initial_control=self.u)
 
