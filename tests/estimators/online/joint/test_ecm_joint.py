@@ -1,6 +1,7 @@
 from typing import List
 
 import numpy as np
+import pytest
 
 from asoh.models.ecm.advancedSOH import ECMASOH
 from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
@@ -79,6 +80,7 @@ def cycle_protocol(rng, asoh: ECMASOH, start_time: float = 0.0) -> List[ECMInput
     return ecm_inputs
 
 
+@pytest.mark.slow
 def test_joint_ecm() -> None:
     # Initialize RNG
     rng = np.random.default_rng(seed=31415926535897932384626433832)

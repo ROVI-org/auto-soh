@@ -24,7 +24,8 @@ include = ["asoh*"]
 test = [
     "flake8",
     "pytest",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-skip-slow"
 ]
 
 [project.urls]
