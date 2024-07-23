@@ -436,14 +436,14 @@ class CellModel():
             input(s), output new physical transient hidden state(s)
     """
 
-    # TODO (wardlt): Get rid of *args and **kwargs if we can explain why they will be used.
     @abstractmethod
     def update_transient_state(
             self,
-            input: InputQuantities,
+            previous_input: InputQuantities,
+            current_input: InputQuantities,
             transient_state: GeneralContainer,
-            asoh: HealthVariable,
-            *args, **kwargs) -> GeneralContainer:
+            asoh: HealthVariable
+    ) -> GeneralContainer:
         pass
 
     @abstractmethod
@@ -451,8 +451,7 @@ class CellModel():
             self,
             input: InputQuantities,
             transient_state: GeneralContainer,
-            asoh: HealthVariable,
-            *args, **kwargs) -> OutputQuantities:
+            asoh: HealthVariable) -> OutputQuantities:
         """
         Compute expected output (terminal voltage, etc.) of the model.
         """

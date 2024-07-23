@@ -10,18 +10,31 @@ from .advancedSOH import ECMASOH
 from .utils import hysteresis_solver_const_sign
 
 
+# TODO (wardlt): Does "constant" mean the previous or current value is used in span between last timestep and current.
 class EquivalentCircuitModel(CellModel):
     """
     Equivalent Circuit Model (ECM) dynamics of a battery
+
+    The only option for how to implement the battery is whether we assume the current
+    varies linearly between the previous and current step, or whether it is assumed to be constant.
+
+    Args:
+        current_behavior: How the current is assumed to vary between timesteps.
     """
 
-    @staticmethod
-    def update_transient_state(new_input: ECMInput,
-                               transient_state: ECMTransientVector,
-                               asoh: ECMASOH,
-                               previous_input: ECMInput,
-                               current_behavior: Literal['constant', 'linear'] = 'constant'
-                               ) -> ECMTransientVector:
+    current_behavior: str
+    """How it is assumed the current varies between timesteps"""
+
+    def __init__(self, current_behavior: Literal['constant', 'linear'] = 'constant'):
+        self.current_behavior = current_behavior
+
+    def update_transient_state(
+            self,
+            new_input: ECMInput,
+            transient_state: ECMTransientVector,
+            asoh: ECMASOH,
+            previous_input: ECMInput,
+    ) -> ECMTransientVector:
         """
         Update transient state.
         Remember how the hidden state is setup and meant to be updated assuming
@@ -38,7 +51,7 @@ class EquivalentCircuitModel(CellModel):
         current_k = previous_input.current
         temp_k = previous_input.temperature
         current_kp1 = new_input.current
-        current_slope = 0.0 if current_behavior == 'constant' else (current_kp1 - current_k) / delta_t
+        current_slope = 0.0 if self.current_behavior == 'constant' else (current_kp1 - current_k) / delta_t
         # We will assume that all health parameters remain constant between time
         # steps, independent of temperature or SOC variations. The value used
         # will be the one at the previous SOC and temperature values.
@@ -82,7 +95,7 @@ class EquivalentCircuitModel(CellModel):
         gamma = asoh.h0.gamma
         kappa = (coul_eff * gamma) / Qt
         # We need to figure out if the current changes sign during this process
-        if current_k * current_kp1 >= 0 or current_behavior == 'constant':
+        if current_k * current_kp1 >= 0 or self.current_behavior == 'constant':
             hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                     M=M,
                                                     kappa=kappa,
@@ -116,10 +129,11 @@ class EquivalentCircuitModel(CellModel):
                                   i_rc=iRC_kp1,
                                   hyst=hyst_kp1)
 
-    @staticmethod
-    def calculate_terminal_voltage(new_input: ECMInput,
-                                   transient_state: ECMTransientVector,
-                                   asoh: ECMASOH) -> ECMMeasurement:
+    def calculate_terminal_voltage(
+            self,
+            new_input: ECMInput,
+            transient_state: ECMTransientVector,
+            asoh: ECMASOH) -> ECMMeasurement:
         """
         Compute expected output (terminal voltage, etc.) of a the model.
         Recall the calculation of terminal voltage:

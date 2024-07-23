@@ -106,10 +106,6 @@ class ModelFilterInterface():
     or render estimates for the outputs.
     """
 
-    transients: GeneralContainer
-    """Current estimate for the transient state of this system"""
-    asoh: HealthVariable
-    """Current estimate for the state of health of this system"""
     model: CellModel
     """Model used to update the hidden state"""
 
@@ -123,6 +119,7 @@ class ModelFilterInterface():
                  initial_inputs: InputQuantities):
         self.model = model
         self._output_type = output_type
+        self._input_type = input_type
         self.transients = initial_transients.model_copy(deep=True)
         self.asoh = initial_asoh.model_copy(deep=True)
         self._num_outputs = len(model.calculate_terminal_voltage(initial_inputs, self.transients, self.asoh))
@@ -137,7 +134,6 @@ class ModelFilterInterface():
         """ Outputs expected dimensionality of output measurements """
         return self._num_outputs
 
-    @abstractmethod
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
                              previous_controls: Union[ControlVariables, List[ControlVariables]],
@@ -147,16 +143,32 @@ class ModelFilterInterface():
 
         Args:
             hidden_states: current hidden states of the system as a numpy.ndarray object
-            previous_control: controls at the time the hidden states are being reported. If provided as a list, each
+            previous_controls: controls at the time the hidden states are being reported. If provided as a list, each
                 entry must correspond to one of the hidden states provided. Otherwise, assumes same control for all
                 hidden states.
-            new_control: new controls to be used in the hidden state update. If provided as a list, each entry must
+            new_controls: new controls to be used in the hidden state update. If provided as a list, each entry must
                 correspond to one of the hidden states provided. Otherwise, assumes same control for all hidden states.
 
         Returns:
             new_hidden: updated hidden states as a numpy.ndarray object
         """
-        pass
+
+        # First, transform the controls into ECM inputs
+        previous_input = self._input_type(time=previous_controls.mean[0], current=previous_controls.mean[1])
+        new_input = self._input_type(time=new_controls.mean[0], current=new_controls.mean[1])
+
+        # Now, iterate through the hidden states to create ECMTransient states and update them
+        updated = []
+        for hidden_array in hidden_states:
+            self.transients.from_numpy(hidden_array)
+            new_transient = self.model.update_transient_state(
+                previous_input=previous_input,
+                current_input=new_input,
+                transient_state=self.transients,
+                asoh=self.asoh,
+            )
+            updated.append(new_transient.to_numpy())
+        return np.array(updated)
 
     @abstractmethod
     def predict_measurement(self,

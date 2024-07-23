@@ -7,6 +7,7 @@ from moirae.models.ecm import (ECMASOH,
                                ECMMeasurement)
 
 
+# TODO (wardlt): Make this not part
 class ECMSimulator():
     """
     Class used to simulate and store information about an ECM
@@ -60,20 +61,19 @@ class ECMSimulator():
             Tuple of the new transient state and corresponding measurement
         """
         # Get new transient
-        new_transient = ECM().update_transient_state(new_input=new_input,
-                                                     transient_state=self.transient,
-                                                     asoh=self.asoh,
-                                                     previous_input=self.previous_input,
-                                                     current_behavior=self.current_behavior)
+        new_transient = ECM(self.current_behavior).update_transient_state(new_input=new_input,
+                                                                          transient_state=self.transient,
+                                                                          asoh=self.asoh,
+                                                                          previous_input=self.previous_input)
 
         # Update internal
         self.transient = new_transient.model_copy(deep=True)
         self.previous_input = new_input.model_copy(deep=True)
 
         # Get new measurement
-        new_measurement = ECM().calculate_terminal_voltage(new_input=self.previous_input,
-                                                           transient_state=self.transient,
-                                                           asoh=self.asoh)
+        new_measurement = ECM(self.current_behavior).calculate_terminal_voltage(new_input=self.previous_input,
+                                                                                transient_state=self.transient,
+                                                                                asoh=self.asoh)
 
         # Update measurement
         self.measurement = new_measurement.model_copy(deep=True)
