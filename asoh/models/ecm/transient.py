@@ -7,8 +7,7 @@ import numpy as np
 from asoh.models.base import TransientVector
 
 
-class ECMTransientVector(TransientVector,
-                         validate_assignment=True):
+class ECMTransientVector(TransientVector):
     """Description of the state of charge of an ECM and all components"""
 
     soc: float = Field(default=0.0, description='State of charge (SOC)')

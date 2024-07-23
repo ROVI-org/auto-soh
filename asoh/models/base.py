@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
 # TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
 # TODO (wardlt): Consider making a special "list of Variables" class provides the same `update_function`.
-class HealthVariable(BaseModel, arbitrary_types_allowed=True):
+class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignment=True):
     """Base class for a container which holds the physical parameters of system and which ones
     are being treated as updatable.
 
@@ -410,7 +410,7 @@ class GeneralContainer(BaseModel,
                 begin_index = end_index
 
 
-class InputQuantities(GeneralContainer, validate_assignment=True):
+class InputQuantities(GeneralContainer):
     """
     The control of a battery system, such as the terminal current
     """
@@ -418,7 +418,7 @@ class InputQuantities(GeneralContainer, validate_assignment=True):
     current: float = Field(description='Current applied to the storage system. Units: A')
 
 
-class OutputQuantities(GeneralContainer, validate_assignment=True):
+class OutputQuantities(GeneralContainer):
     """
     Output for observables from a battery system
     """
@@ -427,7 +427,7 @@ class OutputQuantities(GeneralContainer, validate_assignment=True):
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
-class TransientVector(GeneralContainer, validate_assignment=True):
+class TransientVector(GeneralContainer):
     """
     Stores physical transient/instantenous hidden state
     """

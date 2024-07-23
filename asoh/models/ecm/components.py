@@ -8,7 +8,7 @@ from asoh.models.base import HealthVariable
 from .utils import SOCInterpolatedHealth
 
 
-class MaxTheoreticalCapacity(HealthVariable, validate_assignment=True):
+class MaxTheoreticalCapacity(HealthVariable):
     """Defines maximum theoretical discharge capacity of a cell"""
     base_values: float = \
         Field(description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
@@ -35,7 +35,7 @@ class MaxTheoreticalCapacity(HealthVariable, validate_assignment=True):
         return self.base_values
 
 
-class Resistance(SOCInterpolatedHealth, validate_assignment=True):
+class Resistance(SOCInterpolatedHealth):
     """
     Defines the series resistance component of an ECM.
     """
@@ -69,7 +69,7 @@ class Resistance(SOCInterpolatedHealth, validate_assignment=True):
         return new_value
 
 
-class Capacitance(SOCInterpolatedHealth, validate_assignment=True):
+class Capacitance(SOCInterpolatedHealth):
     """
     Defines the series capacitance component of the ECM
     """
@@ -78,7 +78,7 @@ class Capacitance(SOCInterpolatedHealth, validate_assignment=True):
             description='Values of series capacitance at specified SOCs. Units: F')
 
 
-class RCComponent(HealthVariable, validate_assignment=True):
+class RCComponent(HealthVariable):
     """
     Defines a RC component of the ECM
     """
@@ -105,7 +105,7 @@ class RCComponent(HealthVariable, validate_assignment=True):
         return r * c
 
 
-class ReferenceOCV(SOCInterpolatedHealth, validate_assignment=True):
+class ReferenceOCV(SOCInterpolatedHealth):
     base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of reference OCV at specified SOCs. Units: V')
@@ -114,14 +114,14 @@ class ReferenceOCV(SOCInterpolatedHealth, validate_assignment=True):
               description='Reference temperature for OCV0. Units: °C')
 
 
-class EntropicOCV(SOCInterpolatedHealth, validate_assignment=True):
+class EntropicOCV(SOCInterpolatedHealth):
     base_values: Union[float, np.ndarray] = \
         Field(
             default=0,
             description='Values of entropic OCV term at specified SOCs. Units: V/°C')
 
 
-class OpenCircuitVoltage(HealthVariable, validate_assignment=True):
+class OpenCircuitVoltage(HealthVariable):
     ocv_ref: ReferenceOCV = \
         Field(description='Reference OCV at specified temperature')
     ocv_ent: EntropicOCV = \
@@ -152,7 +152,7 @@ class OpenCircuitVoltage(HealthVariable, validate_assignment=True):
         return self.get_value(soc=soc, temp=temp)
 
 
-class HysteresisParameters(SOCInterpolatedHealth, validate_assignment=True):
+class HysteresisParameters(SOCInterpolatedHealth):
     base_values: Union[float, np.ndarray] = \
         Field(
             description='Values of maximum hysteresis at specified SOCs. Units: V')

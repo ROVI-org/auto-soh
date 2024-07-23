@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 from asoh.models.base import HealthVariable
 
 
-class SOCInterpolatedHealth(HealthVariable, validate_assignment=True):
+class SOCInterpolatedHealth(HealthVariable):
     """Defines basic functionality for HealthVariables that need interpolation between SOC pinpoints
     """
     base_values: Union[float, np.ndarray] = \
