@@ -427,20 +427,6 @@ class OutputQuantities(GeneralContainer):
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
-class TransientVector(GeneralContainer):
-    """
-    Stores physical transient/instantenous hidden state
-    """
-    pass
-
-
-class AdvancedStateOfHealth(HealthVariable):
-    """
-    Stores A-SOH
-    """
-    pass
-
-
 class CellModel():
     """
     Base cell model. At a minimum, it must be able to:
@@ -454,18 +440,18 @@ class CellModel():
     def update_transient_state(
             self,
             input: InputQuantities,
-            transient_state: TransientVector,
-            asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> TransientVector:
+            transient_state: GeneralContainer,
+            asoh: HealthVariable,
+            *args, **kwargs) -> GeneralContainer:
         pass
 
     @abstractmethod
     def calculate_terminal_voltage(
             self,
             input: InputQuantities,
-            transient_state: TransientVector,
-            asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> OutputQuantities:
+            transient_state: GeneralContainer,
+            asoh: HealthVariable,
+            *args, **kwargs) -> OutputQuantities:  # TODO (wardlt): Get rid of *args and **kwargs if we can explain why they will be used.
         """
         Compute expected output (terminal voltage, etc.) of the model.
         """

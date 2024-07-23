@@ -5,7 +5,7 @@ from abc import abstractmethod
 import numpy as np
 from scipy.linalg import block_diag
 
-from moirae.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
+from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, OutputQuantities
 from moirae.estimators.online import ControlVariables
 from moirae.estimators.online.joint import ModelJointEstimatorInterface, JointOnlineEstimator
 from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
@@ -24,8 +24,8 @@ class ModelJointUKFInterface(ModelJointEstimatorInterface):
             normalized, so that the filter only deals with values close to 1.
     """
     def __init__(self,
-                 asoh: AdvancedStateOfHealth,
-                 transient: TransientVector,
+                 asoh: HealthVariable,
+                 transient: GeneralContainer,
                  control: InputQuantities,
                  normalize_asoh: bool = False) -> None:
         # Initialize parent class
@@ -39,8 +39,8 @@ class ModelJointUKFInterface(ModelJointEstimatorInterface):
             (helper_ones.dot(adjusted_covariances))
 
     def assemble_joint_state(self,
-                             transient: TransientVector = None,
-                             asoh: AdvancedStateOfHealth = None,
+                             transient: GeneralContainer = None,
+                             asoh: HealthVariable = None,
                              joint_covariance: np.ndarray = None) -> Union[np.ndarray, KalmanHiddenState]:
         """
         Method to assemble joint state.
@@ -86,8 +86,8 @@ class JointUKFEstimator(JointOnlineEstimator):
     """
 
     def __init__(self,
-                 initial_transient: TransientVector,
-                 initial_asoh: AdvancedStateOfHealth,
+                 initial_transient: GeneralContainer,
+                 initial_asoh: HealthVariable,
                  initial_control: InputQuantities,
                  covariance_joint: np.ndarray = None,
                  covariance_transient: np.ndarray = None,
@@ -124,10 +124,10 @@ class JointUKFEstimator(JointOnlineEstimator):
                              **tuning_params)
 
     def _init_interface(self,
-                        asoh: AdvancedStateOfHealth,
-                        transient: TransientVector,
+                        asoh: HealthVariable,
+                        transient: GeneralContainer,
                         control: InputQuantities,
-                        normalize_asoh: bool = False,) -> None:
+                        normalize_asoh: bool = False, ) -> None:
         """
         Helper class to initialize the model filter interface
         """

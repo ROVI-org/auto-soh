@@ -5,10 +5,12 @@ Here, we include base classes to facilitate  definition of online estimators and
 interfaces between online estimators and models, transient states, and A-SOH parameters.
 """
 from abc import abstractmethod
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Type
 
 import numpy as np
 from pydantic import BaseModel, Field
+
+from moirae.models.base import CellModel, GeneralContainer, HealthVariable, InputQuantities, HealthVariable
 
 
 class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
@@ -90,20 +92,49 @@ class OnlineEstimator():
 
 class ModelFilterInterface():
     """
-    Defines the interface between the cell model and the online estimators. Communication between these is established
-    through the use of numpy.ndarray objects.
+    Defines the interface between the cell model and the online estimators.
+
+    Each instance of the model filter interface holds the transient and health parameters
+    for a specific storage system, and a :class:`asoh.models.base.CellModel`
+    used to update them under the influence of new inputs.
+
+    The "hidden state" associated with a specific ModelFilterInterface includes
+    all values in the :attr:`transients` and the updatable parameters from :attr:`asoh`.
+
+    The :meth:`update_hidden_states` calls and :meth:`predict_measurement` accept batches
+    of hidden states then either predict a new hidden state (updating only the transient states)
+    or render estimates for the outputs.
     """
-    @property
-    @abstractmethod
-    def num_hidden_dimensions(self) -> int:
-        """ Outputs expected dimensionality of hidden state """
-        pass
+
+    transients: GeneralContainer
+    """Current estimate for the transient state of this system"""
+    asoh: HealthVariable
+    """Current estimate for the state of health of this system"""
+    model: CellModel
+    """Model used to update the hidden state"""
+
+    def __init__(self,
+                 model: CellModel,
+                 input_type: Type[InputQuantities],
+                 output_type: Type[OutputMeasurements],  # TODO (wardlt): I wonder if we can associate these types with the CellModel using Generics
+                 initial_transients: GeneralContainer,
+                 initial_asoh: HealthVariable,
+                 initial_inputs: InputQuantities):
+        self.model = model
+        self._output_type = output_type
+        self.transients = initial_transients.model_copy(deep=True)
+        self.asoh = initial_asoh.model_copy(deep=True)
+        self._num_outputs = len(model.calculate_terminal_voltage(initial_inputs, self.transients, self.asoh))
 
     @property
-    @abstractmethod
+    def num_hidden_dimensions(self) -> int:
+        """ Outputs expected dimensionality of hidden state """
+        return len(self.transients) + self.asoh.num_updatable
+
+    @property
     def num_output_dimensions(self) -> int:
         """ Outputs expected dimensionality of output measurements """
-        pass
+        return self._num_outputs
 
     @abstractmethod
     def update_hidden_states(self,

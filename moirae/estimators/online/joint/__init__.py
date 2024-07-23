@@ -14,7 +14,7 @@ from typing import Union, Tuple, List
 
 import numpy as np
 
-from moirae.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
+from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, OutputQuantities
 from moirae.estimators.online import (OnlineEstimator,
                                       ModelFilterInterface,
                                       ControlVariables,
@@ -34,8 +34,8 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
             normalized, so that the filter only deals with values close to 1.
     """
     def __init__(self,
-                 asoh: AdvancedStateOfHealth,
-                 transient: TransientVector,
+                 asoh: HealthVariable,
+                 transient: GeneralContainer,
                  control: InputQuantities,
                  normalize_asoh: bool = False) -> None:
         self.asoh = asoh.model_copy(deep=True)
@@ -66,8 +66,8 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
 
     @abstractmethod
     def assemble_joint_state(self,
-                             transient: TransientVector = None,
-                             asoh: AdvancedStateOfHealth = None) -> HiddenState:
+                             transient: GeneralContainer = None,
+                             asoh: HealthVariable = None) -> HiddenState:
         """
         Method to assemble joint state
         """
@@ -143,8 +143,8 @@ class JointOnlineEstimator(OnlineEstimator):
     """
 
     def __init__(self,
-                 initial_transient: TransientVector,
-                 initial_asoh: AdvancedStateOfHealth,
+                 initial_transient: GeneralContainer,
+                 initial_asoh: HealthVariable,
                  initial_control: InputQuantities,
                  normalize_asoh: bool = False):
         self.interface = ModelJointEstimatorInterface(asoh=initial_asoh,
