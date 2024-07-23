@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from pydantic import Field, validate_call, ConfigDict
 import numpy as np
 
-from asoh.models.base import HealthVariable
+from moirae.models.base import HealthVariable
 from .utils import SOCInterpolatedHealth
 
 

@@ -5,11 +5,11 @@ from abc import abstractmethod
 import numpy as np
 from scipy.linalg import block_diag
 
-from asoh.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
-from asoh.estimators.online import ControlVariables
-from asoh.estimators.online.joint import ModelJointEstimatorInterface, JointOnlineEstimator
-from asoh.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
-from asoh.estimators.online.general.kalman.unscented import UnscentedKalmanFilter as UKF
+from moirae.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
+from moirae.estimators.online import ControlVariables
+from moirae.estimators.online.joint import ModelJointEstimatorInterface, JointOnlineEstimator
+from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
+from moirae.estimators.online.general.kalman.unscented import UnscentedKalmanFilter as UKF
 
 
 class ModelJointUKFInterface(ModelJointEstimatorInterface):

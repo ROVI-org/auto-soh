@@ -1,10 +1,10 @@
 from typing import Literal, Tuple, List
 
-from asoh.models.ecm import EquivalentCircuitModel as ECM
-from asoh.models.ecm import (ECMASOH,
-                             ECMTransientVector,
-                             ECMInput,
-                             ECMMeasurement)
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.models.ecm import (ECMASOH,
+                               ECMTransientVector,
+                               ECMInput,
+                               ECMMeasurement)
 
 
 class ECMSimulator():

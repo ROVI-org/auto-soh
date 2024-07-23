@@ -17,10 +17,10 @@ jobs:
           pip install -e .[test]
       - name: Lint with flake8
         run: |
-          flake8 asoh/ tests
+          flake8 moirae/ tests
       - name: Test with pytest
         run: |
-          pytest --cov=asoh tests
+          pytest --cov=moirae tests
       - name: Coveralls
         run: |
           pip install coveralls

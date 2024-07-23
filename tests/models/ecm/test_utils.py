@@ -2,7 +2,7 @@
 import numpy as np
 from pytest import fixture
 
-from asoh.models.ecm.utils import SOCInterpolatedHealth
+from moirae.models.ecm.utils import SOCInterpolatedHealth
 
 
 @fixture

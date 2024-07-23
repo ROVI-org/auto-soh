@@ -3,16 +3,16 @@ import numpy as np
 from pytest import fixture
 import pytest
 
-from asoh.models.ecm import ECMASOH
-from asoh.models.ecm.components import (MaxTheoreticalCapacity,
-                                        Resistance,
-                                        Capacitance,
-                                        RCComponent,
-                                        ReferenceOCV,
-                                        EntropicOCV,
-                                        OpenCircuitVoltage,
-                                        HysteresisParameters)
-from asoh.models.ecm.utils import realistic_fake_ocv
+from moirae.models.ecm import ECMASOH
+from moirae.models.ecm.components import (MaxTheoreticalCapacity,
+                                          Resistance,
+                                          Capacitance,
+                                          RCComponent,
+                                          ReferenceOCV,
+                                          EntropicOCV,
+                                          OpenCircuitVoltage,
+                                          HysteresisParameters)
+from moirae.models.ecm.utils import realistic_fake_ocv
 
 
 @fixture

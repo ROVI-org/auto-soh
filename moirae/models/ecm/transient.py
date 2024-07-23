@@ -4,7 +4,7 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from asoh.models.base import TransientVector
+from moirae.models.base import TransientVector
 
 
 class ECMTransientVector(TransientVector):

@@ -3,9 +3,9 @@ from typing import Literal
 
 import numpy as np
 
-from asoh.models.base import CellModel
-from asoh.models.ecm.ins_outs import ECMInput, ECMMeasurement
-from asoh.models.ecm.transient import ECMTransientVector
+from moirae.models.base import CellModel
+from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
+from moirae.models.ecm.transient import ECMTransientVector
 from .advancedSOH import ECMASOH
 from .utils import hysteresis_solver_const_sign
 
