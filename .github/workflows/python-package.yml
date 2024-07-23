@@ -20,7 +20,7 @@ jobs:
           flake8 asoh/ tests
       - name: Test with pytest
         run: |
-          pytest --cov=asoh tests
+          pytest --cov=moirae tests
       - name: Coveralls
         run: |
           pip install coveralls
