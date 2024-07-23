@@ -20,6 +20,13 @@ class MaxTheoreticalCapacity(HealthVariable):
         """
         return 3600 * self.base_values
 
+    @value.setter
+    def value(self, amp_seconds: float) -> None:
+        """
+        Sets the capacity based on specified value in Amp-seconds
+        """
+        self.base_values = amp_seconds / 3600.
+
     @property
     def amp_hour(self) -> float:
         """
