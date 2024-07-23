@@ -5,7 +5,7 @@ from typing_extensions import Self
 import numpy as np
 from pydantic import Field, field_validator, computed_field, model_validator
 
-from asoh.estimators.online import MultivariateRandomDistribution
+from moirae.estimators.online import MultivariateRandomDistribution
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):

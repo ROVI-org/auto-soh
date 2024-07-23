@@ -1,6 +1,6 @@
 """ Colection of classes and functions pertinent to Kálmán filters """
-from asoh.estimators.online import HiddenState, OutputMeasurements
-from asoh.estimators.online.general import MultivariateGaussian
+from moirae.estimators.online import HiddenState, OutputMeasurements
+from moirae.estimators.online.general import MultivariateGaussian
 
 
 class KalmanHiddenState(MultivariateGaussian, HiddenState):

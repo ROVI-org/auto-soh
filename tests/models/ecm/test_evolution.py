@@ -2,12 +2,12 @@
 import numpy as np
 from pytest import fixture
 
-from asoh.models.ecm import EquivalentCircuitModel as ECM
-from asoh.models.ecm import (ECMASOH,
-                             ECMInput,
-                             ECMTransientVector
-                             )
-from asoh.models.ecm.simulator import ECMSimulator
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.models.ecm import (ECMASOH,
+                               ECMInput,
+                               ECMTransientVector
+                               )
+from moirae.models.ecm.simulator import ECMSimulator
 
 
 @fixture

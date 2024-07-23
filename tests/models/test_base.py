@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import Field
 from pytest import fixture, raises
 
-from asoh.models.base import HealthVariable
+from moirae.models.base import HealthVariable
 
 
 class SubHeathVariable(HealthVariable):

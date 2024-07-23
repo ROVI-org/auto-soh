@@ -1,5 +1,5 @@
 from pydantic import Field
-from asoh.models.base import InputQuantities, OutputQuantities
+from moirae.models.base import InputQuantities, OutputQuantities
 
 
 class ECMInput(InputQuantities):

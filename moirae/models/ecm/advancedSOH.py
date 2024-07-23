@@ -4,7 +4,7 @@ from typing import Tuple, Optional, Union, List
 from pydantic import Field
 import numpy as np
 
-from asoh.models.base import HealthVariable
+from moirae.models.base import HealthVariable
 from .components import (MaxTheoreticalCapacity,
                          Resistance,
                          Capacitance,

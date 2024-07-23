@@ -4,9 +4,9 @@ from typing import Union, Literal, Optional, Tuple, Dict
 import numpy as np
 from scipy.linalg import block_diag
 
-from asoh.estimators.online import ModelFilterInterface, OnlineEstimator, ControlVariables, OutputMeasurements
-from asoh.estimators.online.general.utils import ensure_positive_semi_definite
-from asoh.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
+from moirae.estimators.online import ModelFilterInterface, OnlineEstimator, ControlVariables, OutputMeasurements
+from moirae.estimators.online.general.utils import ensure_positive_semi_definite
+from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
 
 
 def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:

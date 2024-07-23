@@ -6,12 +6,12 @@ from typing import Literal
 
 import numpy as np
 
-from asoh.models.ecm import EquivalentCircuitModel as ECM
-from asoh.models.ecm.advancedSOH import ECMASOH
-from asoh.models.ecm.transient import ECMTransientVector
-from asoh.models.ecm.ins_outs import ECMInput
-from asoh.estimators.online import ControlVariables
-from asoh.estimators.online.joint.unscented import ModelJointUKFInterface, JointUKFEstimator
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.models.ecm.advancedSOH import ECMASOH
+from moirae.models.ecm.transient import ECMTransientVector
+from moirae.models.ecm.ins_outs import ECMInput
+from moirae.estimators.online import ControlVariables
+from moirae.estimators.online.joint.unscented import ModelJointUKFInterface, JointUKFEstimator
 
 
 # TODO (vventuri): how do we denoise SOC, Qt, R0?

@@ -5,7 +5,7 @@ import numpy as np
 from pydantic import Field, computed_field, validate_call, ConfigDict, field_validator
 from scipy.interpolate import interp1d
 
-from asoh.models.base import HealthVariable
+from moirae.models.base import HealthVariable
 
 
 class SOCInterpolatedHealth(HealthVariable):

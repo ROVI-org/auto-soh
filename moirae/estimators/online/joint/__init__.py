@@ -14,12 +14,12 @@ from typing import Union, Tuple, List
 
 import numpy as np
 
-from asoh.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
-from asoh.estimators.online import (OnlineEstimator,
-                                    ModelFilterInterface,
-                                    ControlVariables,
-                                    HiddenState,
-                                    OutputMeasurements)
+from moirae.models.base import AdvancedStateOfHealth, TransientVector, InputQuantities, OutputQuantities
+from moirae.estimators.online import (OnlineEstimator,
+                                      ModelFilterInterface,
+                                      ControlVariables,
+                                      HiddenState,
+                                      OutputMeasurements)
 
 
 class ModelJointEstimatorInterface(ModelFilterInterface):
