@@ -10,7 +10,7 @@ from typing import Union, Tuple, List, Type
 import numpy as np
 from pydantic import BaseModel, Field
 
-from moirae.models.base import CellModel, GeneralContainer, HealthVariable, InputQuantities, HealthVariable
+from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable
 
 
 class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
@@ -113,10 +113,11 @@ class ModelFilterInterface():
     model: CellModel
     """Model used to update the hidden state"""
 
+    # TODO (wardlt): We might be able to detect Input/Output types if CellModel was a Generic
     def __init__(self,
                  model: CellModel,
                  input_type: Type[InputQuantities],
-                 output_type: Type[OutputMeasurements],  # TODO (wardlt): I wonder if we can associate these types with the CellModel using Generics
+                 output_type: Type[OutputMeasurements],
                  initial_transients: GeneralContainer,
                  initial_asoh: HealthVariable,
                  initial_inputs: InputQuantities):
