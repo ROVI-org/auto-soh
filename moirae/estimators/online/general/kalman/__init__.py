@@ -12,6 +12,6 @@ class KalmanHiddenState(MultivariateGaussian, HiddenState):
 
 class KalmanOutputMeasurement(MultivariateGaussian, OutputMeasurements):
     """
-    Ouput measurements for Kálmán filters
+    Output measurements for Kálmán filters
     """
     pass

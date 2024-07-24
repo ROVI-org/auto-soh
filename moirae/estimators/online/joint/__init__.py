@@ -14,7 +14,7 @@ from typing import Union, Tuple, List
 
 import numpy as np
 
-from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, OutputQuantities
+from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, OutputQuantities, CellModel
 from moirae.estimators.online import (OnlineEstimator,
                                       ModelFilterInterface,
                                       ControlVariables,
@@ -34,17 +34,16 @@ class ModelJointEstimatorInterface(ModelFilterInterface):
             normalized, so that the filter only deals with values close to 1.
     """
     def __init__(self,
+                 model: CellModel,
                  asoh: HealthVariable,
                  transient: GeneralContainer,
                  control: InputQuantities,
                  normalize_asoh: bool = False) -> None:
-        self.asoh = asoh.model_copy(deep=True)
-        self.transient = transient.model_copy(deep=True)
-        self.control = control.model_copy(deep=True)
+        super().__init__(model=model, initial_asoh=asoh, initial_transients=transient, initial_inputs=control)
         self.is_joint_normalized = normalize_asoh
         joint_normalization_factor = np.ones(self.num_hidden_dimensions)
         if normalize_asoh:
-            joint_normalization_factor[len(transient):] = asoh.get_parameters()
+            joint_normalization_factor[self.num_transients:] = asoh.get_parameters()
             # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
             # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
             joint_normalization_factor = np.where(joint_normalization_factor == 0, 1., joint_normalization_factor)

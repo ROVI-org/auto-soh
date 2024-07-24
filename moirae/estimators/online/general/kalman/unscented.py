@@ -4,9 +4,10 @@ from typing import Union, Literal, Optional, Tuple, Dict
 import numpy as np
 from scipy.linalg import block_diag
 
-from moirae.estimators.online import ModelFilterInterface, OnlineEstimator, ControlVariables, OutputMeasurements
+from moirae.estimators.online import OnlineEstimator, ControlVariables, OutputMeasurements
 from moirae.estimators.online.general.utils import ensure_positive_semi_definite
 from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
+from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities
 
 
 def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
@@ -43,23 +44,22 @@ class UnscentedKalmanFilter(OnlineEstimator):
     """
 
     def __init__(self,
-                 model: ModelFilterInterface,
+                 model: CellModel,
+                 initial_asoh: HealthVariable,
+                 initial_transients: GeneralContainer,
+                 initial_inputs: InputQuantities,
                  initial_state: KalmanHiddenState,
-                 initial_control: ControlVariables,
                  alpha_param: float = 1.,
                  kappa_param: Union[float, Literal['automatic']] = 0.,
                  beta_param: float = 2.,
                  covariance_process_noise: Optional[np.ndarray] = None,
                  covariance_sensor_noise: Optional[np.ndarray] = None):
-        self.model = model
+        super().__init__(model, initial_asoh, initial_transients, initial_inputs)
         self.state = initial_state.model_copy(deep=True)
-        self.u = initial_control.model_copy(deep=True)
-        assert model.num_hidden_dimensions == initial_state.num_dimensions, \
-            'Model expects %d hidden dimensions, but initial state has %d!' % \
-            (model.num_hidden_dimensions, initial_state.num_dimensions)
+        self.u = ControlVariables(mean=initial_inputs.to_numpy())
 
         # Calculate augmented dimensions
-        self._aug_len = int((2 * model.num_hidden_dimensions) + model.num_output_dimensions)
+        self._aug_len = int((2 * self.num_hidden_dimensions) + self.num_output_dimensions)
 
         # Tuning parameters check and save
         assert alpha_param >= 0.001, 'Alpha parameter should be >= 0.001!'
@@ -79,18 +79,18 @@ class UnscentedKalmanFilter(OnlineEstimator):
 
         # Taking care of covariances
         if covariance_process_noise is None:  # assume std = 1.0e-8
-            covariance_process_noise = 1.0e-08 * np.eye(self.model.num_hidden_dimensions)
+            covariance_process_noise = 1.0e-08 * np.eye(self.num_hidden_dimensions)
         if covariance_sensor_noise is None:  # assume std = 1.0e-8
-            covariance_sensor_noise = 1.0e-08 * np.eye(self.model.num_output_dimensions)
+            covariance_sensor_noise = 1.0e-08 * np.eye(self.num_output_dimensions)
         assert covariance_process_noise.shape[0] == covariance_process_noise.shape[1], \
             'Process noise covariance matrix must be square, but it has shape ' + \
             str(covariance_process_noise.shape) + '!'
         assert covariance_sensor_noise.shape[0] == covariance_sensor_noise.shape[1], \
             'Sensor covariance matrix must be square, but it has shape ' + \
             str(covariance_sensor_noise.shape) + '!'
-        assert covariance_process_noise.shape[0] == self.model.num_hidden_dimensions, \
+        assert covariance_process_noise.shape[0] == self.num_hidden_dimensions, \
             'Process noise covariance shape does not match hidden states!'
-        assert covariance_sensor_noise.shape[0] == self.model.num_output_dimensions, \
+        assert covariance_sensor_noise.shape[0] == self.num_output_dimensions, \
             'Sensor noise covariance shape does not match measurement length!'
         self.cov_w = covariance_process_noise.copy()
         self.cov_v = covariance_sensor_noise.copy()
@@ -127,7 +127,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
         # Don't forget to update the internal control!
         self.u = u.model_copy(deep=True)
         # Return
-        return (y_k.model_copy(deep=True), self.state.model_copy(deep=True))
+        return y_k.model_copy(deep=True), self.state.model_copy(deep=True)
 
     def build_sigma_points(self) -> np.ndarray:
         """
@@ -138,8 +138,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
             and sensor noise, in that order.
         """
         # Building augmented state (recall noise terms are all zero-mean!)
-        x_aug = np.hstack((self.state.mean,
-                           np.zeros(self.model.num_hidden_dimensions + self.model.num_output_dimensions)))
+        x_aug = np.hstack((self.state.mean, np.zeros(self.num_hidden_dimensions + self.num_output_dimensions)))
 
         # Now, build the augmented covariance
         cov_aug = block_diag(self.state.covariance, self.cov_w, self.cov_v)
@@ -167,7 +166,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
             - w_hid: array corresponding to iterable of process noises
             - v_hid: array corresponding to iterable of sensor noises
         """
-        dim = self.model.num_hidden_dimensions
+        dim = self.num_hidden_dimensions
         x_hid = sigma_pts[:, :dim].copy()
         w_hid = sigma_pts[:, dim:(2 * dim)].copy()
         v_hid = sigma_pts[:, (2 * dim):].copy()
@@ -188,9 +187,9 @@ class UnscentedKalmanFilter(OnlineEstimator):
         u_old = self.u.model_copy(deep=True)
 
         # Update hidden states
-        x_update = self.model.update_hidden_states(hidden_states=hidden_states,
-                                                   previous_controls=u_old,
-                                                   new_controls=new_control)
+        x_update = self.update_hidden_states(hidden_states=hidden_states,
+                                             previous_controls=u_old,
+                                             new_controls=new_control)
         return x_update
 
     def _assemble_unscented_estimate(self, samples: np.ndarray) -> Dict:
@@ -235,7 +234,7 @@ class UnscentedKalmanFilter(OnlineEstimator):
         Returns:
             y_preds: predicted outputs based on provided hidden states and control
         """
-        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states, controls=control)
+        y_preds = self.predict_measurement(hidden_states=updated_hidden_states, controls=control)
         return y_preds
 
     def estimation_update(self,
@@ -300,7 +299,10 @@ class UnscentedKalmanFilter(OnlineEstimator):
         # Step 2c: update the hidden state mean and covariance
         x_k_hat_plus = x_k_minus.mean + np.matmul(l_k, innovation)
         cov_x_k_plus = x_k_minus.covariance - np.matmul(l_k, np.matmul(y_hat.covariance, l_k.T))
+
         # Make sure this new covariance is positive semi-definite
         cov_x_k_plus = ensure_positive_semi_definite(cov_x_k_plus)
+
         # Set internal state
-        self.state = KalmanHiddenState(mean=x_k_hat_plus, covariance=cov_x_k_plus)
+        self.state.mean = x_k_hat_plus
+        self.state.covariance = cov_x_k_plus

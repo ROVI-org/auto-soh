@@ -1,69 +1,71 @@
 import numpy as np
-from pytest import fixture
 
-from moirae.estimators.online import ModelFilterInterface, ControlVariables, OutputMeasurements
+from moirae.estimators.online import ControlVariables, OutputMeasurements
 from moirae.estimators.online.general.kalman.unscented import UnscentedKalmanFilter as UKF
 from moirae.estimators.online.general.kalman import KalmanHiddenState
+from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities
 
 
 # Define Lorenz dynamics
-class Lorenz(ModelFilterInterface):
-    def __init__(self) -> None:
-        pass
 
-    @property
-    def num_hidden_dimensions(self) -> int:
-        """ Outputs expected dimensionality of hidden state """
-        return 3
+class LorenzState(GeneralContainer):
+    x: float
+    y: float
+    z: float
 
-    @property
-    def num_output_dimensions(self) -> int:
-        """ Outputs expected dimensionality of output measurements """
-        return 2
 
-    def update_hidden_states(self,
-                             hidden_states: np.ndarray,
-                             previous_controls: ControlVariables,
-                             new_controls: ControlVariables) -> np.ndarray:
-        # Get attractor params
-        sigma = new_controls.mean[1]
-        rho = new_controls.mean[2]
-        beta = new_controls.mean[3]
-        dt = new_controls.mean[0] - previous_controls.mean[0]
+class LorenzControl(InputQuantities):
+    sigma: float
+    rho: float
+    beta: float
+    n: float
+
+
+class LorenzOutputs(OutputQuantities):
+    m1: float
+
+
+class LorenzModel(CellModel):
+
+    def update_transient_state(
+            self,
+            previous_input: LorenzControl,
+            current_input: LorenzControl,
+            transient_state: LorenzState,
+            asoh: HealthVariable
+    ) -> GeneralContainer:
+        dt = current_input.time - previous_input.time
 
         # Compute derivatives
-        dxdt = sigma * (hidden_states[:, 1] - hidden_states[:, 0])
-        dydt = hidden_states[:, 0] * (rho - hidden_states[:, 2]) - hidden_states[:, 1]
-        dzdt = (hidden_states[:, 0] * hidden_states[:, 1]) - beta * hidden_states[:, 2]
+        dxdt = current_input.sigma * (transient_state.y - transient_state.x)
+        dydt = transient_state.x * (current_input.rho - transient_state.z) - transient_state.y
+        dzdt = (transient_state.x * transient_state.y) - current_input.beta * transient_state.z
 
-        # Build matrix
-        update_mat = dt * np.hstack((dxdt.reshape((-1, 1)), dydt.reshape((-1, 1)), dzdt.reshape((-1, 1))))
+        return LorenzState(
+            x=dt * dxdt,
+            y=dt * dydt,
+            z=dt * dzdt,
+        )
 
-        return hidden_states + update_mat
+    def calculate_terminal_voltage(
+            self,
+            inputs: LorenzControl,
+            transient_state: LorenzState,
+            asoh: HealthVariable) -> OutputQuantities:
+        hidden_states = transient_state.to_numpy()
 
-    def predict_measurement(self,
-                            hidden_states: np.ndarray,
-                            controls: ControlVariables) -> np.ndarray:
-        # Get power parameter
-        n = controls.mean[4]
-
-        # Compute outputs
-        m0 = ((np.sum(hidden_states ** 2, axis=1)) ** (1./2.)).reshape((-1, 1))
-        m1 = (abs(np.sum(hidden_states ** n, axis=1)) ** (1./n)).reshape((-1, 1))
-        return np.hstack((m0, m1))
-
-
-@fixture
-def lorenz_model() -> Lorenz:
-    return Lorenz()
+        return LorenzOutputs(
+            terminal_voltage=np.sqrt(np.sum(hidden_states ** 2)),
+            m1=abs(np.sum(hidden_states ** inputs.n)) ** (1. / inputs.n),
+        )
 
 
-def test_lorenz_ukf(lorenz_model):
+def test_lorenz_ukf():
     # Initiate RNG
     rng = np.random.default_rng(314159)
 
     # Approximate initial state
-    state0 = np.array([0., 0., 0.])
+    state0 = LorenzState(x=0., y=0., z=0.)
     cov_state = np.diag([20, 30, 10])
 
     # Noise terms
@@ -71,21 +73,32 @@ def test_lorenz_ukf(lorenz_model):
     sensor_noise = np.eye(2)
 
     # Initial control
-    u0 = ControlVariables(mean=np.array([0., 10, 28, 8./3., 2]))
+    u0 = LorenzControl(
+        time=0.,
+        current=0.,  # Not used by Lorenz
+        sigma=10.,
+        rho=28.,
+        beta=8. / 3.,
+        n=2
+    )
 
     # Define UKF
-    initial_state = KalmanHiddenState(mean=state0 + rng.multivariate_normal(mean=np.zeros(3), cov=cov_state),
-                                      covariance=cov_state)
-    ukf_chaos = UKF(model=lorenz_model,
+    initial_state = KalmanHiddenState(
+        mean=state0.to_numpy() + rng.multivariate_normal(mean=np.zeros(3), cov=cov_state),
+        covariance=cov_state
+    )
+    ukf_chaos = UKF(model=LorenzModel(),
+                    initial_asoh=HealthVariable(),  # No SOH for lorenz
+                    initial_transients=state0,
+                    initial_inputs=u0,
                     initial_state=initial_state,
-                    initial_control=u0,
                     covariance_process_noise=process_noise,
                     covariance_sensor_noise=sensor_noise)
 
     # Initialize dictionaries to store values
     real_values = {'state': [np.array([state0])],
                    'measurements': []}
-    noisy_values = {'state': [np.array([state0 + rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)])],
+    noisy_values = {'state': [initial_state.get_mean()],
                     'measurements': []}
     ukf_values = {'state': [initial_state.model_copy(deep=True)],
                   'measurements': []}
@@ -94,7 +107,7 @@ def test_lorenz_ukf(lorenz_model):
     timestamps = [0.0]
 
     # Assign previous control
-    previous_control = u0
+    previous_control = ControlVariables(mean=u0.to_numpy())
 
     for _ in range(10000):
         # Get a new time
@@ -102,22 +115,22 @@ def test_lorenz_ukf(lorenz_model):
         timestamps += [time]
         # Choose random new controls
         sigma = 10
-        beta = 8./3.
+        beta = 8. / 3.
         rho = rng.normal(loc=28, scale=4)
         n = rng.integers(2, 5)
-        u = ControlVariables(mean=np.array([time, sigma, rho, beta, n]))
+        u = ControlVariables(mean=np.array([time, 0., sigma, rho, beta, n]))
 
         # Compute new true hidden state
         prev_hidden = noisy_values['state'][-1]
-        new_state = lorenz_model.update_hidden_states(hidden_states=prev_hidden,
-                                                      previous_controls=previous_control,
-                                                      new_controls=u)
+        new_state = ukf_chaos.update_hidden_states(hidden_states=prev_hidden[None, :],
+                                                   previous_controls=previous_control,
+                                                   new_controls=u)[0, :]
         real_values['state'] += [new_state.copy()]
         new_state += rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)
         noisy_values['state'] += [new_state.copy()]
 
         # Get new measurement
-        m = lorenz_model.predict_measurement(hidden_states=new_state, controls=u)
+        m = ukf_chaos.predict_measurement(hidden_states=new_state[None, :], controls=u)
         real_values['measurements'] += [m.copy()]
         m += rng.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
         noisy_values['measurements'] += [m.copy()]
@@ -144,8 +157,8 @@ def test_lorenz_ukf(lorenz_model):
     ukf_z_std = np.sqrt(np.array([hid.covariance[2, 2] for hid in ukf_values['state']]))
 
     # Get the noisy measurements
-    m0_noise = np.array([y.flatten()[0]for y in noisy_values['measurements']])
-    m1_noise = np.array([y.flatten()[1]for y in noisy_values['measurements']])
+    m0_noise = np.array([y.flatten()[0] for y in noisy_values['measurements']])
+    m1_noise = np.array([y.flatten()[1] for y in noisy_values['measurements']])
 
     # Check against UKF with error
     m0_1sig = np.isclose(m0_noise, ukf_m0, atol=1 * ukf_m0_std)
@@ -157,25 +170,30 @@ def test_lorenz_ukf(lorenz_model):
 
     # Only consider the last few points, when the UKF should have converged
     last_points = 500
-    m0_1sig_frac = np.sum(m0_1sig[-last_points:])/last_points
-    m0_2sig_frac = np.sum(m0_2sig[-last_points:])/last_points
-    m0_3sig_frac = np.sum(m0_3sig[-last_points:])/last_points
-    m1_1sig_frac = np.sum(m1_1sig[-last_points:])/last_points
-    m1_2sig_frac = np.sum(m1_2sig[-last_points:])/last_points
-    m1_3sig_frac = np.sum(m1_3sig[-last_points:])/last_points
+    m0_1sig_frac = np.sum(m0_1sig[-last_points:]) / last_points
+    m0_2sig_frac = np.sum(m0_2sig[-last_points:]) / last_points
+    m0_3sig_frac = np.sum(m0_3sig[-last_points:]) / last_points
+    m1_1sig_frac = np.sum(m1_1sig[-last_points:]) / last_points
+    m1_2sig_frac = np.sum(m1_2sig[-last_points:]) / last_points
+    m1_3sig_frac = np.sum(m1_3sig[-last_points:]) / last_points
 
     # Check stats, but be slightly more lenient than a true Gaussian
-    assert m0_1sig_frac >= 0.625, 'Fraction within 1 standard deviation is %2.1f %% < 62.5%%!!' % (100 * m0_1sig_frac)
-    assert m0_2sig_frac >= 0.925, 'Fraction within 2 standard deviations is %2.1f %% < 92.5%%!!' % (100 * m0_2sig_frac)
-    assert m0_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (100 * m0_3sig_frac)
-    assert m1_1sig_frac >= 0.625, 'Fraction within 1 standard deviation is %2.1f %% < 62.5%%!!' % (100 * m1_1sig_frac)
+    assert m0_1sig_frac >= 0.625, 'Fraction within 1 standard deviation is %2.1f %% < 62.5%%!!' % (
+            100 * m0_1sig_frac)
+    assert m0_2sig_frac >= 0.925, 'Fraction within 2 standard deviations is %2.1f %% < 92.5%%!!' % (
+            100 * m0_2sig_frac)
+    assert m0_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (
+            100 * m0_3sig_frac)
+    assert m1_1sig_frac >= 0.625, 'Fraction within 1 standard deviation is %2.1f %% < 62.5%%!!' % (
+            100 * m1_1sig_frac)
     assert m1_2sig_frac >= 0.925, 'Fraction within 2 standard deviations is %2.1f < 92.5%%!!' % (100 * m1_2sig_frac)
-    assert m1_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (100 * m1_3sig_frac)
+    assert m1_3sig_frac >= 0.975, 'Fraction within 3 standard deviations is %2.1f %% < 97.5%%!!' % (
+            100 * m1_3sig_frac)
 
     # Getting noisy hidden states
-    x_noise = np.array([hid.flatten()[0]for hid in noisy_values['state']])
-    y_noise = np.array([hid.flatten()[1]for hid in noisy_values['state']])
-    z_noise = np.array([hid.flatten()[2]for hid in noisy_values['state']])
+    x_noise = np.array([hid.flatten()[0] for hid in noisy_values['state']])
+    y_noise = np.array([hid.flatten()[1] for hid in noisy_values['state']])
+    z_noise = np.array([hid.flatten()[2] for hid in noisy_values['state']])
 
     # Check against error
     x_1sig = np.isclose(x_noise, ukf_x, atol=1 * ukf_x_std)
@@ -189,24 +207,24 @@ def test_lorenz_ukf(lorenz_model):
     z_3sig = np.isclose(z_noise, ukf_z, atol=3 * ukf_z_std)
 
     # Only consider the last few points again
-    x_1sig_frac = np.sum(x_1sig[-last_points:])/last_points
-    x_2sig_frac = np.sum(x_2sig[-last_points:])/last_points
-    x_3sig_frac = np.sum(x_3sig[-last_points:])/last_points
-    y_1sig_frac = np.sum(y_1sig[-last_points:])/last_points
-    y_2sig_frac = np.sum(y_2sig[-last_points:])/last_points
-    y_3sig_frac = np.sum(y_3sig[-last_points:])/last_points
-    z_1sig_frac = np.sum(z_1sig[-last_points:])/last_points
-    z_2sig_frac = np.sum(z_2sig[-last_points:])/last_points
-    z_3sig_frac = np.sum(z_3sig[-last_points:])/last_points
+    x_1sig_frac = np.sum(x_1sig[-last_points:]) / last_points
+    x_2sig_frac = np.sum(x_2sig[-last_points:]) / last_points
+    x_3sig_frac = np.sum(x_3sig[-last_points:]) / last_points
+    y_1sig_frac = np.sum(y_1sig[-last_points:]) / last_points
+    y_2sig_frac = np.sum(y_2sig[-last_points:]) / last_points
+    y_3sig_frac = np.sum(y_3sig[-last_points:]) / last_points
+    z_1sig_frac = np.sum(z_1sig[-last_points:]) / last_points
+    z_2sig_frac = np.sum(z_2sig[-last_points:]) / last_points
+    z_3sig_frac = np.sum(z_3sig[-last_points:]) / last_points
 
     # Check stats, but give a wider margin than a true Gaussian, as this is a very chaotic system and we are looking at
     # the hidden states, instead of number the UKF can measure itself against.
-    assert x_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * x_1sig_frac)
-    assert x_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * x_2sig_frac)
-    assert x_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * x_3sig_frac)
-    assert y_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * y_1sig_frac)
-    assert y_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * y_2sig_frac)
-    assert y_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * y_3sig_frac)
-    assert z_1sig_frac > 0.60,  'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * z_1sig_frac)
-    assert z_2sig_frac > 0.90,  'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * z_2sig_frac)
-    assert z_3sig_frac > 0.95,  'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * z_3sig_frac)
+    assert x_1sig_frac > 0.60, 'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * x_1sig_frac)
+    assert x_2sig_frac > 0.90, 'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * x_2sig_frac)
+    assert x_3sig_frac > 0.95, 'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * x_3sig_frac)
+    assert y_1sig_frac > 0.60, 'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * y_1sig_frac)
+    assert y_2sig_frac > 0.90, 'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * y_2sig_frac)
+    assert y_3sig_frac > 0.95, 'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * y_3sig_frac)
+    assert z_1sig_frac > 0.60, 'Fraction within 1 standard deviation is %2.1f %% < 60%%!!' % (100 * z_1sig_frac)
+    assert z_2sig_frac > 0.90, 'Fraction within 1 standard deviation is %2.1f %% < 90%%!!' % (100 * z_2sig_frac)
+    assert z_3sig_frac > 0.95, 'Fraction within 1 standard deviation is %2.1f %% < 95%%!!' % (100 * z_3sig_frac)

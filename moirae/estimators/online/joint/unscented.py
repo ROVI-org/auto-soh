@@ -6,7 +6,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, OutputQuantities
-from moirae.estimators.online import ControlVariables
+from moirae.estimators.online import ControlVariables, ModelFilterInterface
 from moirae.estimators.online.joint import ModelJointEstimatorInterface, JointOnlineEstimator
 from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
 from moirae.estimators.online.general.kalman.unscented import UnscentedKalmanFilter as UKF
@@ -86,6 +86,7 @@ class JointUKFEstimator(JointOnlineEstimator):
     """
 
     def __init__(self,
+                 interface: ModelFilterInterface,
                  initial_transient: GeneralContainer,
                  initial_asoh: HealthVariable,
                  initial_control: InputQuantities,
