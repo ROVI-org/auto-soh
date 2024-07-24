@@ -449,7 +449,7 @@ class CellModel():
     @abstractmethod
     def calculate_terminal_voltage(
             self,
-            input: InputQuantities,
+            inputs: InputQuantities,
             transient_state: GeneralContainer,
             asoh: HealthVariable) -> OutputQuantities:
         """

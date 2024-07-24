@@ -33,8 +33,8 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
                  current_behavior: Literal['constant', 'linear'] = 'constant',
                  normalize_asoh: bool = False) -> None:
         super().__init__(asoh=asoh, transient=transient, control=control, normalize_asoh=normalize_asoh)
-        self.output = ECM.calculate_terminal_voltage(new_input=control, transient_state=transient, asoh=asoh)
-        self.current_behavior = current_behavior
+        self.model = ECM(current_behavior)
+        self.output = self.model.calculate_terminal_voltage(inputs=control, transient_state=transient, asoh=asoh)
 
     @cached_property
     def num_output_dimensions(self) -> int:
@@ -87,11 +87,10 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         # Update each transient state, joint state by joint state
         for joint_state in valid_joints:
             self.update_from_joint(joint_state=joint_state)
-            new_transient = ECM.update_transient_state(new_input=new_input,
-                                                       transient_state=self.transient,
-                                                       asoh=self.asoh,
-                                                       previous_input=previous_input,
-                                                       current_behavior=self.current_behavior)
+            new_transient = self.model.update_transient_state(current_input=new_input,
+                                                              transient_state=self.transient,
+                                                              asoh=self.asoh,
+                                                              previous_input=previous_input)
             # Don't forget to reassemble the joint state!
             new_hidden += [self.assemble_joint_state(transient=new_transient)]
 
@@ -120,9 +119,9 @@ class ECMJointUKFInterface(ModelJointUKFInterface):
         # For each joint state, update transient and A-SOH and calculate output
         for joint_state in hidden_states:
             self.update_from_joint(joint_state=joint_state)
-            ecm_out = ECM.calculate_terminal_voltage(new_input=ecm_input,
-                                                     transient_state=self.transient,
-                                                     asoh=self.asoh)
+            ecm_out = self.model.calculate_terminal_voltage(inputs=ecm_input,
+                                                            transient_state=self.transient,
+                                                            asoh=self.asoh)
             pred_measurement += [ecm_out.to_numpy()]
 
         return np.array(pred_measurement)
@@ -134,6 +133,7 @@ class ECMJointUKF(JointUKFEstimator):
     Class to define the ECM Joint UKF Estimator. Since all the main updates are performed in the interface, and the
     parent JointUKFEstimator already takes care of most of the initialization and stepping, there is little to do here.
     """
+
     def __init__(self,
                  initial_transient: ECMTransientVector,
                  initial_asoh: ECMASOH,
@@ -164,7 +164,7 @@ class ECMJointUKF(JointUKFEstimator):
                         asoh: ECMASOH,
                         transient: ECMTransientVector,
                         control: ECMInput,
-                        normalize_asoh: bool = False,) -> None:
+                        normalize_asoh: bool = False, ) -> None:
         """
         Helper class to initialize the model filter interface
         """

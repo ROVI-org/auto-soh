@@ -41,7 +41,7 @@ class ECMSimulator():
         if initial_input is None:
             initial_input = ECMInput(time=0., current=0.)
         self.previous_input = initial_input.model_copy(deep=True)
-        self.measurement = ECM().calculate_terminal_voltage(new_input=self.previous_input,
+        self.measurement = ECM().calculate_terminal_voltage(inputs=self.previous_input,
                                                             transient_state=self.transient,
                                                             asoh=self.asoh)
 
@@ -61,7 +61,7 @@ class ECMSimulator():
             Tuple of the new transient state and corresponding measurement
         """
         # Get new transient
-        new_transient = ECM(self.current_behavior).update_transient_state(new_input=new_input,
+        new_transient = ECM(self.current_behavior).update_transient_state(current_input=new_input,
                                                                           transient_state=self.transient,
                                                                           asoh=self.asoh,
                                                                           previous_input=self.previous_input)
@@ -71,7 +71,7 @@ class ECMSimulator():
         self.previous_input = new_input.model_copy(deep=True)
 
         # Get new measurement
-        new_measurement = ECM(self.current_behavior).calculate_terminal_voltage(new_input=self.previous_input,
+        new_measurement = ECM(self.current_behavior).calculate_terminal_voltage(inputs=self.previous_input,
                                                                                 transient_state=self.transient,
                                                                                 asoh=self.asoh)
 
