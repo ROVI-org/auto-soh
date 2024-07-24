@@ -161,8 +161,9 @@ class ModelFilterInterface:
         current_inputs.from_numpy(new_controls.get_mean())
 
         # Now, iterate through the hidden states to create ECMTransient states and update them
-        updated = []
-        for hidden_array in hidden_states:
+        output = hidden_states.copy()
+        for i, hidden_array in enumerate(hidden_states):
+            # Run the update on the provided state
             self.transients.from_numpy(hidden_array[:self.num_transients])
             self.asoh.update_parameters(hidden_array[self.num_transients:])
             new_transient = self.model.update_transient_state(
@@ -171,8 +172,10 @@ class ModelFilterInterface:
                 transient_state=self.transients,
                 asoh=self.asoh,
             )
-            updated.append(new_transient.to_numpy())
-        return np.array(updated)
+
+            # Only the new transients (the first part) are updated
+            output[i, :self.num_transients] = new_transient.to_numpy()
+        return output
 
     @abstractmethod
     def predict_measurement(self,
