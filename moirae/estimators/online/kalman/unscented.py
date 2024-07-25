@@ -1,12 +1,12 @@
 """ Defines functionality for Unscented Kálmán Filter (UKF) """
-from typing import Union, Literal, Optional, Tuple, Dict
+from typing import Union, Literal, Optional, Tuple, Dict, Collection
 
 import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.estimators.online import OnlineEstimator, ControlVariables, OutputMeasurements
-from moirae.estimators.online.general.utils import ensure_positive_semi_definite
-from moirae.estimators.online.general.kalman import KalmanHiddenState, KalmanOutputMeasurement
+from moirae.estimators.online.utils import ensure_positive_semi_definite
+from moirae.estimators.online.kalman import KalmanHiddenState, KalmanOutputMeasurement
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities
 
 
@@ -22,7 +22,7 @@ def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
     return np.matmul(cov_xy, np.linalg.inv(cov_y))
 
 
-class UnscentedKalmanFilter(OnlineEstimator):
+class JointUnscentedKalmanFilter(OnlineEstimator):
     """
     Class that defines the basic functionality of the Unscented Kalman Filter
 
@@ -48,15 +48,36 @@ class UnscentedKalmanFilter(OnlineEstimator):
                  initial_asoh: HealthVariable,
                  initial_transients: GeneralContainer,
                  initial_inputs: InputQuantities,
-                 initial_state: KalmanHiddenState,
+                 initial_covariance: Optional[np.ndarray] = None,
                  alpha_param: float = 1.,
                  kappa_param: Union[float, Literal['automatic']] = 0.,
                  beta_param: float = 2.,
                  covariance_process_noise: Optional[np.ndarray] = None,
-                 covariance_sensor_noise: Optional[np.ndarray] = None):
-        super().__init__(model, initial_asoh, initial_transients, initial_inputs)
-        self.state = initial_state.model_copy(deep=True)
+                 covariance_sensor_noise: Optional[np.ndarray] = None,
+                 normalize_asoh: bool = False,
+                 updatable_asoh: Union[bool, Collection[str]] = True):
+        super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
+        self.state = KalmanHiddenState(
+            mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()]),
+            covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
+        )
         self.u = ControlVariables(mean=initial_inputs.to_numpy())
+
+        # Determine any normalization factors
+        self.normalize_asoh = normalize_asoh
+        self.joint_normalization_factor = np.ones(self.num_hidden_dimensions)
+        self.covariance_normalization = np.ones((self.num_hidden_dimensions, self.num_hidden_dimensions))
+        if normalize_asoh:
+            self.joint_normalization_factor[self.num_transients:] = self._asoh.get_parameters()
+            # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
+            # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
+            self.joint_normalization_factor[self.joint_normalization_factor == 0] = 1.
+            self.covariance_normalization = (self.joint_normalization_factor[None, :] *
+                                             self.joint_normalization_factor[:, None])
+
+            # Apply them
+            self.state.mean /= self.joint_normalization_factor
+            self.state.covariance /= self.covariance_normalization
 
         # Calculate augmented dimensions
         self._aug_len = int((2 * self.num_hidden_dimensions) + self.num_output_dimensions)
@@ -104,10 +125,25 @@ class UnscentedKalmanFilter(OnlineEstimator):
         cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
         self.cov_weights = cov_weights.copy()
 
+    def _normalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
+        if self.normalize_asoh:
+            return hidden_array * self.joint_normalization_factor
+        return hidden_array
+
+    def _denormalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
+        if self.normalize_asoh:
+            return hidden_array / self.joint_normalization_factor
+
+        # Ensure that the ASOH parameters are nonnegative
+        # TODO(vventuri): this is another terrible hotfix here, since some ECM parameters may need to be negative!
+        hidden_array[:, self.num_transients:] = np.clip(hidden_array[:, self.num_transients:], 1e-16, np.inf)
+        return hidden_array
+
     def step(self,
              u: ControlVariables,
              y: OutputMeasurements
              ) -> Tuple[KalmanOutputMeasurement, KalmanHiddenState]:
+
         """
         Steps the UKF
 
@@ -306,3 +342,32 @@ class UnscentedKalmanFilter(OnlineEstimator):
         # Set internal state
         self.state.mean = x_k_hat_plus
         self.state.covariance = cov_x_k_plus
+
+
+class UnscentedKalmanFilter(JointUnscentedKalmanFilter):
+    """A Kalman filter which only operates on the transient states"""
+
+    def __init__(self,
+                 model: CellModel,
+                 initial_asoh: HealthVariable,
+                 initial_transients: GeneralContainer,
+                 initial_inputs: InputQuantities,
+                 initial_covariance: Optional[np.ndarray] = None,
+                 alpha_param: float = 1.,
+                 kappa_param: Union[float, Literal['automatic']] = 0.,
+                 beta_param: float = 2.,
+                 covariance_process_noise: Optional[np.ndarray] = None,
+                 covariance_sensor_noise: Optional[np.ndarray] = None,
+                 ):
+        super().__init__(
+            model,
+            initial_asoh,
+            initial_transients,
+            initial_inputs,
+            initial_covariance,
+            alpha_param,
+            kappa_param,
+            beta_param,
+            covariance_process_noise,
+            covariance_sensor_noise,
+            updatable_asoh=False)

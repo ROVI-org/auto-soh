@@ -1,4 +1,4 @@
-""" Base online estimators, which are all model-agnostic """
+"""Classes defining different multivariate probability distributions"""
 from warnings import warn
 from typing_extensions import Self
 

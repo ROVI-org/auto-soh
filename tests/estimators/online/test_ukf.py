@@ -1,8 +1,8 @@
 import numpy as np
 
 from moirae.estimators.online import ControlVariables, OutputMeasurements
-from moirae.estimators.online.general.kalman.unscented import UnscentedKalmanFilter as UKF
-from moirae.estimators.online.general.kalman import KalmanHiddenState
+from moirae.estimators.online.kalman.unscented import UnscentedKalmanFilter as UKF
+from moirae.estimators.online.kalman import KalmanHiddenState
 from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities
 
 
@@ -91,7 +91,7 @@ def test_lorenz_ukf():
                     initial_asoh=HealthVariable(),  # No SOH for lorenz
                     initial_transients=state0,
                     initial_inputs=u0,
-                    initial_state=initial_state,
+                    initial_covariance=cov_state,
                     covariance_process_noise=process_noise,
                     covariance_sensor_noise=sensor_noise)
 
