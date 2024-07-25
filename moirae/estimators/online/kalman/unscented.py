@@ -127,12 +127,14 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
 
     def _normalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
         if self.normalize_asoh:
-            return hidden_array * self.joint_normalization_factor
+            return hidden_array / self.joint_normalization_factor
         return hidden_array
 
     def _denormalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
         if self.normalize_asoh:
-            return hidden_array / self.joint_normalization_factor
+            hidden_array = hidden_array * self.joint_normalization_factor
+        else:
+            hidden_array = hidden_array.copy()  # So that the edits later don't affect it
 
         # Ensure that the ASOH parameters are nonnegative
         # TODO(vventuri): this is another terrible hotfix here, since some ECM parameters may need to be negative!

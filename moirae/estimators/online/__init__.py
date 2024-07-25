@@ -166,6 +166,9 @@ class OnlineEstimator:
         inputs = self._inputs.model_copy(deep=True)
         inputs.from_numpy(controls.get_mean())
 
+        # Denormalize
+        hidden_states = self._denormalize_hidden_array(hidden_states)
+
         # Now, iterate through hidden states to compute terminal voltage
         voltages = []
         for hidden_array in hidden_states:

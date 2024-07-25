@@ -83,6 +83,73 @@ def cycle_protocol(rng, asoh: ECMASOH, start_time: float = 0.0) -> List[ECMInput
     return ecm_inputs
 
 
+def test_normalization(simple_rint):
+    """Make sure that normalizing the ASOH parameters works as expected"""
+
+    # Make the serial resistor updatable
+    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    assert rint_asoh.num_updatable == 1
+
+    # Make the filter without normalization
+    init_covar = np.diag([0.1, 0.1, 0.1])
+    r0 = rint_asoh.r0.base_values
+    ukf_joint = JointUKF(
+        model=ecm_model,
+        initial_asoh=rint_asoh,
+        initial_transients=rint_transient,
+        initial_inputs=ecm_inputs,
+        initial_covariance=np.diag([0.1, 0.1, 0.1]),
+        normalize_asoh=False
+    )
+    assert ukf_joint.num_transients == 2  # SOC, hysteresis
+    assert ukf_joint.num_hidden_dimensions == 3  # Includes r_int
+    assert ukf_joint.num_output_dimensions == 1  # Just the Voltage
+    assert np.allclose(ukf_joint.joint_normalization_factor, 1.)
+    assert np.allclose(ukf_joint.covariance_normalization, 1.)
+    assert np.allclose(ukf_joint.state.covariance, np.diag([0.1] * 3))
+    assert np.allclose(ukf_joint.state.mean, np.concatenate([rint_transient.to_numpy(), [r0]]))
+
+    # Make the filter with normalization
+    ukf_joint_normed = JointUKF(
+        model=ecm_model,
+        initial_asoh=rint_asoh,
+        initial_transients=rint_transient,
+        initial_inputs=ecm_inputs,
+        initial_covariance=init_covar,
+        normalize_asoh=True
+    )
+    assert np.allclose(ukf_joint_normed.joint_normalization_factor, [1., 1., r0])
+    assert np.allclose(ukf_joint_normed.covariance_normalization,
+                       [[1., 1., r0], [1., 1., r0], [r0, r0, r0 ** 2]])
+    assert np.allclose(ukf_joint_normed.state.covariance, np.diag([0.1, 0.1, 0.1 / r0 ** 2]))
+    assert np.allclose(ukf_joint_normed.state.mean, np.concatenate([rint_transient.to_numpy(), [1]]))
+
+    # Make sure the two filters step correctly
+    applied_control = PointEstimate(mean=np.array([1., 1.]))  # Time=1s, I=1 Amp
+    end_soc = 1. / rint_asoh.q_t.value
+    end_voltage = rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)
+    observed_voltage = PointEstimate(mean=np.array([end_voltage]))
+    for ukf in [ukf_joint, ukf_joint_normed]:
+        # Test that it runs the cell model properly
+        updated_states = ukf.update_hidden_states(
+            hidden_states=ukf.state.mean[None, :],
+            previous_controls=PointEstimate(mean=np.array([0, 1])),
+            new_controls=applied_control
+        )
+        actual_states = ukf._denormalize_hidden_array(updated_states)
+        assert np.allclose(actual_states, [end_soc, 0., r0])
+
+        # Test that it gets the outputs correctly
+        pred_outputs = ukf.predict_measurement(updated_states, controls=applied_control)
+        assert np.allclose(pred_outputs, end_voltage)
+
+        # Make sure nothing odd happens
+        pred_voltage, pred_state = ukf.step(applied_control, observed_voltage)
+        assert np.isfinite(pred_voltage.get_mean()).all()
+        assert np.isfinite(pred_state.get_mean()).all()
+
+
 @pytest.mark.slow
 def test_joint_ecm() -> None:
     # Initialize RNG
