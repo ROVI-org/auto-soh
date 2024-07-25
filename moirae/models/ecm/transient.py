@@ -4,20 +4,18 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import TransientVector
+from moirae.models.base import TransientVector, SingleVal, MultiVal
 
 
 class ECMTransientVector(TransientVector):
     """Description of the state of charge of an ECM and all components"""
 
-    soc: float = Field(default=0.0, description='State of charge (SOC)')
-    q0: Optional[float] = \
-        Field(default=None,
-              description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: Optional[np.ndarray] = \
-        Field(default=None,
-              description='Currents through RC components. Units: Amp')
-    hyst: float = Field(default=0, description='Hysteresis voltage. Units: V')
+    soc: SingleVal = Field(description='SOC')
+    q0: Optional[SingleVal] = \
+        Field(default=None, description='Charge in the series capacitor. Units: Coulomb')
+    i_rc: Optional[MultiVal] = \
+        Field(default=None, description='Currents through RC components. Units: Amp')
+    hyst: SingleVal = Field(default=0, description='Hysteresis voltage. Units: V')
 
     @classmethod
     def provide_template(cls,
