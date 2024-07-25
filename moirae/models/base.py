@@ -1,12 +1,16 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable, Sized
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
+from typing_extensions import Annotated
+from numbers import Number
 from abc import abstractmethod
 import logging
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field, AfterValidator
+
+from .utils import convert_single_valued, convert_multi_valued
 
 logger = logging.getLogger(__name__)
 
@@ -357,11 +361,41 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
 
 
+class BatchedVariable(BaseModel,
+                      arbitrary_types_allowed=True,
+                      validate_assignment=True):
+    """
+    Class to help storing variables that can be batched. It effectively serves as a wrapper for both floats and numpy
+    arrays, and makes it easier to figure out the batch size and inner dimensionality of the variable (in case of a
+    multi-valued variable)
+
+    Args:
+        batched_values: value(s) of the variable at the differente batch(es)
+        batch_size: cardinality of the batch
+        inner_dimensions: number of dimensions of the variable
+    """
+    batched_values: Union[Number, np.ndarray]
+    batch_size: int = 1
+    inner_dimensions: int = 1
+
+    @computed_field
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return (self.batch_size, self.inner_dimensions)
+
+
+# Definitions for variables that should be single-valued and multi-valued
+SingleVal = Annotated[Union[float, np.ndarray], AfterValidator(lambda v: convert_single_valued(v))]
+MultiVal = Annotated[Union[float, np.ndarray], AfterValidator(lambda v: convert_multi_valued(v))]
+
+
 class GeneralContainer(BaseModel,
                        arbitrary_types_allowed=True,
                        validate_assignment=True):
     """
-    General container class to store variables that are all numeric (that is, either floats or numpy arrays)
+    General container class to store variables that are all numeric (that is, either floats or numpy arrays). All
+    variables should be passed as either floats or numpy arrays, but they are converted into BatchedVariable objects
+    based on the given Annotation.
     """
 
     @property
@@ -376,9 +410,7 @@ class GeneralContainer(BaseModel,
         field_val = getattr(self, field_name, None)
         if field_val is None:
             return 0
-        elif isinstance(field_val, Sized):
-            return len(field_val)
-        return 1
+        return field_val.inner_dimensions
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """
@@ -392,8 +424,12 @@ class GeneralContainer(BaseModel,
         for field_name in self.all_fields:
             field = getattr(self, field_name, None)
             if field is not None:
-                relevant_vals += (field,)
-        return np.hstack(relevant_vals)
+                relevant_vals += (np.atleast_2d(field.batched_values),)
+        vals = np.hstack(relevant_vals)
+        # TODO (vventuri): should we return a flattened array if batch size == 1?
+        # if vals.shape[0] == 1:
+        #     return vals.flatten()
+        return vals
 
     def from_numpy(self, values: np.ndarray) -> None:
         """
@@ -405,7 +441,10 @@ class GeneralContainer(BaseModel,
             field_len = self.length_field(field_name)
             if field_len > 0:
                 end_index = begin_index + field_len
-                new_field_values = values[begin_index:end_index]
+                if len(values.shape) == 1:
+                    new_field_values = values[begin_index:end_index]
+                else:
+                    new_field_values = values[:, begin_index:end_index]
                 setattr(self, field_name, new_field_values)
                 begin_index = end_index
 
@@ -414,8 +453,8 @@ class InputQuantities(GeneralContainer):
     """
     The control of a battery system, such as the terminal current
     """
-    time: float = Field(description='Timestamp(s) of inputs. Units: s')
-    current: float = Field(description='Current applied to the storage system. Units: A')
+    time: SingleVal = Field(description='Timestamp(s) of inputs. Units: s')
+    current: SingleVal = Field(description='Current applied to the storage system. Units: A')
 
 
 class OutputQuantities(GeneralContainer):
@@ -423,7 +462,7 @@ class OutputQuantities(GeneralContainer):
     Output for observables from a battery system
     """
 
-    terminal_voltage: float = \
+    terminal_voltage: SingleVal = \
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
