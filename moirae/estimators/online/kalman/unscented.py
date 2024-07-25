@@ -4,9 +4,9 @@ from typing import Union, Literal, Optional, Tuple, Dict, Collection
 import numpy as np
 from scipy.linalg import block_diag
 
-from moirae.estimators.online import OnlineEstimator, ControlVariables, OutputMeasurements
+from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
+from moirae.estimators.online.distributions import MultivariateGaussian, PointEstimate
 from moirae.estimators.online.utils import ensure_positive_semi_definite
-from moirae.estimators.online.kalman import KalmanHiddenState, KalmanOutputMeasurement
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities
 
 
@@ -57,11 +57,11 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
                  normalize_asoh: bool = False,
                  updatable_asoh: Union[bool, Collection[str]] = True):
         super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
-        self.state = KalmanHiddenState(
+        self.state = MultivariateGaussian(
             mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()]),
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
         )
-        self.u = ControlVariables(mean=initial_inputs.to_numpy())
+        self.u = PointEstimate(mean=initial_inputs.to_numpy())
 
         # Determine any normalization factors
         self.normalize_asoh = normalize_asoh
@@ -92,7 +92,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
             self.kappa_param = 3 - self._aug_len
         else:
             assert self._aug_len + kappa_param > 0, \
-                'Kappa parameter (%f) must be > - Augmented_length L (%d)!' % (kappa_param, self._aug_len)
+                f'Kappa parameter ({kappa_param:f}) must be > - Augmented_length L ({self._aug_len:d})!'
             self.kappa_param = kappa_param
         self.gamma_param = alpha_param * np.sqrt(self._aug_len + kappa_param)
         self.lambda_param = (alpha_param * alpha_param *
@@ -140,9 +140,9 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         return hidden_array
 
     def step(self,
-             u: ControlVariables,
-             y: OutputMeasurements
-             ) -> Tuple[KalmanOutputMeasurement, KalmanHiddenState]:
+             u: MultivariateRandomDistribution,
+             y: MultivariateRandomDistribution
+             ) -> Tuple[MultivariateGaussian, MultivariateGaussian]:
 
         """
         Steps the UKF
@@ -208,7 +208,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         v_hid = sigma_pts[:, (2 * dim):].copy()
         return x_hid, w_hid, v_hid
 
-    def _evolve_hidden(self, hidden_states: np.ndarray, new_control: ControlVariables) -> np.ndarray:
+    def _evolve_hidden(self, hidden_states: np.ndarray, new_control: MultivariateRandomDistribution) -> np.ndarray:
         """
         Function used to evolve the hidden states obtained from the Sigma points
 
@@ -234,7 +234,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         assembles them into a new hidden state corresponding to x_k_minus (includes mean and covariance)
 
         Args:
-            updated_hidden_states: array of evolved hidden states
+            samples: array of evolved hidden states
 
         Returns:
             x_k_minus: new estimate of the hidden state (includes mean and covariance!)
@@ -259,7 +259,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
 
     def _predict_outputs(self,
                          updated_hidden_states: np.ndarray,
-                         control: ControlVariables) -> np.ndarray:
+                         control: MultivariateRandomDistribution) -> np.ndarray:
         """
         Function to predict outputs from evolved Sigma points.
 
@@ -275,7 +275,8 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
 
     def estimation_update(self,
                           sigma_pts: np.ndarray,
-                          u: ControlVariables) -> Tuple[KalmanHiddenState, KalmanOutputMeasurement, np.ndarray]:
+                          u: MultivariateRandomDistribution) \
+            -> Tuple[MultivariateGaussian, MultivariateGaussian, np.ndarray]:
         """
         Function to perform the estimation update from the Sigma points
 
@@ -297,25 +298,26 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         x_updated += w_hid
         # Assemble x_k_minus
         x_k_minus_info = self._assemble_unscented_estimate(samples=x_updated)
-        x_k_minus = KalmanHiddenState.model_validate(x_k_minus_info)
+        x_k_minus = MultivariateGaussian.model_validate(x_k_minus_info)
 
-        # Step 1c: use updated hidden states to predict outpus
+        # Step 1c: use updated hidden states to predict outputs
         y_preds = self._predict_outputs(updated_hidden_states=x_updated, control=u)
         # Don't forget to include sensor noise!
         y_preds += v_hid
         # Assemble y_hat
         y_k_info = self._assemble_unscented_estimate(samples=y_preds)
-        y_k = KalmanOutputMeasurement.model_validate(y_k_info)
+        y_k = MultivariateGaussian.model_validate(y_k_info)
+
         # Calculate covariance between hidden state and output
         cov_xy = self._get_unscented_covariance(array0=(x_updated - x_k_minus.mean), array1=(y_preds - y_k.mean))
 
         return x_k_minus, y_k, cov_xy
 
     def correction_update(self,
-                          x_k_minus: KalmanHiddenState,
-                          y_hat: KalmanOutputMeasurement,
+                          x_k_minus: MultivariateGaussian,
+                          y_hat: MultivariateGaussian,
                           cov_xy: np.ndarray,
-                          y: OutputMeasurements) -> None:
+                          y: MultivariateRandomDistribution) -> None:
         """
         Function to perform the correction update of the hidden state, based on the real measured output values.
 
@@ -329,7 +331,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         l_k = calculate_gain_matrix(cov_xy=cov_xy, cov_y=y_hat.covariance)
 
         # Step 2b: compute Kálmán innovation (basically, the error in the output predictions)
-        innovation = y.mean - y_hat.mean
+        innovation = y.get_mean() - y_hat.mean
         innovation = innovation.flatten()
 
         # Step 2c: update the hidden state mean and covariance

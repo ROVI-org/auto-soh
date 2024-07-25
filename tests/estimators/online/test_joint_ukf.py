@@ -4,7 +4,7 @@ from scipy.linalg import block_diag
 import numpy as np
 import pytest
 
-from moirae.estimators.online import ControlVariables, OutputMeasurements
+from moirae.estimators.online.distributions import PointEstimate
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
@@ -165,8 +165,8 @@ def test_joint_ecm() -> None:
             # Step the joint estimator``
             measurement = ECMMeasurement(terminal_voltage=vt)
             pred_measure, est_hidden = rint_joint_ukf.step(
-                u=ControlVariables(mean=new_input.to_numpy()),
-                y=OutputMeasurements(mean=measurement.to_numpy())
+                u=PointEstimate(mean=new_input.to_numpy()),
+                y=PointEstimate(mean=measurement.to_numpy())
             )
             # Save to the dictionary
             joint_ukf_predictions['joint_states'] += [est_hidden.model_copy(deep=True)]

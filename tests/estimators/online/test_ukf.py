@@ -1,8 +1,7 @@
 import numpy as np
 
-from moirae.estimators.online import ControlVariables, OutputMeasurements
+from moirae.estimators.online.distributions import MultivariateGaussian, PointEstimate
 from moirae.estimators.online.kalman.unscented import UnscentedKalmanFilter as UKF
-from moirae.estimators.online.kalman import KalmanHiddenState
 from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities
 
 
@@ -83,7 +82,7 @@ def test_lorenz_ukf():
     )
 
     # Define UKF
-    initial_state = KalmanHiddenState(
+    initial_state = MultivariateGaussian(
         mean=state0.to_numpy() + rng.multivariate_normal(mean=np.zeros(3), cov=cov_state),
         covariance=cov_state
     )
@@ -107,7 +106,7 @@ def test_lorenz_ukf():
     timestamps = [0.0]
 
     # Assign previous control
-    previous_control = ControlVariables(mean=u0.to_numpy())
+    previous_control = PointEstimate(mean=u0.to_numpy())
 
     for _ in range(10000):
         # Get a new time
@@ -118,7 +117,7 @@ def test_lorenz_ukf():
         beta = 8. / 3.
         rho = rng.normal(loc=28, scale=4)
         n = rng.integers(2, 5)
-        u = ControlVariables(mean=np.array([time, 0., sigma, rho, beta, n]))
+        u = PointEstimate(mean=np.array([time, 0., sigma, rho, beta, n]))
 
         # Compute new true hidden state
         prev_hidden = noisy_values['state'][-1]
@@ -136,7 +135,7 @@ def test_lorenz_ukf():
         noisy_values['measurements'] += [m.copy()]
 
         # Assemble measurement
-        measure = OutputMeasurements(mean=m)
+        measure = PointEstimate(mean=m)
         ukf_pred, ukf_hid = ukf_chaos.step(u=u, y=measure)
         ukf_values['state'].append(ukf_hid)
         ukf_values['measurements'].append(ukf_pred)

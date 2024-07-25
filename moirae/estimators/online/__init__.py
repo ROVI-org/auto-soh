@@ -9,56 +9,9 @@ from functools import cached_property
 from typing import Tuple, Union, Collection, Optional
 
 import numpy as np
-from pydantic import BaseModel, Field
+from moirae.estimators.online.distributions import MultivariateRandomDistribution
 
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable
-
-
-class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
-    """
-    Base class to help represent a multivariate random variable
-    """
-
-    @abstractmethod
-    def get_mean(self) -> np.ndarray:
-        """
-        Provides mean (first moment) of distribution
-        """
-        pass
-
-
-class HiddenState(MultivariateRandomDistribution):
-    """
-    Defines the hidden state that is updated by the online estimator.
-    """
-    mean: np.ndarray = Field(default=None,
-                             description='Mean of the random distribution that describes the hidden state')
-
-    def get_mean(self) -> np.ndarray:
-        return self.mean.copy()
-
-
-class OutputMeasurements(MultivariateRandomDistribution):
-    """
-    Defines a container for the outputs
-    """
-    mean: np.ndarray = Field(default=None,
-                             description='Mean of the random distribution that describes the output measurement')
-
-    def get_mean(self) -> np.ndarray:
-        return self.mean.copy()
-
-
-class ControlVariables(MultivariateRandomDistribution):
-    """
-    Define the container for the controls. We are setting as a random variable, but, for most purposes, its probability
-    distribution is to be considered a delta function centered on the mean.
-    """
-    mean: np.ndarray = Field(default=None,
-                             description='Mean of the random distribution that describes the control variables')
-
-    def get_mean(self) -> np.ndarray:
-        return self.mean.copy()
 
 
 # TODO (wardlt): Consider letting users pass a custom normalization function rather than implementing a subclass
@@ -156,8 +109,8 @@ class OnlineEstimator:
     # TODO (wardlt): Re-establish allowing controls to be a list when we need it
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
-                             previous_controls: ControlVariables,
-                             new_controls: ControlVariables) -> np.ndarray:
+                             previous_controls: MultivariateRandomDistribution,
+                             new_controls: MultivariateRandomDistribution) -> np.ndarray:
         """
         Function that updates the hidden state based on the control variables provided.
 
@@ -198,7 +151,7 @@ class OnlineEstimator:
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
-                            controls: ControlVariables) -> np.ndarray:
+                            controls: MultivariateRandomDistribution) -> np.ndarray:
         """
         Function to predict measurement from the hidden state
 
@@ -226,7 +179,8 @@ class OnlineEstimator:
         return np.array(voltages)
 
     @abstractmethod
-    def step(self, u: ControlVariables, y: OutputMeasurements) -> Tuple[OutputMeasurements, HiddenState]:
+    def step(self, u: MultivariateRandomDistribution, y: MultivariateRandomDistribution) \
+            -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
         """
         Function to step the estimator, provided new control variables and output measurements.
 
@@ -235,6 +189,7 @@ class OnlineEstimator:
             y: output measurements
 
         Returns:
-            Corrected estimate of the hidden state of the system
+            - Updated estimate of the hidden state, which includes the transient states and ASOH
+            - Estimate of the measurements as predicted by the underlying model
         """
-        pass
+        raise NotImplementedError()
