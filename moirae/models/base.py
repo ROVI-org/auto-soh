@@ -3,12 +3,11 @@ the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
 from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
 from typing_extensions import Annotated
-from numbers import Number
 from abc import abstractmethod
 import logging
 
 import numpy as np
-from pydantic import BaseModel, Field, computed_field, AfterValidator
+from pydantic import BaseModel, Field, AfterValidator
 
 from .utils import convert_single_valued, convert_multi_valued
 
@@ -359,29 +358,6 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
         # Check to make sure all were used
         if end != len(values):
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
-
-
-class BatchedVariable(BaseModel,
-                      arbitrary_types_allowed=True,
-                      validate_assignment=True):
-    """
-    Class to help storing variables that can be batched. It effectively serves as a wrapper for both floats and numpy
-    arrays, and makes it easier to figure out the batch size and inner dimensionality of the variable (in case of a
-    multi-valued variable)
-
-    Args:
-        batched_values: value(s) of the variable at the differente batch(es)
-        batch_size: cardinality of the batch
-        inner_dimensions: number of dimensions of the variable
-    """
-    batched_values: Union[Number, np.ndarray]
-    batch_size: int = 1
-    inner_dimensions: int = 1
-
-    @computed_field
-    @property
-    def shape(self) -> Tuple[int, int]:
-        return (self.batch_size, self.inner_dimensions)
 
 
 # Definitions for variables that should be single-valued and multi-valued

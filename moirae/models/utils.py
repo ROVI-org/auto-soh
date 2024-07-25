@@ -1,9 +1,31 @@
-from typing import Union
+from typing import Union, Tuple
 from numbers import Number
 
 import numpy as np
+from pydantic import BaseModel, computed_field
 
-from .base import BatchedVariable
+
+class BatchedVariable(BaseModel,
+                      arbitrary_types_allowed=True,
+                      validate_assignment=True):
+    """
+    Class to help storing variables that can be batched. It effectively serves as a wrapper for both floats and numpy
+    arrays, and makes it easier to figure out the batch size and inner dimensionality of the variable (in case of a
+    multi-valued variable)
+
+    Args:
+        batched_values: value(s) of the variable at the differente batch(es)
+        batch_size: cardinality of the batch
+        inner_dimensions: number of dimensions of the variable
+    """
+    batched_values: Union[Number, np.ndarray]
+    batch_size: int = 1
+    inner_dimensions: int = 1
+
+    @computed_field
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return (self.batch_size, self.inner_dimensions)
 
 
 def convert_single_valued(value: Union[float, np.ndarray]) -> BatchedVariable:
