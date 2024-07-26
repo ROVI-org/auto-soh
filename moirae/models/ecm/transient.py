@@ -1,4 +1,4 @@
-from typing import Union, Optional, Sized
+from typing import Union, Sized
 from numbers import Number
 
 from pydantic import Field
