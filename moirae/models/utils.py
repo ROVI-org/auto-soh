@@ -36,10 +36,14 @@ def convert_single_valued(value: Union[float, np.ndarray, None]) -> BatchedVaria
         return BatchedVariable(batched_values=None, batch_size=0, inner_dimensions=0)
     if isinstance(value, Number):
         return BatchedVariable(batched_values=np.array(value))
-    elif len(value.shape) <= 2:
+    if len(value.shape) <= 2:
         if len(value.shape) == 2 and (1 not in value.shape):
             raise ValueError(f'Single-valued variable cannot be passed as a {value.shape} matrix; ',
                              'one of the dimensions must be equal to 1!')
+        # Deal with the case of a single Number being passed as an array
+        if value.shape == (1, 1) or value.shape == (1,) or len(value.shape) == 0:
+            value = value.reshape(tuple())
+            return BatchedVariable(batched_values=value)
         value = value.reshape((-1, 1))
         return BatchedVariable(batched_values=value, batch_size=value.shape[0])
     else:
