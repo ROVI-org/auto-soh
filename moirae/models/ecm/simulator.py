@@ -7,6 +7,7 @@ from moirae.models.ecm import (ECMASOH,
                                ECMMeasurement)
 
 
+# TODO (wardlt): Make this capable of running with any CellModel
 class ECMSimulator():
     """
     Class used to simulate and store information about an ECM
@@ -40,7 +41,7 @@ class ECMSimulator():
         if initial_input is None:
             initial_input = ECMInput(time=0., current=0.)
         self.previous_input = initial_input.model_copy(deep=True)
-        self.measurement = ECM().calculate_terminal_voltage(new_input=self.previous_input,
+        self.measurement = ECM().calculate_terminal_voltage(new_inputs=self.previous_input,
                                                             transient_state=self.transient,
                                                             asoh=self.asoh)
 
@@ -49,31 +50,30 @@ class ECMSimulator():
             self.transient_history = [self.transient.model_copy(deep=True)]
             self.measurement_history = [self.measurement.model_copy(deep=True)]
 
-    def step(self, new_input: ECMInput) -> Tuple[ECMTransientVector, ECMMeasurement]:
+    def step(self, new_inputs: ECMInput) -> Tuple[ECMTransientVector, ECMMeasurement]:
         """
         Function to step the transient state of the system.
 
         Args:
-            new_input: New ECM input to the system
+            new_inputs: New ECM input to the system
 
         Returns:
             Tuple of the new transient state and corresponding measurement
         """
         # Get new transient
-        new_transient = ECM().update_transient_state(new_input=new_input,
-                                                     transient_state=self.transient,
-                                                     asoh=self.asoh,
-                                                     previous_input=self.previous_input,
-                                                     current_behavior=self.current_behavior)
+        new_transient = ECM(self.current_behavior).update_transient_state(new_inputs=new_inputs,
+                                                                          transient_state=self.transient,
+                                                                          asoh=self.asoh,
+                                                                          previous_inputs=self.previous_input)
 
         # Update internal
         self.transient = new_transient.model_copy(deep=True)
-        self.previous_input = new_input.model_copy(deep=True)
+        self.previous_input = new_inputs.model_copy(deep=True)
 
         # Get new measurement
-        new_measurement = ECM().calculate_terminal_voltage(new_input=self.previous_input,
-                                                           transient_state=self.transient,
-                                                           asoh=self.asoh)
+        new_measurement = ECM(self.current_behavior).calculate_terminal_voltage(new_inputs=self.previous_input,
+                                                                                transient_state=self.transient,
+                                                                                asoh=self.asoh)
 
         # Update measurement
         self.measurement = new_measurement.model_copy(deep=True)
@@ -99,7 +99,7 @@ class ECMSimulator():
         measurements = []
 
         for new_input in inputs:
-            _, measure = self.step(new_input=new_input)
+            _, measure = self.step(new_inputs=new_input)
             measurements.append(measure)
 
         return measurements

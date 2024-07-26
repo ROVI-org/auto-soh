@@ -4,10 +4,10 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import TransientVector
+from moirae.models.base import GeneralContainer
 
 
-class ECMTransientVector(TransientVector):
+class ECMTransientVector(GeneralContainer):
     """Description of the state of charge of an ECM and all components"""
 
     soc: float = Field(default=0.0, description='State of charge (SOC)')
