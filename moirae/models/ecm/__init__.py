@@ -34,10 +34,10 @@ class EquivalentCircuitModel(CellModel):
         hyst_(k+1) = [see code, it's messy]
         """
         # Get basic info
-        delta_t = new_input.time - previous_input.time
-        current_k = previous_input.current
-        temp_k = previous_input.temperature
-        current_kp1 = new_input.current
+        delta_t = new_input.time.batched_values - previous_input.time.batched_values
+        current_k = previous_input.current.batched_values
+        temp_k = previous_input.temperature.batched_values
+        current_kp1 = new_input.current.batched_values
         current_slope = 0.0 if current_behavior == 'constant' else (current_kp1 - current_k) / delta_t
         # We will assume that all health parameters remain constant between time
         # steps, independent of temperature or SOC variations. The value used
@@ -47,29 +47,29 @@ class EquivalentCircuitModel(CellModel):
         coul_eff = 1 if current_k < 0 else asoh.ce
 
         # Update SOC
-        soc_k = transient_state.soc
+        soc_k = transient_state.soc.batched_values
         Qt = asoh.q_t.value
         charge_cycled = delta_t * (current_k + ((current_slope * delta_t) / 2))
         soc_kp1 = soc_k + (coul_eff * (charge_cycled / Qt))
 
         # Update q0
-        q0_kp1 = transient_state.q0
+        q0_kp1 = transient_state.q0.batched_values
         if q0_kp1 is not None:
             q0_kp1 += charge_cycled
 
         # Update i_RCs
-        iRC_kp1 = transient_state.i_rc
+        iRC_kp1 = transient_state.i_rc.batched_values
         if iRC_kp1 is not None:
             tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
                             for RC in asoh.rc_elements])
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
             iRC_kp1 += (1 - exp_factor) * \
-                       (new_input.current - (current_slope * tau))
+                       (current_kp1 - (current_slope * tau))
             iRC_kp1 += current_slope * delta_t
 
         # Update hysteresis
-        hyst_kp1 = transient_state.hyst
+        hyst_kp1 = transient_state.hyst.batched_values
         # Needed parameters
         M = asoh.h0.get_value(soc=soc_k)
         # Recall that, if charging, than M has to be >0, but, if dischargin, it
@@ -83,7 +83,7 @@ class EquivalentCircuitModel(CellModel):
         kappa = (coul_eff * gamma) / Qt
         # We need to figure out if the current changes sign during this process
         if current_k * current_kp1 >= 0 or current_behavior == 'constant':
-            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst,
+            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst.batched_values,
                                                     M=M,
                                                     kappa=kappa,
                                                     dt=delta_t,
@@ -93,7 +93,7 @@ class EquivalentCircuitModel(CellModel):
         else:
             # solving for time until current == 0
             phi = -current_k / current_slope
-            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst,
+            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst.batched_values,
                                                  M=M,
                                                  kappa=kappa,
                                                  dt=phi,
@@ -130,27 +130,27 @@ class EquivalentCircuitModel(CellModel):
                 + hyst(SOC,T)
         """
         # Start with OCV
-        Vt = asoh.ocv(soc=transient_state.soc, temp=new_input.temperature)
+        Vt = asoh.ocv(soc=transient_state.soc.batched_values, temp=new_input.temperature.batched_values)
 
         # Add I*R drop ('DCIR')
-        Vt += new_input.current * asoh.r0.get_value(soc=transient_state.soc,
-                                                    temp=new_input.temperature)
+        Vt += new_input.current.batched_values * asoh.r0.get_value(soc=transient_state.soc.batched_values,
+                                                                   temp=new_input.temperature.batched_values)
 
         # Check series capacitance
-        if transient_state.q0 is not None:
-            Vt += transient_state.q0 / asoh.c0.get_value(soc=transient_state.soc)
+        if transient_state.q0.batched_values is not None:
+            Vt += transient_state.q0.batched_values / asoh.c0.get_value(soc=transient_state.soc.batched_values)
 
         # Check RC elements
-        if transient_state.i_rc is not None:
+        if transient_state.i_rc.batched_values is not None:
             RC_Rs = np.array(
-                [RC.r.get_value(soc=transient_state.soc,
-                                temp=new_input.temperature)
+                [RC.r.get_value(soc=transient_state.soc.batched_values,
+                                temp=new_input.temperature.batched_values)
                  for RC in asoh.rc_elements]
             )
-            V_drops = transient_state.i_rc * RC_Rs
-            Vt += sum(V_drops)
+            V_drops = transient_state.i_rc.batched_values * RC_Rs
+            Vt += np.sum(V_drops, axis=1).reshape(Vt.shape)
 
         # Include hysteresis
-        Vt += transient_state.hyst
+        Vt += transient_state.hyst.batched_values
 
         return ECMMeasurement(terminal_voltage=Vt)
