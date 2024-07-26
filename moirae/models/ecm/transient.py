@@ -12,10 +12,10 @@ class ECMTransientVector(TransientVector):
     """Description of the state of charge of an ECM and all components"""
 
     soc: SingleVal = Field(description='SOC')
-    q0: Optional[SingleVal] = \
+    q0: SingleVal = \
         Field(default_factory=lambda: convert_single_valued(value=None),
               description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: Optional[MultiVal] = \
+    i_rc: MultiVal = \
         Field(default_factory=lambda: convert_multi_valued(values=None),
               description='Currents through RC components. Units: Amp')
     hyst: SingleVal = Field(default=0, description='Hysteresis voltage. Units: V')
