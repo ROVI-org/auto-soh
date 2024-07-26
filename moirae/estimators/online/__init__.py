@@ -32,6 +32,14 @@ class OnlineEstimator:
     Use the estimator by calling the :meth:`step` function to update the estimated state
     provided a new observation of the outputs of the system.
 
+    Args:
+        model: Model used to describe the underlying physics of the storage system
+        initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
+        initial_transients: Initial estimates for the transient states of the battery
+        initial_inputs: Initial inputs to the system
+        updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
+            none of the updatable parameters (``False``),
+            or only a select set of them (provide a list of names).
     """
     model: CellModel
     """Link to the model describing the known physics of the system"""
@@ -42,17 +50,6 @@ class OnlineEstimator:
                  initial_transients: GeneralContainer,
                  initial_inputs: InputQuantities,
                  updatable_asoh: Union[bool, Collection[str]] = True):
-        """
-        Args:
-            model: Model used to describe the underlying physics of the storage system
-            initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
-            initial_transients: Initial estimates for the transient states of the battery
-            initial_inputs: Initial inputs to the system
-            updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
-                none of the updatable parameters (``False``),
-                or only a select set of them (provide a list of names).
-        """
-
         self.model = model
         self._asoh = initial_asoh.model_copy(deep=True)
         self._transients = initial_transients.model_copy(deep=True)
@@ -139,8 +136,8 @@ class OnlineEstimator:
             self._transients.from_numpy(hidden_array[:self.num_transients])
             self._asoh.update_parameters(hidden_array[self.num_transients:], self._updatable_names)
             new_transient = self.model.update_transient_state(
-                previous_input=previous_inputs,
-                current_input=current_inputs,
+                previous_inputs=previous_inputs,
+                new_inputs=current_inputs,
                 transient_state=self._transients,
                 asoh=self._asoh,
             )
@@ -174,7 +171,7 @@ class OnlineEstimator:
         for hidden_array in hidden_states:
             self._transients.from_numpy(hidden_array[:self.num_transients])
             self._asoh.update_parameters(hidden_array[self.num_transients:], self._updatable_names)
-            ecm_out = self.model.calculate_terminal_voltage(inputs=inputs,
+            ecm_out = self.model.calculate_terminal_voltage(new_inputs=inputs,
                                                             transient_state=self._transients,
                                                             asoh=self._asoh)
             voltages.append(ecm_out.to_numpy())

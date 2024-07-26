@@ -30,8 +30,8 @@ class EquivalentCircuitModel(CellModel):
 
     def update_transient_state(
             self,
-            previous_input: ECMInput,
-            current_input: ECMInput,
+            previous_inputs: ECMInput,
+            new_inputs: ECMInput,
             transient_state: ECMTransientVector,
             asoh: ECMASOH
     ) -> ECMTransientVector:
@@ -47,10 +47,10 @@ class EquivalentCircuitModel(CellModel):
         hyst_(k+1) = [see code, it's messy]
         """
         # Get basic info
-        delta_t = current_input.time - previous_input.time
-        current_k = previous_input.current
-        temp_k = previous_input.temperature
-        current_kp1 = current_input.current
+        delta_t = new_inputs.time - previous_inputs.time
+        current_k = previous_inputs.current
+        temp_k = previous_inputs.temperature
+        current_kp1 = new_inputs.current
         current_slope = 0.0 if self.current_behavior == 'constant' else (current_kp1 - current_k) / delta_t
         # We will assume that all health parameters remain constant between time
         # steps, independent of temperature or SOC variations. The value used
@@ -78,7 +78,7 @@ class EquivalentCircuitModel(CellModel):
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
             iRC_kp1 += (1 - exp_factor) * \
-                       (current_input.current - (current_slope * tau))
+                       (new_inputs.current - (current_slope * tau))
             iRC_kp1 += current_slope * delta_t
 
         # Update hysteresis
@@ -131,7 +131,7 @@ class EquivalentCircuitModel(CellModel):
 
     def calculate_terminal_voltage(
             self,
-            inputs: ECMInput,
+            new_inputs: ECMInput,
             transient_state: ECMTransientVector,
             asoh: ECMASOH) -> ECMMeasurement:
         """
@@ -144,11 +144,11 @@ class EquivalentCircuitModel(CellModel):
                 + hyst(SOC,T)
         """
         # Start with OCV
-        Vt = asoh.ocv(soc=transient_state.soc, temp=inputs.temperature)
+        Vt = asoh.ocv(soc=transient_state.soc, temp=new_inputs.temperature)
 
         # Add I*R drop ('DCIR')
-        Vt += inputs.current * asoh.r0.get_value(soc=transient_state.soc,
-                                                 temp=inputs.temperature)
+        Vt += new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
+                                                     temp=new_inputs.temperature)
 
         # Check series capacitance
         if transient_state.q0 is not None:
@@ -158,7 +158,7 @@ class EquivalentCircuitModel(CellModel):
         if transient_state.i_rc is not None:
             RC_Rs = np.array(
                 [RC.r.get_value(soc=transient_state.soc,
-                                temp=inputs.temperature)
+                                temp=new_inputs.temperature)
                  for RC in asoh.rc_elements]
             )
             V_drops = transient_state.i_rc * RC_Rs

@@ -20,7 +20,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         pass
 
 
-class PointEstimate(MultivariateRandomDistribution):
+class DeltaDistribution(MultivariateRandomDistribution):
     """A distribution with only one allowed value"""
 
     mean: np.ndarray = Field(default=None, description='Mean of the distribution.')

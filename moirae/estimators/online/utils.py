@@ -2,8 +2,6 @@
 import numpy as np
 
 
-# TODO (wardlt): Why do we have two
-
 def ensure_positive_semi_definite(Sig: np.ndarray) -> np.ndarray:
     """
     Function to ensure the matrix is positive semi-definite. If the matrix is positive semi-definite, it simply returns

@@ -4,7 +4,7 @@ from scipy.linalg import block_diag
 import numpy as np
 import pytest
 
-from moirae.estimators.online.distributions import PointEstimate
+from moirae.estimators.online.distributions import DeltaDistribution
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
@@ -126,15 +126,15 @@ def test_normalization(simple_rint):
     assert np.allclose(ukf_joint_normed.state.mean, np.concatenate([rint_transient.to_numpy(), [1]]))
 
     # Make sure the two filters step correctly
-    applied_control = PointEstimate(mean=np.array([1., 1.]))  # Time=1s, I=1 Amp
+    applied_control = DeltaDistribution(mean=np.array([1., 1.]))  # Time=1s, I=1 Amp
     end_soc = 1. / rint_asoh.q_t.value
     end_voltage = rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)
-    observed_voltage = PointEstimate(mean=np.array([end_voltage]))
+    observed_voltage = DeltaDistribution(mean=np.array([end_voltage]))
     for ukf in [ukf_joint, ukf_joint_normed]:
         # Test that it runs the cell model properly
         updated_states = ukf.update_hidden_states(
             hidden_states=ukf.state.mean[None, :],
-            previous_controls=PointEstimate(mean=np.array([0, 1])),
+            previous_controls=DeltaDistribution(mean=np.array([0, 1])),
             new_controls=applied_control
         )
         actual_states = ukf._denormalize_hidden_array(updated_states)
@@ -225,15 +225,15 @@ def test_joint_ecm() -> None:
 
         for new_input in protocol:
             # Simulate (useful for also getting the real terminal voltage :) )
-            _, cell_response = rint_sim.step(new_input=new_input)
+            _, cell_response = rint_sim.step(new_inputs=new_input)
             # Add noise to give to the UKF and store it
             vt = cell_response.terminal_voltage + rng.normal(loc=0.0, scale=voltage_err / 2)
             noisy_voltage += [vt]
             # Step the joint estimator``
             measurement = ECMMeasurement(terminal_voltage=vt)
             pred_measure, est_hidden = rint_joint_ukf.step(
-                u=PointEstimate(mean=new_input.to_numpy()),
-                y=PointEstimate(mean=measurement.to_numpy())
+                u=DeltaDistribution(mean=new_input.to_numpy()),
+                y=DeltaDistribution(mean=measurement.to_numpy())
             )
             # Save to the dictionary
             joint_ukf_predictions['joint_states'] += [est_hidden.model_copy(deep=True)]

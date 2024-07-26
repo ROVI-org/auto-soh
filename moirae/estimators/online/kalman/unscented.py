@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
-from moirae.estimators.online.distributions import MultivariateGaussian, PointEstimate
+from moirae.estimators.online.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.utils import ensure_positive_semi_definite
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities
 
@@ -23,13 +23,18 @@ def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
 
 
 class JointUnscentedKalmanFilter(OnlineEstimator):
-    """
-    Class that defines the basic functionality of the Unscented Kalman Filter
+    """An Unscented Kalman Filter that estimates both transient and ASOH parameters.
 
     Args:
-        model: model describing the system
-        initial_state: initial hidden state of the system
-        initial_control: initial control on the system
+        model: Model used to describe the underlying physics of the storage system
+        initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
+        initial_transients: Initial estimates for the transient states of the battery
+        initial_inputs: Initial inputs to the system
+        initial_covariance: The covariance matrix between all transient and SOH parameters.
+            Assumes a variance of 1 and no covariance by default.
+        updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
+            none of the updatable parameters (``False``),
+            or only a select set of them (provide a list of names).
         alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the
                     spread of the sigma points; lower values keep sigma
                     points closer to the mean, alpha=1 effectively brings
@@ -41,6 +46,8 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
                         (default = 2.)
         covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
+        normalize_asoh: Whether to normalize the ASOH terms to near 1 for the state used by
+            the filter. If true, ``initial_covariance`` will be updated for you.
     """
 
     def __init__(self,
@@ -61,7 +68,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
             mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()]),
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
         )
-        self.u = PointEstimate(mean=initial_inputs.to_numpy())
+        self.u = DeltaDistribution(mean=initial_inputs.to_numpy())
 
         # Determine any normalization factors
         self.normalize_asoh = normalize_asoh
@@ -349,7 +356,27 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
 
 
 class UnscentedKalmanFilter(JointUnscentedKalmanFilter):
-    """A Kalman filter which only operates on the transient states"""
+    """A Kalman filter which only operates on the transient states
+
+    Args:
+        model: Model used to describe the underlying physics of the storage system
+        initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
+        initial_transients: Initial estimates for the transient states of the battery
+        initial_inputs: Initial inputs to the system
+        initial_covariance: The covariance matrix between all transient and SOH parameters.
+            Assumes a variance of 1 and no covariance by default.
+        alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the
+                    spread of the sigma points; lower values keep sigma
+                    points closer to the mean, alpha=1 effectively brings
+                    the KF closer to Central Difference KF (default = 1.)
+        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values
+                     of kappa >=0 for positive semidefiniteness. (default = 0.)
+        beta_param: tuning parameter beta >=0 used to incorporate knowledge
+                        of prior distribution; for Gaussian use beta = 2
+                        (default = 2.)
+        covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
+        covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
+    """
 
     def __init__(self,
                  model: CellModel,

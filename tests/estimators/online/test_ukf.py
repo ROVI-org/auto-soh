@@ -1,6 +1,6 @@
 import numpy as np
 
-from moirae.estimators.online.distributions import MultivariateGaussian, PointEstimate
+from moirae.estimators.online.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.kalman.unscented import UnscentedKalmanFilter as UKF
 from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities
 
@@ -28,17 +28,17 @@ class LorenzModel(CellModel):
 
     def update_transient_state(
             self,
-            previous_input: LorenzControl,
-            current_input: LorenzControl,
+            previous_inputs: LorenzControl,
+            new_inputs: LorenzControl,
             transient_state: LorenzState,
             asoh: HealthVariable
     ) -> GeneralContainer:
-        dt = current_input.time - previous_input.time
+        dt = new_inputs.time - previous_inputs.time
 
         # Compute derivatives
-        dxdt = current_input.sigma * (transient_state.y - transient_state.x)
-        dydt = transient_state.x * (current_input.rho - transient_state.z) - transient_state.y
-        dzdt = (transient_state.x * transient_state.y) - current_input.beta * transient_state.z
+        dxdt = new_inputs.sigma * (transient_state.y - transient_state.x)
+        dydt = transient_state.x * (new_inputs.rho - transient_state.z) - transient_state.y
+        dzdt = (transient_state.x * transient_state.y) - new_inputs.beta * transient_state.z
 
         return LorenzState(
             x=dt * dxdt,
@@ -48,14 +48,14 @@ class LorenzModel(CellModel):
 
     def calculate_terminal_voltage(
             self,
-            inputs: LorenzControl,
+            new_inputs: LorenzControl,
             transient_state: LorenzState,
             asoh: HealthVariable) -> OutputQuantities:
         hidden_states = transient_state.to_numpy()
 
         return LorenzOutputs(
             terminal_voltage=np.sqrt(np.sum(hidden_states ** 2)),
-            m1=abs(np.sum(hidden_states ** inputs.n)) ** (1. / inputs.n),
+            m1=abs(np.sum(hidden_states ** new_inputs.n)) ** (1. / new_inputs.n),
         )
 
 
@@ -106,7 +106,7 @@ def test_lorenz_ukf():
     timestamps = [0.0]
 
     # Assign previous control
-    previous_control = PointEstimate(mean=u0.to_numpy())
+    previous_control = DeltaDistribution(mean=u0.to_numpy())
 
     for _ in range(10000):
         # Get a new time
@@ -117,7 +117,7 @@ def test_lorenz_ukf():
         beta = 8. / 3.
         rho = rng.normal(loc=28, scale=4)
         n = rng.integers(2, 5)
-        u = PointEstimate(mean=np.array([time, 0., sigma, rho, beta, n]))
+        u = DeltaDistribution(mean=np.array([time, 0., sigma, rho, beta, n]))
 
         # Compute new true hidden state
         prev_hidden = noisy_values['state'][-1]
@@ -135,7 +135,7 @@ def test_lorenz_ukf():
         noisy_values['measurements'] += [m.copy()]
 
         # Assemble measurement
-        measure = PointEstimate(mean=m)
+        measure = DeltaDistribution(mean=m)
         ukf_pred, ukf_hid = ukf_chaos.step(u=u, y=measure)
         ukf_values['state'].append(ukf_hid)
         ukf_values['measurements'].append(ukf_pred)

@@ -61,11 +61,11 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
     # Define a starting transient state
     tns1 = ECMTransientVector(soc=0, q0=0)
     # Now, let's do a step assuming constant current
-    tns2_const = ECM().update_transient_state(current_input=ipt2,
+    tns2_const = ECM().update_transient_state(new_inputs=ipt2,
                                               transient_state=tns1,
                                               asoh=c0_asoh,
-                                              previous_input=ipt1)
-    vt2_const = ECM().calculate_terminal_voltage(inputs=ipt2, transient_state=tns2_const, asoh=c0_asoh)
+                                              previous_inputs=ipt1)
+    vt2_const = ECM().calculate_terminal_voltage(new_inputs=ipt2, transient_state=tns2_const, asoh=c0_asoh)
     expected_q0 = (ipt2.time - ipt1.time) * ipt1.current
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
     expected_vt2 = c0_asoh.ocv(expected_soc) + (expected_q0 / c0_asoh.c0.get_value(soc=expected_soc))
@@ -76,11 +76,11 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
     assert np.allclose(expected_vt2, vt2_const.terminal_voltage), \
         'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2, vt2_const.terminal_voltage)
     # Now, step assuming linear current
-    tns2_lin = ECM(current_behavior='linear').update_transient_state(current_input=ipt2,
+    tns2_lin = ECM(current_behavior='linear').update_transient_state(new_inputs=ipt2,
                                                                      transient_state=tns1,
                                                                      asoh=c0_asoh,
-                                                                     previous_input=ipt1)
-    vt2_lin = ECM().calculate_terminal_voltage(inputs=ipt2, transient_state=tns2_lin, asoh=c0_asoh)
+                                                                     previous_inputs=ipt1)
+    vt2_lin = ECM().calculate_terminal_voltage(new_inputs=ipt2, transient_state=tns2_lin, asoh=c0_asoh)
     # Trapezoid area for q0
     expected_q0 = (ipt2.time - ipt1.time) * (ipt2.current + ipt1.current) / 2
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
