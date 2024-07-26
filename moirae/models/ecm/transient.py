@@ -5,6 +5,7 @@ from pydantic import Field
 import numpy as np
 
 from moirae.models.base import TransientVector, SingleVal, MultiVal
+from moirae.models.utils import convert_single_valued, convert_multi_valued
 
 
 class ECMTransientVector(TransientVector):
@@ -12,9 +13,11 @@ class ECMTransientVector(TransientVector):
 
     soc: SingleVal = Field(description='SOC')
     q0: Optional[SingleVal] = \
-        Field(default=None, description='Charge in the series capacitor. Units: Coulomb')
+        Field(default_factory=lambda: convert_single_valued(value=None),
+              description='Charge in the series capacitor. Units: Coulomb')
     i_rc: Optional[MultiVal] = \
-        Field(default=None, description='Currents through RC components. Units: Amp')
+        Field(default_factory=lambda: convert_multi_valued(values=None),
+              description='Currents through RC components. Units: Amp')
     hyst: SingleVal = Field(default=0, description='Hysteresis voltage. Units: V')
 
     @classmethod
@@ -23,7 +26,7 @@ class ECMTransientVector(TransientVector):
                          num_RC: int,
                          soc: float = 0.0,
                          q0: float = 0.0,
-                         i_rc: Union[float, np.ndarray] = None,
+                         i_rc: Union[float, np.ndarray, None] = None,
                          hysteresis: float = 0.0,
                          ) -> 'ECMTransientVector':
         """
