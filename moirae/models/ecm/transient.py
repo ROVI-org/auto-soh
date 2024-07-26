@@ -18,7 +18,8 @@ class ECMTransientVector(TransientVector):
     i_rc: MultiVal = \
         Field(default_factory=lambda: convert_multi_valued(values=None),
               description='Currents through RC components. Units: Amp')
-    hyst: SingleVal = Field(default=0, description='Hysteresis voltage. Units: V')
+    hyst: SingleVal = Field(default_factory=lambda: convert_single_valued(value=0),
+                            description='Hysteresis voltage. Units: V')
 
     @classmethod
     def provide_template(cls,

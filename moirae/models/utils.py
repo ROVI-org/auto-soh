@@ -27,6 +27,17 @@ class BatchedVariable(BaseModel,
     def shape(self) -> Tuple[int, int]:
         return (self.batch_size, self.inner_dimensions)
 
+    def copy(self) -> Union[float, np.ndarray, None]:
+        """
+        Function that returns a copy of the batched values
+        """
+        if self.batched_values is None:
+            return None
+        elif isinstance(self.batched_values, Number):
+            return self.batched_values
+        else:
+            return self.batched_values.copy()
+
 
 def convert_single_valued(value: Union[float, np.ndarray, None]) -> BatchedVariable:
     """
