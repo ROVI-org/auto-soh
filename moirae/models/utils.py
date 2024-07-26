@@ -18,7 +18,7 @@ class BatchedVariable(BaseModel,
         batch_size: cardinality of the batch
         inner_dimensions: number of dimensions of the variable
     """
-    batched_values: Union[Number, np.ndarray]
+    batched_values: Union[Number, np.ndarray, None]
     batch_size: int = 1
     inner_dimensions: int = 1
 
@@ -28,10 +28,12 @@ class BatchedVariable(BaseModel,
         return (self.batch_size, self.inner_dimensions)
 
 
-def convert_single_valued(value: Union[float, np.ndarray]) -> BatchedVariable:
+def convert_single_valued(value: Union[float, np.ndarray, None]) -> BatchedVariable:
     """
     Helper function to convert (possibly batched) single-valued variable into appropriate BatchedVariable object
     """
+    if value is None:
+        return BatchedVariable(batched_values=None, batch_size=0, inner_dimensions=0)
     if isinstance(value, Number):
         return BatchedVariable(batched_values=np.array(value))
     elif len(value.shape) <= 2:
@@ -44,10 +46,12 @@ def convert_single_valued(value: Union[float, np.ndarray]) -> BatchedVariable:
         raise ValueError(f'Single-valued variable cannot be passed as >2D array; shape provided was {value.shape}')
 
 
-def convert_multi_valued(values: np.ndarray) -> BatchedVariable:
+def convert_multi_valued(values: Union[np.ndarray, None]) -> BatchedVariable:
     """
     Helper function to convert (possibly batched) multi-valued variable into appropriate BatchedVariable object
     """
+    if values is None:
+        return BatchedVariable(batched_values=None, batch_size=0, inner_dimensions=0)
     if len(values.shape) == 1:  # assume these are the inner dimensions
         return BatchedVariable(batched_values=np.atleast_2d(values), inner_dimensions=values.shape[0])
     elif len(values.shape) == 2:  # assume first axis is batch, second is inner
