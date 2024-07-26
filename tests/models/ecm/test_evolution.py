@@ -63,15 +63,16 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
     # Now, let's do a step assuming constant current
     tns2_const = ECM().update_transient_state(new_input=ipt2, transient_state=tns1, asoh=c0_asoh, previous_input=ipt1)
     vt2_const = ECM().calculate_terminal_voltage(new_input=ipt2, transient_state=tns2_const, asoh=c0_asoh)
-    expected_q0 = (ipt2.time - ipt1.time) * ipt1.current
+    expected_q0 = (ipt2.time.copy() - ipt1.time.copy()) * ipt1.current.copy()
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
     expected_vt2 = c0_asoh.ocv(expected_soc) + (expected_q0 / c0_asoh.c0.get_value(soc=expected_soc))
-    assert np.allclose(expected_q0, tns2_const.q0), \
-        'Expected constant q0 of %1.3f, but calculated %1.3f!' % (expected_q0, tns2_const.q0)
-    assert np.allclose(expected_soc, tns2_const.soc), \
-        'Expected constant SOC of %1.3f, but calculated %1.3f!' % (expected_soc, tns2_const.soc)
-    assert np.allclose(expected_vt2, vt2_const.terminal_voltage), \
-        'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2, vt2_const.terminal_voltage)
+    assert np.allclose(expected_q0, tns2_const.q0.copy()), \
+        'Expected constant q0 of %1.3f, but calculated %1.3f!' % (expected_q0, tns2_const.q0.copy())
+    assert np.allclose(expected_soc, tns2_const.soc.copy()), \
+        'Expected constant SOC of %1.3f, but calculated %1.3f!' % (expected_soc, tns2_const.soc.copy())
+    assert np.allclose(expected_vt2, vt2_const.terminal_voltage.copy()), \
+        'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2,
+                                                                 vt2_const.terminal_voltage.copy())
     # Now, step assuming linear current
     tns2_lin = ECM().update_transient_state(new_input=ipt2,
                                             transient_state=tns1,
@@ -80,15 +81,16 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
                                             current_behavior='linear')
     vt2_lin = ECM().calculate_terminal_voltage(new_input=ipt2, transient_state=tns2_lin, asoh=c0_asoh)
     # Trapezoid area for q0
-    expected_q0 = (ipt2.time - ipt1.time) * (ipt2.current + ipt1.current) / 2
+    expected_q0 = (ipt2.time.copy() - ipt1.time.copy()) * \
+        (ipt2.current.copy() + ipt1.current.copy()) / 2
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
     expected_vt2 = c0_asoh.ocv(expected_soc) + (expected_q0 / c0_asoh.c0.get_value(soc=expected_soc))
-    assert np.allclose(expected_q0, tns2_lin.q0), \
-        'Expected constant q0 of %1.3f, but calculated %1.3f!' % (expected_q0, tns2_lin.q0)
-    assert np.allclose(expected_soc, tns2_lin.soc), \
-        'Expected constant SOC of %1.3f, but calculated %1.3f!' % (expected_soc, tns2_lin.soc)
-    assert np.allclose(expected_vt2, vt2_lin.terminal_voltage), \
-        'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2, vt2_lin.terminal_voltage)
+    assert np.allclose(expected_q0, tns2_lin.q0.copy()), \
+        'Expected constant q0 of %1.3f, but calculated %1.3f!' % (expected_q0, tns2_lin.q0.copy())
+    assert np.allclose(expected_soc, tns2_lin.soc.copy()), \
+        'Expected constant SOC of %1.3f, but calculated %1.3f!' % (expected_soc, tns2_lin.soc.copy())
+    assert np.allclose(expected_vt2, vt2_lin.terminal_voltage.copy()), \
+        'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2, vt2_lin.terminal_voltage.copy())
 
 
 def test_rint_const(rint_const) -> None:
@@ -102,16 +104,17 @@ def test_rint_const(rint_const) -> None:
     input1 = ECMInput(time=361, current=current)
     # Evolve
     rint_const.evolve(inputs=[input0, input1])
-    assert rint_const.transient_history[1].soc == 0, 'SOC wrongly changed in first step!'
-    assert np.allclose(rint_const.transient_history[-1].soc, 0.1), \
-        'Wrong SOC at the end of constant Rint! Should be 0.1 but is %1.3f' % rint_const.transient_history[-1].soc
+    assert rint_const.transient_history[1].soc.copy() == 0, 'SOC wrongly changed in first step!'
+    assert np.allclose(rint_const.transient_history[-1].soc.copy(), 0.1), \
+        'Wrong SOC at the end of constant Rint! Should be 0.1 but is %1.3f' % \
+        rint_const.transient_history[-1].soc.copy()
     # Now, let's double check the voltage values are correct. For that, we will need the OCV and the R0 value
     r0 = rint_const.asoh.r0
     ocv = rint_const.asoh.ocv
     vt0 = ocv(0) + (r0.get_value(soc=0) * current)
     vt1 = ocv(0.1) + (r0.get_value(soc=0.1) * current)
-    assert rint_const.measurement_history[1].terminal_voltage == vt0, 'Wrong initial voltage!'
-    assert np.allclose(rint_const.measurement_history[-1].terminal_voltage, vt1), 'Wrong final voltage!'
+    assert rint_const.measurement_history[1].terminal_voltage.copy() == vt0, 'Wrong initial voltage!'
+    assert np.allclose(rint_const.measurement_history[-1].terminal_voltage.copy(), vt1), 'Wrong final voltage!'
 
 
 def test_hyst_only(hyst_only) -> None:
@@ -126,13 +129,13 @@ def test_hyst_only(hyst_only) -> None:
     # Evolve charge
     hyst_only.evolve(inputs=chg_ins)
     # Check that we reached 100% SOC
-    assert np.allclose(hyst_only.transient_history[-1].soc, 1), \
-        'End of charge SOC should be 1.0, instead, it is %1.5f!' % (hyst_only.transient_history[-1].soc)
+    assert np.allclose(hyst_only.transient_history[-1].soc.copy(), 1), \
+        'End of charge SOC should be 1.0, instead, it is %1.5f!' % (hyst_only.transient_history[-1].soc.copy())
     # Check final voltage is correct
     vt = hyst_only.asoh.ocv(1.0) + (3 * np.pi / 10)
-    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage, vt), \
+    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage.copy(), vt), \
         'End of charge terminal voltage should be %1.3f, but instead, it is %1.3f!' % \
-        (vt, hyst_only.measurement_history[-1].terminal_voltage)
+        (vt, hyst_only.measurement_history[-1].terminal_voltage.copy())
     # Briefly rest the cell
     rest_time = np.arange(120) + (chg_time[-1] + 0.001)
     rest_curr = [0] * len(rest_time)
@@ -144,18 +147,19 @@ def test_hyst_only(hyst_only) -> None:
     dischg_ins = [ECMInput(time=t, current=i) for t, i in zip(dischg_time, dischg_currs)]
     # Evolve discharge
     hyst_only.evolve(inputs=dischg_ins)
-    assert np.allclose(hyst_only.transient_history[-1].soc, 0, atol=1e-7), \
-        'End of discharge SOC should be 0.0, but instead, it is %1.3f!' % (hyst_only.transient_history[-1].soc)
+    assert np.allclose(hyst_only.transient_history[-1].soc.copy(), 0, atol=1e-7), \
+        'End of discharge SOC should be 0.0, but instead, it is %1.3f!' % \
+        (hyst_only.transient_history[-1].soc.copy())
     vt = hyst_only.asoh.ocv(0.0) - (3 * np.pi / 10)
-    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage, vt), \
+    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage.copy(), vt), \
         'End of discharge terminal voltage should be %1.3f, but instead, it is %1.3f!' % \
-        (vt, hyst_only.measurement_history[-1].terminal_voltage)
+        (vt, hyst_only.measurement_history[-1].terminal_voltage.copy())
 
 
 def test_RC(rc_only) -> None:
     # Recall that the simulator starts at an SOC of 0.5 with no RC overpotential, which should correspond to a terminal
     # voltage of 3.5 V
-    v0 = rc_only.measurement_history[0].terminal_voltage
+    v0 = rc_only.measurement_history[0].terminal_voltage.copy()
     assert np.allclose(v0, 3.5), 'Starting teminal voltage should be 3.5 V, but instead, it is %1.3f V!' % v0
     # Let's retrieve valuable info to decide charging and discharging protocols
     Qt = rc_only.asoh.q_t.amp_hour
@@ -166,9 +170,9 @@ def test_RC(rc_only) -> None:
     chg_ins = [ECMInput(time=t, current=i) for t, i in zip(chg_time, chg_curr)]
     rc_only.evolve(inputs=chg_ins)
     # Let us retrieve the SOCs and the corresponding OCVs to check the voltage convergence
-    chg_socs = [transient.soc for transient in rc_only.transient_history[1:]]
+    chg_socs = [transient.soc.copy() for transient in rc_only.transient_history[1:]]
     chg_ocvs = rc_only.asoh.ocv(chg_socs)
-    vrc_calc = np.array([out.terminal_voltage for out in rc_only.measurement_history[1:]]) - chg_ocvs
+    vrc_calc = np.array([out.terminal_voltage.copy() for out in rc_only.measurement_history[1:]]) - chg_ocvs
     # The RC element should asymptotically approach a stage where the current through the resistive component is equal
     # to the total current flowing through the system. Let's them calculate the expected voltage drop across the RC
     r_rc = 10
