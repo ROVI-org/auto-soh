@@ -361,8 +361,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
 
 
 # Definitions for variables that should be single-valued and multi-valued
-SingleVal = Annotated[Union[float, np.ndarray], AfterValidator(lambda v: convert_single_valued(v))]
-MultiVal = Annotated[Union[float, np.ndarray], AfterValidator(lambda v: convert_multi_valued(v))]
+SingleVal = Annotated[Union[float, np.ndarray, None], AfterValidator(lambda v: convert_single_valued(v))]
+MultiVal = Annotated[Union[float, np.ndarray, None], AfterValidator(lambda v: convert_multi_valued(v))]
 
 
 class GeneralContainer(BaseModel,
