@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable, Sized
 from abc import abstractmethod
 import logging
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
 # TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
 # TODO (wardlt): Consider making a special "list of Variables" class provides the same `update_function`.
-class HealthVariable(BaseModel, arbitrary_types_allowed=True):
+class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignment=True):
     """Base class for a container which holds the physical parameters of system and which ones
     are being treated as updatable.
 
@@ -288,7 +288,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
 
-    def get_parameters(self, names: Optional[list[str]] = None) -> List[float]:
+    def get_parameters(self, names: Optional[list[str]] = None) -> np.ndarray:
         """Get updatable parameters as a numpy vector
 
         Args:
@@ -309,7 +309,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 output.extend(value)
             else:
                 output.append(value)
-        return output
+        return np.array(output)
 
     def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
         """Set the value for updatable parameters given their names
@@ -358,10 +358,31 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
 
 class GeneralContainer(BaseModel,
-                       arbitrary_types_allowed=True):
+                       arbitrary_types_allowed=True,
+                       validate_assignment=True):
+    """
+    General container class to store variables that are all numeric (that is, either floats or numpy arrays)
+    """
+
     @property
     def all_fields(self) -> tuple[str, ...]:
         return tuple(self.model_fields.keys())
+
+    def length_field(self, field_name: str) -> int:
+        """
+        Returns length of provided field name. If the field is a float, returns 1, otherwise, returns length of array.
+        If field is None, returns 0.
+        """
+        field_val = getattr(self, field_name, None)
+        if field_val is None:
+            return 0
+        elif isinstance(field_val, Sized):
+            return len(field_val)
+        return 1
+
+    def __len__(self) -> int:
+        """ Returns total length of all numerical values stored """
+        return sum([self.length_field(field_name) for field_name in self.all_fields])
 
     def to_numpy(self) -> np.ndarray:
         """
@@ -374,41 +395,39 @@ class GeneralContainer(BaseModel,
                 relevant_vals += (field,)
         return np.hstack(relevant_vals)
 
+    def from_numpy(self, values: np.ndarray) -> None:
+        """
+        Updates field values from a numpy array
+        """
+        # We need to know where to start reading from in the array
+        begin_index = 0
+        for field_name in self.all_fields:
+            field_len = self.length_field(field_name)
+            if field_len > 0:
+                end_index = begin_index + field_len
+                new_field_values = values[begin_index:end_index]
+                setattr(self, field_name, new_field_values)
+                begin_index = end_index
+
 
 class InputQuantities(GeneralContainer):
-    """The control of a battery system, such as the terminal current
-
-    Add new fields to subclassess of ``ControlState`` for more complex systems
+    """
+    The control of a battery system, such as the terminal current
     """
     time: float = Field(description='Timestamp(s) of inputs. Units: s')
     current: float = Field(description='Current applied to the storage system. Units: A')
 
 
 class OutputQuantities(GeneralContainer):
-    """Output for observables from a battery system
-
-    Add new fields to subclasses of ``ControlState`` for more complex systems
+    """
+    Output for observables from a battery system
     """
 
     terminal_voltage: float = \
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
-class TransientVector(GeneralContainer):
-    """
-    Stores physical transient/instantenous hidden state
-    """
-    pass
-
-
-class AdvancedStateOfHealth(HealthVariable):
-    """
-    Stores A-SOH
-    """
-    pass
-
-
-class CellModel():
+class CellModel:
     """
     Base cell model. At a minimum, it must be able to:
         1. given physical transient hidden state(s) and the A-SOH(s), output
@@ -420,19 +439,19 @@ class CellModel():
     @abstractmethod
     def update_transient_state(
             self,
-            input: InputQuantities,
-            transient_state: TransientVector,
-            asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> TransientVector:
+            previous_inputs: InputQuantities,
+            new_inputs: InputQuantities,
+            transient_state: GeneralContainer,
+            asoh: HealthVariable
+    ) -> GeneralContainer:
         pass
 
     @abstractmethod
     def calculate_terminal_voltage(
             self,
-            input: InputQuantities,
-            transient_state: TransientVector,
-            asoh: AdvancedStateOfHealth,
-            *args, **kwargs) -> OutputQuantities:
+            new_inputs: InputQuantities,
+            transient_state: GeneralContainer,
+            asoh: HealthVariable) -> OutputQuantities:
         """
         Compute expected output (terminal voltage, etc.) of the model.
         """

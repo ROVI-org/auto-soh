@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from pydantic import Field, validate_call, ConfigDict
 import numpy as np
 
-from asoh.models.base import HealthVariable
+from moirae.models.base import HealthVariable
 from .utils import SOCInterpolatedHealth
 
 
@@ -19,6 +19,13 @@ class MaxTheoreticalCapacity(HealthVariable):
         Returns capacity in Amp-second
         """
         return 3600 * self.base_values
+
+    @value.setter
+    def value(self, amp_seconds: float) -> None:
+        """
+        Sets the capacity based on specified value in Amp-seconds
+        """
+        self.base_values = amp_seconds / 3600.
 
     @property
     def amp_hour(self) -> float:

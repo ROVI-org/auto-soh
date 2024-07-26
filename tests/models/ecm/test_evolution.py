@@ -2,12 +2,12 @@
 import numpy as np
 from pytest import fixture
 
-from asoh.models.ecm import EquivalentCircuitModel as ECM
-from asoh.models.ecm import (ECMASOH,
-                             ECMInput,
-                             ECMTransientVector
-                             )
-from asoh.models.ecm.simulator import ECMSimulator
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.models.ecm import (ECMASOH,
+                               ECMInput,
+                               ECMTransientVector
+                               )
+from moirae.models.ecm.simulator import ECMSimulator
 
 
 @fixture
@@ -61,8 +61,11 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
     # Define a starting transient state
     tns1 = ECMTransientVector(soc=0, q0=0)
     # Now, let's do a step assuming constant current
-    tns2_const = ECM().update_transient_state(new_input=ipt2, transient_state=tns1, asoh=c0_asoh, previous_input=ipt1)
-    vt2_const = ECM().calculate_terminal_voltage(new_input=ipt2, transient_state=tns2_const, asoh=c0_asoh)
+    tns2_const = ECM().update_transient_state(new_inputs=ipt2,
+                                              transient_state=tns1,
+                                              asoh=c0_asoh,
+                                              previous_inputs=ipt1)
+    vt2_const = ECM().calculate_terminal_voltage(new_inputs=ipt2, transient_state=tns2_const, asoh=c0_asoh)
     expected_q0 = (ipt2.time - ipt1.time) * ipt1.current
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
     expected_vt2 = c0_asoh.ocv(expected_soc) + (expected_q0 / c0_asoh.c0.get_value(soc=expected_soc))
@@ -73,12 +76,11 @@ def test_current_integration_CE_C0(c0_asoh) -> None:
     assert np.allclose(expected_vt2, vt2_const.terminal_voltage), \
         'Expected constant Vt of %1.3f, but calculated %1.3f' % (expected_vt2, vt2_const.terminal_voltage)
     # Now, step assuming linear current
-    tns2_lin = ECM().update_transient_state(new_input=ipt2,
-                                            transient_state=tns1,
-                                            asoh=c0_asoh,
-                                            previous_input=ipt1,
-                                            current_behavior='linear')
-    vt2_lin = ECM().calculate_terminal_voltage(new_input=ipt2, transient_state=tns2_lin, asoh=c0_asoh)
+    tns2_lin = ECM(current_behavior='linear').update_transient_state(new_inputs=ipt2,
+                                                                     transient_state=tns1,
+                                                                     asoh=c0_asoh,
+                                                                     previous_inputs=ipt1)
+    vt2_lin = ECM().calculate_terminal_voltage(new_inputs=ipt2, transient_state=tns2_lin, asoh=c0_asoh)
     # Trapezoid area for q0
     expected_q0 = (ipt2.time - ipt1.time) * (ipt2.current + ipt1.current) / 2
     expected_soc = (3 * np.pi / 10) * expected_q0 / c0_asoh.q_t.value
@@ -174,7 +176,7 @@ def test_RC(rc_only) -> None:
     r_rc = 10
     c_rc = 3 * np.pi
     tau_rc = r_rc * c_rc
-    expected_vrc = (curr * r_rc) * (1.0 - np.exp(-chg_time/tau_rc))
+    expected_vrc = (curr * r_rc) * (1.0 - np.exp(-chg_time / tau_rc))
     vrc_err = vrc_calc - expected_vrc
     vrc_rmse = np.sqrt(np.mean((vrc_err ** 2)))
     assert np.allclose(vrc_calc, expected_vrc), 'RMSE of V_RC calculations: %1.5f V!' % vrc_rmse

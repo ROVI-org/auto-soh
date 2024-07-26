@@ -2,8 +2,8 @@
 import pandas as pd
 from batdata.data import BatteryDataset
 
-from asoh.estimators.online import OnlineEstimator
-from asoh.models.base import HealthVariable, GeneralContainer
+from moirae.estimators.online import OnlineEstimator
+from moirae.models.base import HealthVariable, GeneralContainer
 
 
 def run_online_estimate(

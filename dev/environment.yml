@@ -1,4 +1,4 @@
-name: autosoh
+name: moirae
 channels:
   - defaults
   - conda-forge

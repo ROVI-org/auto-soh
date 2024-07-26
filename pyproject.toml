@@ -1,5 +1,5 @@
 [project]
-name = "auto-soh"
+name = "moirae"
 version = "0.0.1"
 description = "Algorithms for automatic assessment of advanced state of health for batteries"
 readme = "README.md"
@@ -18,13 +18,14 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["asoh*"]
+include = ["moirae*"]
 
 [project.optional-dependencies]
 test = [
     "flake8",
     "pytest",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-skip-slow"
 ]
 
 [project.urls]

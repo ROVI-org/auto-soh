@@ -19,9 +19,9 @@ def ensure_positive_semi_definite(Sig: np.ndarray) -> np.ndarray:
             np.linalg.cholesky(Sig)  # throws LinAlgError if not
             return Sig.copy()
         except np.linalg.LinAlgError:
-            return enforce_positive_semi_defiteness(Sig).copy()
+            return enforce_positive_semi_defiteness(Sig)
     else:
-        return enforce_positive_semi_defiteness(Sig).copy()
+        return enforce_positive_semi_defiteness(Sig)
 
 
 def enforce_positive_semi_defiteness(Sig: np.ndarray) -> np.ndarray:
