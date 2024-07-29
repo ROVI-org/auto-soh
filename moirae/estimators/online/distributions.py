@@ -1,11 +1,32 @@
-""" Base online estimators, which are all model-agnostic """
+"""Classes defining different multivariate probability distributions"""
+from abc import abstractmethod
 from warnings import warn
 from typing_extensions import Self
 
 import numpy as np
-from pydantic import Field, field_validator, computed_field, model_validator
+from pydantic import Field, field_validator, computed_field, model_validator, BaseModel
 
-from moirae.estimators.online import MultivariateRandomDistribution
+
+class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
+    """
+    Base class to help represent a multivariate random variable
+    """
+
+    @abstractmethod
+    def get_mean(self) -> np.ndarray:
+        """
+        Provides mean (first moment) of distribution
+        """
+        pass
+
+
+class DeltaDistribution(MultivariateRandomDistribution):
+    """A distribution with only one allowed value"""
+
+    mean: np.ndarray = Field(default=None, description='Mean of the distribution.')
+
+    def get_mean(self) -> np.ndarray:
+        return self.mean.copy()
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
@@ -30,7 +51,7 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
             raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
         elif len(mean_shape) == 2:
             msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
-                (mean_shape + (max(mean_shape),))
+                  (mean_shape + (max(mean_shape),))
             warn(msg)
         return mu.flatten()
 

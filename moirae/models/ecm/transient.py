@@ -4,11 +4,11 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import TransientVector, SingleVal, MultiVal
 from moirae.models.utils import convert_single_valued, convert_multi_valued
+from moirae.models.base import GeneralContainer, SingleVal, MultiVal
 
 
-class ECMTransientVector(TransientVector):
+class ECMTransientVector(GeneralContainer):
     """Description of the state of charge of an ECM and all components"""
 
     soc: SingleVal = Field(description='SOC')
