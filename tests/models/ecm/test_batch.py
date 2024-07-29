@@ -47,13 +47,13 @@ def test_rint(rint) -> None:
     new_input = ECMInput(time=3600, current=current)
     simulator.evolve([new_input])
     # Validate
-    assert np.allclose([0.25, 0.5, 1.], simulator.transient_history[-1].soc.copy().flatten()), \
-        f'Wrong Rint SOCs: {simulator.transient_history[-1].soc.copy()}'
-    assert simulator.transient_history[-1].hyst.copy().shape == (3, 1), \
-        f'Hysteresis batching did not work: {simulator.transient_history[-1].hyst.copy().shape}'
+    assert np.allclose([0.25, 0.5, 1.], simulator.transient_history[-1].soc[:, 0]), \
+        f'Wrong Rint SOCs: {simulator.transient_history[-1].soc}'
+    assert simulator.transient_history[-1].hyst.shape == (3, 1), \
+        f'Hysteresis batching did not work: {simulator.transient_history[-1].hyst.shape}'
     # hysteresis should be at the max, as it approaches the true value very quickly
-    assert np.allclose(asoh.h0.base_values, simulator.transient_history[-1].hyst.copy()), \
-        f'Wrong hysteresis values: {simulator.transient_history[-1].hyst.copy()}'
+    assert np.allclose(asoh.h0.base_values, simulator.transient_history[-1].hyst), \
+        f'Wrong hysteresis values: {simulator.transient_history[-1].hyst}'
 
 
 def test_pngv(pngv) -> None:
@@ -72,7 +72,7 @@ def test_pngv(pngv) -> None:
     # Validate
     assert np.allclose([0.25, 0.5, 1.], simulator.transient_history[-1].soc.copy().flatten()), \
         f'Wrong Rint SOCs: {simulator.transient_history[-1].soc.copy()}'
-    assert np.allclose(initial_q0 + (3600*current), simulator.transient_history[-1].q0.copy()), \
+    assert np.allclose(initial_q0 + (3600 * current), simulator.transient_history[-1].q0.copy()), \
         f'Wrong q0 evolution: {simulator.transient_history[-1].q0.copy()}'
     assert simulator.transient_history[-1].i_rc.copy().shape == (3, 2), \
         f'Wrong i_rc shape: {simulator.transient_history[-1].i_rc.copy().shape}'

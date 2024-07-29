@@ -5,8 +5,7 @@ from pytest import fixture
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm import (ECMASOH,
                                ECMInput,
-                               ECMTransientVector
-                               )
+                               ECMTransientVector)
 from moirae.models.ecm.simulator import ECMSimulator
 
 

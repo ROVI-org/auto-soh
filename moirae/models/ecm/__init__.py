@@ -67,15 +67,15 @@ class EquivalentCircuitModel(CellModel):
         soc_kp1 = soc_k + (coul_eff * (charge_cycled / Qt))
 
         # Update q0
-        q0_kp1 = transient_state.q0.copy()
-        if q0_kp1 is not None:
-            q0_kp1 += charge_cycled
+        q0_kp1 = None
+        if transient_state.q0 is not None:
+            q0_kp1 = transient_state.q0 + charge_cycled
 
         # Update i_RCs
-        iRC_kp1 = transient_state.i_rc.copy()
-        if iRC_kp1 is not None:
+        iRC_kp1 = transient_state.i_rc.copy()  # Shape: batch_size, num_rc
+        if iRC_kp1.shape[1] > 0:  # If there are RC elements
             tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
-                            for RC in asoh.rc_elements])
+                            for RC in asoh.rc_elements])[:, :, 0].T  # Shape: batch_size, num_rc
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 *= exp_factor
             iRC_kp1 += (1 - exp_factor) * \
@@ -153,20 +153,20 @@ class EquivalentCircuitModel(CellModel):
                                                      temp=new_inputs.temperature)
 
         # Check series capacitance
-        if transient_state.q0.copy() is not None:
+        if transient_state.q0 is not None:
             Vt += transient_state.q0.copy() / asoh.c0.get_value(soc=transient_state.soc.copy())
 
         # Check RC elements
-        if transient_state.i_rc.copy() is not None:
-            RC_Rs = np.array(
-                [RC.r.get_value(soc=transient_state.soc,
+        if transient_state.i_rc.shape[-1] > 0:
+            rc_rs = np.array(
+                [rc.r.get_value(soc=transient_state.soc,
                                 temp=new_inputs.temperature)
-                 for RC in asoh.rc_elements]
-            )
-            V_drops = transient_state.i_rc.copy() * RC_Rs
-            Vt += np.sum(V_drops, axis=1).reshape(Vt.shape)
+                 for rc in asoh.rc_elements]
+            )  # Shape: (rc_rs, batch_dim, 1 resistance)
+            V_drops = transient_state.i_rc * rc_rs[:, :, 0].T
+            Vt += np.sum(V_drops, axis=1, keepdims=True)
 
         # Include hysteresis
-        Vt += transient_state.hyst.copy()
+        Vt += transient_state.hyst
 
         return ECMMeasurement(terminal_voltage=Vt)

@@ -1,7 +1,6 @@
 """ Testing components of ECM """
 import numpy as np
 from pytest import fixture
-import pytest
 
 from moirae.models.ecm import ECMASOH
 from moirae.models.ecm.components import (MaxTheoreticalCapacity,
@@ -99,15 +98,6 @@ def full_asoh() -> ECMASOH:
     ocv = realistic_fake_ocv(np.linspace(0, 1, 10))
     asoh = ECMASOH.provide_template(has_C0=True, num_RC=2, OCV=ocv, RC=[(r_rc1, c_rc1), (r_rc2, c_rc2)])
     return asoh
-
-
-@pytest.mark.xfail()
-def test_basic_rint(basic_rint):
-    assert basic_rint.updatable == set()
-    basic_rint.mark_all_updatable()
-    assert np.allclose([10, 0.05, 0],  # [q_t, r0, ocvent]
-                       basic_rint.get_parameters(),
-                       atol=1e-12)
 
 
 def test_full_asoh_template(full_asoh):

@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 # Definitions for variables that should be single-valued and multi-valued
-def _enforce_dimensions(x: Any, dim=1) -> np.ndarray:
+def enforce_dimensions(x: Any, dim=1) -> np.ndarray:
     """
-    Make sure an array is the desired shape
+    Make sure an array is the desired shape for batching
 
     Arrays must be 2D or greater and the first dimension is always the batch dimension.
     That means arrays which represent "scalar values" (dim == 0), have shape (batches, 1).
@@ -40,10 +40,10 @@ def _enforce_dimensions(x: Any, dim=1) -> np.ndarray:
 
 
 ScalarParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: _enforce_dimensions(x, 0)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True)
 ]
 ListParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: _enforce_dimensions(x, 1)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True)
 ]
 
 
@@ -310,7 +310,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         # Turn into a numpy array
         cur_value: np.ndarray = getattr(model, name)
         dim = 0 if cur_value.shape[-1] == 1 else 1
-        value = _enforce_dimensions(value, dim)
+        value = enforce_dimensions(value, dim)
 
         # Set appropriately
         setattr(model, name, value)
@@ -363,6 +363,10 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         # Get all variables if no specific list is specified
         if names is None:
             names = list(k for k, v in self.iter_parameters())
+
+        # Special case, return an empty 2D array if no names were provided
+        if len(names) == 0:
+            return np.zeros((self.batch_size, 0))
 
         # Determine the batch dimension of the output
         batch_size = self.batch_size
@@ -477,7 +481,7 @@ class GeneralContainer(BaseModel,
 
     def to_numpy(self) -> np.ndarray:
         """
-        Outputs everything that is stored as a np.ndarray
+        Outputs everything that is stored as a two-dimensional np.ndarray
         """
         relevant_vals = []
         batch_size = self.batch_size
@@ -496,6 +500,11 @@ class GeneralContainer(BaseModel,
         """
         Updates field values from a numpy array
         """
+
+        # Sure the values are a 2D array
+        if values.ndim == 1:
+            values = values[None, :]
+
         # We need to know where to start reading from in the array
         begin_index = 0
         for field_name in self.all_fields:

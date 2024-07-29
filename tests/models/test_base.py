@@ -301,6 +301,10 @@ def test_general_container():
 
     assert np.allclose(o.to_numpy(), [[1., 2., 3.]])
 
+    o.from_numpy(np.array([0., 1., -1.]))
+    assert o.batch_size == 1
+    assert np.allclose(o.y, [[1., -1.]])
+
     # Set values to have a batch dimension
     new_vals = np.arange(6).reshape((2, 3))
     o.from_numpy(new_vals)
@@ -308,3 +312,8 @@ def test_general_container():
     assert o.x.shape == (2, 1)
     assert np.allclose(o.x, [[0.], [3.]])
     assert np.allclose(o.to_numpy(), new_vals)
+
+
+def test_empty_health():
+    example = HealthVariable()
+    assert example.get_parameters().shape == (1, 0)

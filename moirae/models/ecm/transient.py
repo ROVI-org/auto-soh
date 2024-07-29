@@ -1,4 +1,4 @@
-from typing import Union, Sized
+from typing import Union, Sized, Optional
 from numbers import Number
 
 from pydantic import Field
@@ -11,7 +11,7 @@ class ECMTransientVector(GeneralContainer):
     """Description of the state of charge of an ECM and all components"""
 
     soc: ScalarParameter = Field(description='SOC')
-    q0: ScalarParameter = Field(..., description='Charge in the series capacitor. Units: Coulomb')
+    q0: Optional[ScalarParameter] = Field(None, description='Charge in the series capacitor. Units: Coulomb')
     i_rc: ListParameter = Field(default_factory=list, description='Currents through RC components. Units: Amp')
     hyst: ScalarParameter = Field(0., description='Hysteresis voltage. Units: V')
 

@@ -2,26 +2,27 @@ import numpy as np
 
 from moirae.estimators.online.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.kalman.unscented import UnscentedKalmanFilter as UKF
-from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities
+from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities, \
+    ScalarParameter
 
 
 # Define Lorenz dynamics
 
 class LorenzState(GeneralContainer):
-    x: float
-    y: float
-    z: float
+    x: ScalarParameter
+    y: ScalarParameter
+    z: ScalarParameter
 
 
 class LorenzControl(InputQuantities):
-    sigma: float
-    rho: float
-    beta: float
-    n: float
+    sigma: ScalarParameter
+    rho: ScalarParameter
+    beta: ScalarParameter
+    n: ScalarParameter
 
 
 class LorenzOutputs(OutputQuantities):
-    m1: float
+    m1: ScalarParameter
 
 
 class LorenzModel(CellModel):

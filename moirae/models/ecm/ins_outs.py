@@ -1,4 +1,3 @@
-import numpy as np
 from pydantic import Field
 
 from moirae.models.base import InputQuantities, OutputQuantities, ScalarParameter
@@ -8,7 +7,7 @@ class ECMInput(InputQuantities):
     """
     Control of a battery based on the feed current, temperature
     """
-    temperature: ScalarParameter = Field(np.nan, description='Temperature reading(s). Units: °C')
+    temperature: ScalarParameter = Field(25., description='Temperature reading(s). Units: °C')
 
 
 # TODO (vventuri): Remember we need to implement ways to denoise SOC, Qt, R0,
