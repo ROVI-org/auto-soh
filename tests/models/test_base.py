@@ -4,7 +4,7 @@ import numpy as np
 from pydantic import Field
 from pytest import fixture, raises
 
-from moirae.models.base import HealthVariable, ListParameter, ScalarParameter
+from moirae.models.base import HealthVariable, ListParameter, ScalarParameter, GeneralContainer
 
 
 class SubHeathVariable(HealthVariable):
@@ -280,3 +280,31 @@ def test_batched_match():
     y = apply_model(model, np.array([1, 2, 3]))
     assert y.shape == (2, 3)
     assert np.allclose(y, [[1, 3, 5], [3, 6, 9]])
+
+
+def test_general_container():
+    """Test getting, setting, and converting to/from numpy"""
+
+    class MyContainer(GeneralContainer):
+        x: ScalarParameter
+        y: ListParameter
+
+    # No batch dimension
+    o = MyContainer(x=1., y=[2., 3])
+    assert len(o) == 3
+    assert o.batch_size == 1
+    assert o.x.shape == (1, 1)
+    assert o.y.shape == (1, 2)
+
+    assert o.length_field('x') == 1
+    assert o.length_field('y') == 2
+
+    assert np.allclose(o.to_numpy(), [[1., 2., 3.]])
+
+    # Set values to have a batch dimension
+    new_vals = np.arange(6).reshape((2, 3))
+    o.from_numpy(new_vals)
+    assert o.batch_size == 2
+    assert o.x.shape == (2, 1)
+    assert np.allclose(o.x, [[0.], [3.]])
+    assert np.allclose(o.to_numpy(), new_vals)

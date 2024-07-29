@@ -431,46 +431,66 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
 
 class GeneralContainer(BaseModel,
-                       arbitrary_types_allowed=True,
-                       validate_assignment=True):
+                       arbitrary_types_allowed=True):
     """
-    General container class to store variables that are all numeric (that is, either floats or numpy arrays). All
-    variables should be passed as either floats or numpy arrays, but they are converted into BatchedVariable objects
-    based on the given Annotation.
+    General container class to store numeric variables.
+
+    Like the :class:`HealthVariable` all values are stored as 2d numpy arrays where the first dimension is a
+    batch dimension. Accordingly, denote the types of attributes using the :class:`ScalarParameter` or
+    :class:`ListParameter` for scalar and 1-dimensional data, respectively.
     """
 
     @property
     def all_fields(self) -> tuple[str, ...]:
+        """Names of all fields of the model in the order they appear in :meth:`to_numpy`"""
         return tuple(self.model_fields.keys())
+
+    def __len__(self) -> int:
+        """ Returns total length of all numerical values stored """
+        return sum([self.length_field(field_name) for field_name in self.model_fields.keys()])
+
+    @property
+    def batch_size(self) -> int:
+        """Batch size determined from the batch dimension of all attributes"""
+        batch_size = 1
+        batch_param_name = None  # Name of the parameter which is setting the batch size
+        for name in self.model_fields.keys():
+            param = getattr(self, name)
+            my_batch = param.shape[0]
+            if batch_size > 1 and my_batch != 1 and my_batch != batch_size:
+                raise ValueError(f'Inconsistent batch sizes. {name} has batch dim of {my_batch},'
+                                 f' whereas {batch_param_name} has a size of {batch_size}')
+            batch_size = max(batch_size, my_batch)
+            if my_batch == batch_size:
+                batch_param_name = name
+        return batch_size
 
     def length_field(self, field_name: str) -> int:
         """
         Returns length of provided field name. If the field is a float, returns 1, otherwise, returns length of array.
         If field is None, returns 0.
         """
-        field_val = getattr(self, field_name, None)
+        field_val: np.ndarray = getattr(self, field_name, None)
         if field_val is None:
             return 0
-        return field_val.inner_dimensions
-
-    def __len__(self) -> int:
-        """ Returns total length of all numerical values stored """
-        return sum([self.length_field(field_name) for field_name in self.all_fields])
+        return field_val.shape[-1]
 
     def to_numpy(self) -> np.ndarray:
         """
         Outputs everything that is stored as a np.ndarray
         """
-        relevant_vals = tuple()
+        relevant_vals = []
+        batch_size = self.batch_size
         for field_name in self.all_fields:
-            field = getattr(self, field_name, None)
-            if field is not None:
-                relevant_vals += (np.atleast_2d(field.batched_values),)
-        vals = np.hstack(relevant_vals)
-        # TODO (vventuri): should we return a flattened array if batch size == 1?
-        # if vals.shape[0] == 1:
-        #     return vals.flatten()
-        return vals
+            field: Optional[np.ndarray] = getattr(self, field_name, None)
+            if field is None:
+                continue
+
+            # Expand the batch dimension if needed
+            if batch_size > 1 and field.shape[0] == 1:
+                field = np.repeat(field, batch_size, 0)
+            relevant_vals.append(field)
+        return np.concatenate(relevant_vals, axis=1)
 
     def from_numpy(self, values: np.ndarray) -> None:
         """
@@ -479,15 +499,13 @@ class GeneralContainer(BaseModel,
         # We need to know where to start reading from in the array
         begin_index = 0
         for field_name in self.all_fields:
-            field_len = self.length_field(field_name)
-            if field_len > 0:
-                end_index = begin_index + field_len
-                if len(values.shape) == 1:
-                    new_field_values = values[begin_index:end_index]
-                else:
-                    new_field_values = values[:, begin_index:end_index]
-                setattr(self, field_name, new_field_values)
-                begin_index = end_index
+            current_field: np.ndarray = getattr(self, field_name)
+            field_len = current_field.shape[-1]
+
+            end_index = begin_index + field_len
+            new_field_values = values[:, begin_index:end_index]
+            setattr(self, field_name, new_field_values)
+            begin_index = end_index
 
 
 class InputQuantities(GeneralContainer):
