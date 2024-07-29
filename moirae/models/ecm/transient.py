@@ -38,18 +38,16 @@ class ECMTransientVector(GeneralContainer):
         Returns:
             A set of parameters describing the current charge state
         """
-        hidden = ECMTransientVector(soc=soc, hyst=hysteresis)
-        if has_C0:
-            hidden.q0 = q0
-        if num_RC:
-            if i_rc is None:
-                i_rc = np.zeros(num_RC)
-            elif isinstance(i_rc, Number):
-                i_rc = i_rc * np.ones(num_RC)
-            elif isinstance(i_rc, Sized):
-                if len(i_rc) != num_RC:
-                    raise ValueError('Mismatch between number of RC currents '
-                                     'provided and number of RC elements!')
-            hidden.i_rc = np.array(i_rc)
 
-        return hidden
+        # Determine the starting current
+        if i_rc is None:
+            i_rc = np.zeros(num_RC)
+        elif isinstance(i_rc, Number):
+            i_rc = i_rc * np.ones(num_RC)
+        elif isinstance(i_rc, Sized):
+            if len(i_rc) != num_RC:
+                raise ValueError('Mismatch between number of RC currents '
+                                 'provided and number of RC elements!')
+        i_rc = np.array(i_rc)
+
+        return ECMTransientVector(soc=soc, hyst=hysteresis, i_rc=i_rc, q0=q0 if has_C0 else None)
