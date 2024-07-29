@@ -73,7 +73,7 @@ class Capacitance(SOCInterpolatedHealth):
     """
     Defines the series capacitance component of the ECM
     """
-    base_values: ScalarParameter = \
+    base_values: ListParameter = \
         Field(description='Values of series capacitance at specified SOCs. Units: F')
 
 
