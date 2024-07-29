@@ -1,22 +1,24 @@
+from typing import Union
+
 import numpy as np
 from pydantic import Field
 from pytest import fixture, raises
 
-from moirae.models.base import HealthVariable
+from moirae.models.base import HealthVariable, ListParameter, ScalarParameter
 
 
 class SubHeathVariable(HealthVariable):
     """A sub-variable example used for testing"""
 
-    x: float = -1.
+    x: ScalarParameter = -1.
 
 
 class ExampleHealthVariable(HealthVariable):
     """A HealthVariable class which uses all types of allowed variables"""
 
-    a: float = 1.
-    """A parameters"""
-    b: np.ndarray = Field(default_factory=lambda: np.array([2., 3.]))
+    a: ScalarParameter = 1.
+    """A parameter"""
+    b: ListParameter = Field(default_factory=lambda: [2., 3.])
     c: SubHeathVariable = Field(default_factory=SubHeathVariable)
     d: tuple[SubHeathVariable, ...] = Field(default_factory=tuple)
     e: dict[str, SubHeathVariable] = Field(default_factory=dict)
@@ -25,7 +27,7 @@ class ExampleHealthVariable(HealthVariable):
 @fixture
 def example_hv() -> ExampleHealthVariable:
     return ExampleHealthVariable(
-        d=[SubHeathVariable(x=0), SubHeathVariable(x=-2)],
+        d=(SubHeathVariable(x=0), SubHeathVariable(x=-2)),
         e={'first': SubHeathVariable(x=1)}
     )
 
@@ -81,10 +83,10 @@ def test_parameter_iterator(example_hv):
 
     parameters = dict(example_hv.iter_parameters())
     assert len(parameters) == 6  # a, b, 1 from c, 2 from d, 1 from e
-    assert np.isclose(parameters['c.x'], [-1.]).all()
-    assert np.isclose(parameters['d.0.x'], [0.]).all()
-    assert np.isclose(parameters['d.1.x'], [-2.]).all()
-    assert np.isclose(parameters['e.first.x'], [1.]).all()
+    assert np.allclose(parameters['c.x'], -1.)
+    assert np.allclose(parameters['d.0.x'], 0.)
+    assert np.allclose(parameters['d.1.x'], -2.)
+    assert np.allclose(parameters['e.first.x'], 1.)
 
 
 def test_get_model(example_hv):
@@ -119,23 +121,42 @@ def test_get_values(example_hv):
     assert np.isclose(example_hv.get_parameters(['a', 'b']), [1., 2., 3.]).all()
     assert np.isclose(example_hv.get_parameters(['a', 'b', 'd.1.x']), [1., 2., 3., -2.]).all()
 
+    # Test get when one of the members is batched and all others are not
+    example_hv.a = np.arange(8)[:, None]
+    assert example_hv.batch_size == 8
+    x = example_hv.get_parameters(['a'])
+    assert x.shape == (8, 1)
+
+    x = example_hv.get_parameters(['a'])
+
 
 def test_set_value(example_hv):
     example_hv.set_value('a', 2.5)
-    assert example_hv.a == 2.5
+    assert example_hv.a == [[2.5]]
 
     example_hv.set_value('b', np.array([1., 2.]))
+    assert example_hv.b.shape == (1, 2)
     assert np.isclose(example_hv.b, [1., 2.]).all()
 
     example_hv.set_value('e.first.x', -2.5)
     assert example_hv.e['first'].x == -2.5
 
+    # Try setting batched
+    example_hv.set_value('a', [2.5, 3.5])
+    assert example_hv.a.shape == (2, 1)
 
-def test_multiple_values(example_hv):
+    example_hv.set_value('b', [[1., 2.], [2., 1]])
+    assert example_hv.b.shape == (2, 2)
+
+
+def test_set_multiple_values(example_hv):
     example_hv.mark_all_updatable()
     example_hv.update_parameters(np.array([2.5, 1., 2., -2.5]), ['a', 'b', 'e.first.x'])
+    assert example_hv.a.shape == (1, 1)
     assert example_hv.a == 2.5
+    assert example_hv.b.shape == (1, 2)
     assert np.isclose(example_hv.b, [1., 2.]).all()
+    assert example_hv.e['first'].x.shape == (1, 1)
     assert example_hv.e['first'].x == -2.5
 
     # mark sure the error conditions work
@@ -152,6 +173,18 @@ def test_multiple_values(example_hv):
 
     example_hv.update_parameters(np.array([-10.]))
     assert example_hv.c.x == -10.
+
+
+def test_set_multiple_values_batch(example_hv):
+    example_hv.mark_all_updatable()
+    example_hv.update_parameters([[2.5, 1., 2., -2.5], [2.5, 2., 3., -2.5]], ['a', 'b', 'e.first.x'])
+    assert example_hv.batch_size == 2
+    assert example_hv.a.shape == (2, 1)
+    assert np.allclose(example_hv.a, [[2.5], [2.5]])
+    assert example_hv.b.shape == (2, 2)
+    assert np.isclose(example_hv.b, [[1., 2.], [2., 3.]]).all()
+    assert example_hv.e['first'].x.shape == (2, 1)
+    assert np.allclose(example_hv.e['first'].x, -2.5)
 
 
 def test_fail_if_not_updatable(example_hv):
@@ -192,3 +225,58 @@ def test_mark_updatable(example_hv):
     example_hv.mark_updatable('d.0.x')
     assert example_hv.updatable == {'a', 'd'}
     assert example_hv.d[0].updatable == {'x'}
+
+
+def test_batched_match():
+    """Explore the effects of batching using a linear model as an example"""
+
+    # Example calls
+    class LinearModel(HealthVariable):
+        m: ListParameter
+        """Slope terms for the model"""
+        b: ScalarParameter
+        """Intercept"""
+
+    def apply_model(m: LinearModel, x: Union[np.ndarray, float]) -> np.ndarray:
+        return m.m * x + m.b
+
+    # Test with neither parameter being batched
+    model = LinearModel(m=[2.], b=1.)
+    assert model.batch_size == 1
+    assert model.m.shape == (1, 1)
+    assert model.b.shape == (1, 1)
+
+    y = apply_model(model, 1.0)
+    assert y.shape == (1, 1)
+
+    y = apply_model(model, np.array([1, 2]))
+    assert y.shape == (1, 2)
+    assert np.allclose(y, (3, 5))
+
+    # Test with one parameters being batched
+    model = LinearModel(m=[[2.], [3.]], b=-1)
+    assert model.m.shape == (2, 1)
+    assert model.b.shape == (1, 1)
+    assert model.batch_size == 2
+
+    y = apply_model(model, 1.0)
+    assert y.shape == (2, 1)
+
+    y = apply_model(model, np.array([1, 2, 3]))
+    assert y.shape == (2, 3)
+    assert np.allclose(y, [[1, 3, 5], [2, 5, 8]])
+
+    # Test a mismatch in batch sizes
+    with raises(ValueError):
+        LinearModel(m=[[2.], [3.]], b=[-1, 0, 1])
+
+    # Test with both dimensions batched
+    model = LinearModel(m=[[2.], [3.]], b=[-1, 0])
+    assert model.batch_size == 2
+
+    y = apply_model(model, 1.0)
+    assert y.shape == (2, 1)
+
+    y = apply_model(model, np.array([1, 2, 3]))
+    assert y.shape == (2, 3)
+    assert np.allclose(y, [[1, 3, 5], [3, 6, 9]])

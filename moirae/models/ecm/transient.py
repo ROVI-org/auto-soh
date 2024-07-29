@@ -4,22 +4,16 @@ from numbers import Number
 from pydantic import Field
 import numpy as np
 
-from moirae.models.utils import convert_single_valued, convert_multi_valued
-from moirae.models.base import GeneralContainer, SingleVal, MultiVal
+from moirae.models.base import GeneralContainer, ScalarParameter, ListParameter
 
 
 class ECMTransientVector(GeneralContainer):
     """Description of the state of charge of an ECM and all components"""
 
-    soc: SingleVal = Field(description='SOC')
-    q0: SingleVal = \
-        Field(default_factory=lambda: convert_single_valued(value=None),
-              description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: MultiVal = \
-        Field(default_factory=lambda: convert_multi_valued(values=None),
-              description='Currents through RC components. Units: Amp')
-    hyst: SingleVal = Field(default_factory=lambda: convert_single_valued(value=0),
-                            description='Hysteresis voltage. Units: V')
+    soc: ScalarParameter = Field(description='SOC')
+    q0: ScalarParameter = Field(..., description='Charge in the series capacitor. Units: Coulomb')
+    i_rc: ListParameter = Field(default_factory=list, description='Currents through RC components. Units: Amp')
+    hyst: ScalarParameter = Field(0., description='Hysteresis voltage. Units: V')
 
     @classmethod
     def provide_template(cls,

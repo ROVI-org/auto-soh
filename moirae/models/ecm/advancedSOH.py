@@ -4,7 +4,7 @@ from typing import Tuple, Optional, Union, List
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import HealthVariable
+from moirae.models.base import HealthVariable, ScalarParameter
 from .components import (MaxTheoreticalCapacity,
                          Resistance,
                          Capacitance,
@@ -19,7 +19,7 @@ from .utils import realistic_fake_ocv
 class ECMASOH(HealthVariable):
     """State of Health for an equivalent circuit model"""
     q_t: MaxTheoreticalCapacity = Field(description='Maximum theoretical discharge capacity (Qt).')
-    ce: float = Field(default=1., description='Coulombic efficiency (CE)')
+    ce: ScalarParameter = Field(default=1., description='Coulombic efficiency (CE)')
     ocv: OpenCircuitVoltage = Field(description='Open Circuit Voltage (OCV)')
     r0: Resistance = Field(description='Series Resistance (R0)')
     c0: Optional[Capacitance] = Field(default=None, description='Series Capacitance (C0)')

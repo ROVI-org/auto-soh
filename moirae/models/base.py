@@ -1,23 +1,55 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Iterable
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any
 from typing_extensions import Annotated
 from abc import abstractmethod
 import logging
 
 import numpy as np
-from pydantic import BaseModel, Field, AfterValidator
-
-from .utils import convert_single_valued, convert_multi_valued
+from pydantic import BaseModel, Field, BeforeValidator, model_validator
 
 logger = logging.getLogger(__name__)
 
 
+# Definitions for variables that should be single-valued and multi-valued
+def _enforce_dimensions(x: Any, dim=1) -> np.ndarray:
+    """
+    Make sure an array is the desired shape
+
+    Arrays must be 2D or greater and the first dimension is always the batch dimension.
+    That means arrays which represent "scalar values" (dim == 0), have shape (batches, 1).
+
+    Args:
+        x: Value to be altered
+        dim: Dimensionality of numbers being represented
+    Returns:
+        Array ready for use in a HealthVariable, etc
+    """
+
+    x = np.array(x)
+    if dim == 0:
+        x = np.squeeze(x)
+        if x.ndim > 1:
+            raise ValueError(f'Inconsistent dimensionality. Trying to store a {x.ndim} array as a scalar')
+        return np.atleast_1d(x)[:, None]
+    elif dim == 1:
+        return np.atleast_2d(x)
+    else:
+        raise ValueError(f'We do not yet support arrays with dimensionality of {dim}')
+
+
+ScalarParameter = Annotated[
+    np.ndarray, BeforeValidator(lambda x: _enforce_dimensions(x, 0)), Field(validate_default=True)
+]
+ListParameter = Annotated[
+    np.ndarray, BeforeValidator(lambda x: _enforce_dimensions(x, 1)), Field(validate_default=True)
+]
+
+
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
 # TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
-# TODO (wardlt): Consider making a special "list of Variables" class provides the same `update_function`.
-class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignment=True):
+class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     """Base class for a container which holds the physical parameters of system and which ones
     are being treated as updatable.
 
@@ -27,9 +59,14 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
     Define a new system state by subclassing ``HealthVariable`` then providing
     adding attributes which describe the learnable parameters of a system.
 
-    The attributes can be either singular or lists of floats,
+    Attributes which represents a health parameter must be numpy arrays,
     other ``HealthVariable`` classes,
     or lists or dictionaries of other ``HealthVariable`` classes.
+
+    The numpy arrays used to store parameters are 2D arrays where the first dimension is a batch dimension,
+    even for parameters which represent scalar values.
+    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameters` for list values
+    to enable automatic conversion from user-supplied to the internal format used by :class:`HealthVariable`.
 
     Using a System Health
     ---------------------
@@ -44,16 +81,16 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
     .. code-block:: python
 
         class Resistance(HealthVariable):
-            full: float
+            full: ScalarParameter
             '''Resistance at fully charged'''
-            empty: float
+            empty: ScalarParameter
             '''Resistance at fully discharged'''
 
             def get_resistance(self, soc: float):
                 return self.empty + soc * (self.full - self.empty)
 
         class BatteryHealth(HealthVariable):
-            capacity: float
+            capacity: ScalarParameter
             resistance: Resistance
 
         model = BatteryHealth(capacity=1., resistance={'full': 0.2, 'empty': 0.1})
@@ -65,9 +102,9 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
 
     .. code-block:: python
 
-        assert model.resistance.full == 0.2
+        assert np.allclose(model.resistance.full, [[0.2]])  # Attribute is 2D with shape (1, 1)
 
-    or indirectly using :meth:`get_parameters`, which returns a list of floats
+    or indirectly using :meth:`get_parameters`, which returns a 2D numpy array.
 
     The name of a variable within such hierarchical model contains the path to the submodel
     and the name of the attribute of the submodel separated by periods.
@@ -75,7 +112,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
 
     .. code-block:: python
 
-        assert model.get_parameters(['resistance.full']) == [0.2]
+        assert np.allclose(model.get_parameters(['resistance.full']), [[0.2]])
 
 
     Controlling which Parameters are Updatable
@@ -130,10 +167,30 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
     updatable: set[str] = Field(default_factory=set)
     """Which fields are to be treated as updatable by a parameter estimator"""
 
+    @model_validator(mode='after')
+    def check_batch_size(self):
+        assert self.batch_size > 0
+        return self
+
+    @property
+    def batch_size(self) -> int:
+        """Batch size of this parameter"""
+        batch_size = 1
+        batch_param_name = None  # Name of the parameter which is setting the batch size
+        for name, param in self.iter_parameters(updatable_only=False, recurse=True):
+            my_batch = param.shape[0]
+            if batch_size > 1 and my_batch != 1 and my_batch != batch_size:
+                raise ValueError(f'Inconsistent batch sizes. {name} has batch dim of {my_batch},'
+                                 f' whereas {batch_param_name} has a size of {batch_size}')
+            batch_size = max(batch_size, my_batch)
+            if my_batch == batch_size:
+                batch_param_name = name
+        return batch_size
+
     @property
     def num_updatable(self):
         """Number of updatable parameters in this HealthVariable"""
-        return sum(len(x) for _, x in self.iter_parameters())
+        return sum(x.shape[-1] for _, x in self.iter_parameters())
 
     @property
     def updatable_names(self) -> list[str]:
@@ -146,7 +203,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
         Args:
             recurse: Make all parameters of each submodel updatable too
         """
-        _allowed_field_types = (float, np.ndarray, HealthVariable, List, Tuple, Dict)
+        _allowed_field_types = (np.ndarray, HealthVariable, List, Tuple, Dict)
 
         models = self._iter_over_submodels() if recurse else (self,)
         for model in models:
@@ -250,6 +307,11 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
         names, models = self._get_model_chain(name)
         name, model = names[-1], models[-1]
 
+        # Turn into a numpy array
+        cur_value: np.ndarray = getattr(model, name)
+        dim = 0 if cur_value.shape[-1] == 1 else 1
+        value = _enforce_dimensions(value, dim)
+
         # Set appropriately
         setattr(model, name, value)
 
@@ -270,9 +332,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
                 continue
 
             field = getattr(self, key)
-            if isinstance(field, float):  # TODO (wardlt): Will we ever treat integer fields as updatable?
-                yield key, np.array([getattr(self, key)])
-            elif isinstance(field, np.ndarray):
+            if isinstance(field, np.ndarray):
                 yield key, getattr(self, key)
             elif isinstance(field, HealthVariable) and recurse:
                 submodel: HealthVariable = getattr(self, key)
@@ -304,15 +364,20 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
         if names is None:
             names = list(k for k, v in self.iter_parameters())
 
+        # Determine the batch dimension of the output
+        batch_size = self.batch_size
+        is_batched = batch_size > 1
+
         output = []
         for name in names:
             my_names, my_models = self._get_model_chain(name)
-            value = getattr(my_models[-1], my_names[-1])
-            if isinstance(value, Iterable):
-                output.extend(value)
-            else:
-                output.append(value)
-        return np.array(output)
+            value: np.ndarray = getattr(my_models[-1], my_names[-1])
+
+            # Expand the array along batch and parameter dimension if needed
+            if is_batched and value.shape[0] == 1:
+                value = np.repeat(value, batch_size, axis=0)
+            output.append(value)
+        return np.concatenate(output, axis=1)  # Combine along the non-batched dimension
 
     def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
         """Set the value for updatable parameters given their names
@@ -321,6 +386,11 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
             values: Values of the parameters to set
             names: Names of the parameters to set. If ``None``, then will set all updatable parameters
         """
+
+        # Increase the shape to 2D
+        values = np.array(values)
+        if values.ndim == 1:
+            values = values[None, :]
 
         # Get all variables if no specific list is specified
         if names is None:
@@ -347,22 +417,17 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True, validate_assignmen
 
             # Get the parameters to use
             end = pos + num_params
-            if pos + num_params > len(values):
+            if pos + num_params > values.shape[-1]:
                 raise ValueError(f'Required at least {end} values, but only provided {len(values)}')
-            new_value = values[pos:end]
+            new_value = values[:, pos:end]
             setattr(model, attr, new_value)
 
             # Increment the starting point for the next parameter
             pos = end
 
         # Check to make sure all were used
-        if end != len(values):
+        if end != values.shape[-1]:
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
-
-
-# Definitions for variables that should be single-valued and multi-valued
-SingleVal = Annotated[Union[float, np.ndarray, None], AfterValidator(lambda v: convert_single_valued(v))]
-MultiVal = Annotated[Union[float, np.ndarray, None], AfterValidator(lambda v: convert_multi_valued(v))]
 
 
 class GeneralContainer(BaseModel,
@@ -429,8 +494,8 @@ class InputQuantities(GeneralContainer):
     """
     The control of a battery system, such as the terminal current
     """
-    time: SingleVal = Field(description='Timestamp(s) of inputs. Units: s')
-    current: SingleVal = Field(description='Current applied to the storage system. Units: A')
+    time: ScalarParameter = Field(description='Timestamp(s) of inputs. Units: s')
+    current: ScalarParameter = Field(description='Current applied to the storage system. Units: A')
 
 
 class OutputQuantities(GeneralContainer):
@@ -438,7 +503,7 @@ class OutputQuantities(GeneralContainer):
     Output for observables from a battery system
     """
 
-    terminal_voltage: SingleVal = \
+    terminal_voltage: ScalarParameter = \
         Field(description='Voltage output of a battery cell/model. Units: V')
 
 
