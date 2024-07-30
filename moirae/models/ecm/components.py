@@ -1,16 +1,16 @@
 """Models for the components of circuits"""
 from typing import List, Optional, Union
 
-from pydantic import Field, validate_call, ConfigDict
+from pydantic import Field
 import numpy as np
 
-from moirae.models.base import HealthVariable
+from moirae.models.base import HealthVariable, ListParameter, ScalarParameter, enforce_dimensions
 from .utils import SOCInterpolatedHealth
 
 
 class MaxTheoreticalCapacity(HealthVariable):
     """Defines maximum theoretical discharge capacity of a cell"""
-    base_values: float = \
+    base_values: ScalarParameter = \
         Field(description='Maximum theoretical discharge capacity of a cell. Units: Amp-hour')
 
     @property
@@ -32,24 +32,23 @@ class MaxTheoreticalCapacity(HealthVariable):
         """
         Returns capacity in Amp-hour, as it was initialized.
         """
-        return self.base_values
+        return self.base_values.item()
 
 
 class Resistance(SOCInterpolatedHealth):
     """
     Defines the series resistance component of an ECM.
     """
-    base_values: Union[float, np.ndarray] = \
+    base_values: ListParameter = \
         Field(
             description='Values of series resistance at specified SOCs. Units: Ohm')
     reference_temperature: Optional[float] = \
         Field(default=25,
               description='Reference temperature for internal parameters. Units: °C')
-    temperature_dependence_factor: Optional[float] = \
+    temperature_dependence_factor: Optional[ScalarParameter] = \
         Field(default=0,
               description='Factor determining dependence of R0 with temperature. Units: 1/°C')
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
                   temp: Union[float, List, np.ndarray, None] = None
@@ -57,10 +56,11 @@ class Resistance(SOCInterpolatedHealth):
         """
         Computes value of series resistance at a given SOC and temperature.
         """
-        if isinstance(self.base_values, float):
-            reference_value = self.base_values
-        else:
-            reference_value = self._interp_func(soc)
+
+        # Compute the SOC dependence
+        reference_value = super().get_value(soc)
+
+        # Correct for temperature dependence
         if temp is None or self.temperature_dependence_factor == 0:
             return reference_value
         gamma = self.temperature_dependence_factor
@@ -73,19 +73,17 @@ class Capacitance(SOCInterpolatedHealth):
     """
     Defines the series capacitance component of the ECM
     """
-    base_values: Union[float, np.ndarray] = \
-        Field(
-            description='Values of series capacitance at specified SOCs. Units: F')
+    base_values: ListParameter = \
+        Field(description='Values of series capacitance at specified SOCs. Units: F')
 
 
 class RCComponent(HealthVariable):
     """
-    Defines a RC component of the ECM
+    Defines an RC component of the ECM
     """
     r: Resistance = Field(description='Resistive element of RC component')
     c: Capacitance = Field(description='Capacitive element of RC component')
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
                   temp: Union[float, List, np.ndarray, None] = None
@@ -106,16 +104,15 @@ class RCComponent(HealthVariable):
 
 
 class ReferenceOCV(SOCInterpolatedHealth):
-    base_values: Union[float, np.ndarray] = \
-        Field(
-            description='Values of reference OCV at specified SOCs. Units: V')
-    reference_temperature: float = \
+    base_values: ListParameter = \
+        Field(description='Values of reference OCV at specified SOCs. Units: V')
+    reference_temperature: ScalarParameter = \
         Field(default=25,
               description='Reference temperature for OCV0. Units: °C')
 
 
 class EntropicOCV(SOCInterpolatedHealth):
-    base_values: Union[float, np.ndarray] = \
+    base_values: ListParameter = \
         Field(
             default=0,
             description='Values of entropic OCV term at specified SOCs. Units: V/°C')
@@ -127,7 +124,6 @@ class OpenCircuitVoltage(HealthVariable):
     ocv_ent: EntropicOCV = \
         Field(description='Entropic OCV to determine temperature dependence')
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
                   temp: Union[float, List, np.ndarray, None] = None
@@ -135,11 +131,11 @@ class OpenCircuitVoltage(HealthVariable):
         """
         Returns values of OCV at given SOC(s) and temperature(s).
         """
-        ocv = self.ocv_ref.get_value(soc=soc)
+        ocv = enforce_dimensions(self.ocv_ref.get_value(soc=soc), 0)
         if temp is not None:
             T_ref = self.ocv_ref.reference_temperature
             delta_T = temp - T_ref
-            ocv += delta_T * self.ocv_ent.get_value(soc=soc)
+            ocv += delta_T * enforce_dimensions(self.ocv_ent.get_value(soc=soc), 0)
         return ocv
 
     def __call__(self,
@@ -153,9 +149,9 @@ class OpenCircuitVoltage(HealthVariable):
 
 
 class HysteresisParameters(SOCInterpolatedHealth):
-    base_values: Union[float, np.ndarray] = \
+    base_values: ListParameter = \
         Field(
             description='Values of maximum hysteresis at specified SOCs. Units: V')
-    gamma: float = Field(default=0.,
-                         description='Exponential approach rate. Units: 1/V',
-                         ge=0.)
+    gamma: ScalarParameter = Field(default=0.,
+                                   description='Exponential approach rate. Units: 1/V',
+                                   ge=0.)

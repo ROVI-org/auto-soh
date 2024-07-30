@@ -65,7 +65,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
                  updatable_asoh: Union[bool, Collection[str]] = True):
         super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
         self.state = MultivariateGaussian(
-            mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()]),
+            mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()], axis=1)[0, :],
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
         )
         self.u = DeltaDistribution(mean=initial_inputs.to_numpy())
@@ -266,22 +266,6 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         cov = np.matmul(array0.T, np.matmul(np.diag(self.cov_weights), array1))
         return cov
 
-    def _predict_outputs(self,
-                         updated_hidden_states: np.ndarray,
-                         control: MultivariateRandomDistribution) -> np.ndarray:
-        """
-        Function to predict outputs from evolved Sigma points.
-
-        Args:
-            updated_hidden_states: numpy array of the updated hidden states (includes process noise already)
-            control: control to be used for predicting outpus
-
-        Returns:
-            y_preds: predicted outputs based on provided hidden states and control
-        """
-        y_preds = self.predict_measurement(hidden_states=updated_hidden_states, controls=control)
-        return y_preds
-
     def estimation_update(self,
                           sigma_pts: np.ndarray,
                           u: MultivariateRandomDistribution) \
@@ -310,7 +294,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         x_k_minus = MultivariateGaussian.model_validate(x_k_minus_info)
 
         # Step 1c: use updated hidden states to predict outputs
-        y_preds = self._predict_outputs(updated_hidden_states=x_updated, control=u)
+        y_preds = self.predict_measurement(x_updated, controls=u)
         # Don't forget to include sensor noise!
         y_preds += v_hid
         # Assemble y_hat

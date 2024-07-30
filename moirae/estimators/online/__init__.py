@@ -56,6 +56,10 @@ class OnlineEstimator:
         self._inputs = initial_inputs.model_copy(deep=True)
         self._num_outputs = len(model.calculate_terminal_voltage(initial_inputs, self._transients, self._asoh))
 
+        # The batch size of the two components must be 1
+        assert self._transients.batch_size == 1
+        assert self._asoh.batch_size == 1
+
         # Determine which parameters to treat as updatable in the ASOH
         self._updatable_names: Optional[list[str]]
         if isinstance(updatable_asoh, bool):
@@ -123,27 +127,22 @@ class OnlineEstimator:
         # First, transform the controls into the input class used by the model
         previous_inputs = self._inputs.model_copy(deep=True)
         previous_inputs.from_numpy(previous_controls.get_mean())
-        current_inputs = self._inputs.model_copy(deep=True)
-        current_inputs.from_numpy(new_controls.get_mean())
+        new_inputs = self._inputs.model_copy(deep=True)
+        new_inputs.from_numpy(new_controls.get_mean())
 
         # Undo any normalizing
         hidden_states = self._denormalize_hidden_array(hidden_states)
 
         # Now, iterate through the hidden states to create ECMTransient states and update them
         output = hidden_states.copy()
-        for i, hidden_array in enumerate(hidden_states):
-            # Run the update on the provided state
-            self._transients.from_numpy(hidden_array[:self.num_transients])
-            self._asoh.update_parameters(hidden_array[self.num_transients:], self._updatable_names)
-            new_transient = self.model.update_transient_state(
-                previous_inputs=previous_inputs,
-                new_inputs=current_inputs,
-                transient_state=self._transients,
-                asoh=self._asoh,
-            )
-
-            # Only the new transients (the first part) are updated
-            output[i, :self.num_transients] = new_transient.to_numpy()
+        my_transients = self._transients.model_copy(deep=True)
+        my_asoh = self._asoh.model_copy(deep=True)
+        my_transients.from_numpy(hidden_states[:, :self.num_transients])
+        my_asoh.update_parameters(hidden_states[:, self.num_transients:], self._updatable_names)
+        new_transients = self.model.update_transient_state(previous_inputs, new_inputs=new_inputs,
+                                                           transient_state=my_transients,
+                                                           asoh=my_asoh)
+        output[:, :self.num_transients] = new_transients.to_numpy()
         return self._normalize_hidden_array(output)
 
     def predict_measurement(self,
@@ -167,16 +166,13 @@ class OnlineEstimator:
         hidden_states = self._denormalize_hidden_array(hidden_states)
 
         # Now, iterate through hidden states to compute terminal voltage
-        voltages = []
-        for hidden_array in hidden_states:
-            self._transients.from_numpy(hidden_array[:self.num_transients])
-            self._asoh.update_parameters(hidden_array[self.num_transients:], self._updatable_names)
-            ecm_out = self.model.calculate_terminal_voltage(new_inputs=inputs,
-                                                            transient_state=self._transients,
-                                                            asoh=self._asoh)
-            voltages.append(ecm_out.to_numpy())
+        my_transients = self._transients.model_copy(deep=True)
+        my_asoh = self._asoh.model_copy(deep=True)
+        my_transients.from_numpy(hidden_states[:, :self.num_transients])
+        my_asoh.update_parameters(hidden_states[:, self.num_transients:], self._updatable_names)
 
-        return np.array(voltages)
+        outputs = self.model.calculate_terminal_voltage(new_inputs=inputs, transient_state=my_transients, asoh=my_asoh)
+        return outputs.to_numpy()
 
     @abstractmethod
     def step(self, u: MultivariateRandomDistribution, y: MultivariateRandomDistribution) \

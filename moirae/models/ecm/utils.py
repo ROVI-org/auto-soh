@@ -1,36 +1,27 @@
-from typing import List, Optional, Union, Literal, Callable, Sized
+from typing import List, Optional, Union, Literal, Callable, Iterator
 from numbers import Number
 
 import numpy as np
-from pydantic import Field, computed_field, validate_call, ConfigDict, field_validator
+from pydantic import Field, computed_field
 from scipy.interpolate import interp1d
 
-from moirae.models.base import HealthVariable
+from moirae.models.base import HealthVariable, ListParameter
 
 
 class SOCInterpolatedHealth(HealthVariable):
     """Defines basic functionality for HealthVariables that need interpolation between SOC pinpoints
     """
-    base_values: Union[float, np.ndarray] = \
-        Field(default=0,
-              description='Values at specified SOCs')
+    base_values: ListParameter = \
+        Field(default=0, description='Values at specified SOCs')
     soc_pinpoints: Optional[np.ndarray] = Field(default=None, description='SOC pinpoints for interpolation.')
-    interpolation_style: \
-        Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-                'quadratic', 'cubic', 'previous', 'next'] = \
+    interpolation_style: Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
+                                 'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
 
-    @field_validator('base_values', mode='after')
-    @classmethod
-    def squash_single_input_array(cls, values: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """
-        This field validator is needed for cases when the base_values are passed as a np.ndarray of shape (1,)
-        This causes problems in the interpolator, so, if we spot there is only one value in the array, we extract it.
-        """
-        if isinstance(values, Sized):
-            if len(values) == 1:
-                values = float(values[0])
-        return values
+    def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
+        for name, param in super().iter_parameters(updatable_only, recurse):
+            if name != "soc_pinpoints":
+                yield name, param
 
     # Let us cache the interpolation function so we don't have to re-do it every
     # time we want to get a value
@@ -42,7 +33,7 @@ class SOCInterpolatedHealth(HealthVariable):
         internal_parameters are evenly spread on an SOC interval [0,1].
         """
         if self.soc_pinpoints is None:
-            self.soc_pinpoints = np.linspace(0, 1, len(self.base_values))
+            self.soc_pinpoints = np.linspace(0, 1, self.base_values.shape[-1])
         func = interp1d(self.soc_pinpoints,
                         self.base_values,
                         kind=self.interpolation_style,
@@ -50,9 +41,7 @@ class SOCInterpolatedHealth(HealthVariable):
                         fill_value='extrapolate')
         return func
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
-    def get_value(self,
-                  soc: Union[Number, List, np.ndarray]) -> Union[float, np.ndarray]:
+    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
         """Computes value(s) at given SOC(s)
 
         Args:
@@ -60,9 +49,26 @@ class SOCInterpolatedHealth(HealthVariable):
         Returns:
             Interpolated values
         """
-        if isinstance(self.base_values, Number):
-            return self.base_values
-        return self._interp_func(soc)
+        # Determine which case we're dealing with
+        batch_size = self.batch_size
+        soc = np.array(soc)
+        input_dims = soc.shape
+        soc_batch_size = soc.size
+
+        # Special case: no interpolation
+        if self.base_values.shape[-1] == 1:
+            y = self.base_values[:, 0]
+            if soc_batch_size > 0 and batch_size == 1:
+                return np.repeat(y, soc.size, axis=0).reshape(input_dims)
+            return y.reshape(input_dims)
+
+        # Run the interpolator, but the results mean something different
+        y = self._interp_func(soc)  # interpolator adds a dimension
+        if soc_batch_size > 1 and batch_size > 1:
+            y = np.diag(y.squeeze())  # Match the SOC with the model its calling
+        elif soc_batch_size == 1 and batch_size > 1:
+            return y.reshape((batch_size,) + input_dims)
+        return y.reshape(input_dims)
 
 
 def realistic_fake_ocv(
