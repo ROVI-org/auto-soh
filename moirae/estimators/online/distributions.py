@@ -19,6 +19,11 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         """
         pass
 
+    def get_covariance(self) -> np.ndarray:
+        """
+        Provides the covariance of the distribution
+        """
+
 
 class DeltaDistribution(MultivariateRandomDistribution):
     """A distribution with only one allowed value"""
@@ -27,6 +32,9 @@ class DeltaDistribution(MultivariateRandomDistribution):
 
     def get_mean(self) -> np.ndarray:
         return self.mean.copy()
+
+    def get_covariance(self) -> np.ndarray:
+        return np.zeros_like(self.mean) + np.inf
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):

@@ -46,6 +46,8 @@ class OnlineEstimator:
     """Link to the model describing the known physics of the system"""
     u: MultivariateRandomDistribution
     """Control signal applied in the last timestep"""
+    state: MultivariateRandomDistribution
+    """Current estimate for the distribution of state parameters"""
 
     def __init__(self,
                  model: CellModel,
@@ -189,8 +191,8 @@ class OnlineEstimator:
             y: output measurements
 
         Returns:
-            - Updated estimate of the hidden state, which includes the transient states and ASOH
             - Estimate of the measurements as predicted by the underlying model
+            - Updated estimate of the hidden state, which includes the transient states and ASOH
         """
         raise NotImplementedError()
 
