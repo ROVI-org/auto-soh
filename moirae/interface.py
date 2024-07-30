@@ -1,8 +1,41 @@
 """Interfaces for running common workflows with Auto-SOH"""
+from typing import Tuple
+from math import isfinite
+
 import pandas as pd
 from batdata.data import BatteryDataset
 
-from moirae.estimators.online import OnlineEstimator
+from moirae.estimators.online import OnlineEstimator, DeltaDistribution
+from moirae.models.ecm import ECMInput, ECMMeasurement
+
+
+def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[DeltaDistribution, DeltaDistribution]:
+    """Convert a row from the time series data to a distribution object
+
+    Args:
+        row: Row from the `dataset.raw_data` dataframe
+        default_temperature: Default temperature for the cells (units: C)
+    Returns:
+        - Distribution describing the inputs
+        - Distribution describing the measurements (model outputs)
+    """
+
+    # First to an "inputs" class, which stores the proper order
+    use_temp = 'temperature' in row and isfinite(row['temperature'])
+    # TODO (wardlt): Remove hard code from ECM when we're ready (maybe a "from_batdata" to the model class?)
+    inputs = ECMInput(
+        time=row['test_time'],
+        current=row['current'],
+        temperature=row['temperature'] if use_temp else default_temperature
+    )
+    outputs = ECMMeasurement(
+        terminal_voltage=row['voltage']
+    )
+
+    return (
+        DeltaDistribution(mean=inputs.to_numpy()[0, :]),
+        DeltaDistribution(mean=outputs.to_numpy()[0, :]),
+    )
 
 
 def run_online_estimate(
@@ -19,4 +52,14 @@ def run_online_estimate(
     Returns:
         Estimates of the parameters at all timesteps from the input dataset
     """
+
+    # Ensure raw data are present in the data file
+    if dataset.raw_data is None:
+        raise ValueError('No time series data in the provided dataset')
+
+    # Update the initial inputs for the
+    initial_input, _ = _row_to_inputs(dataset.raw_data.iloc[0])
+    estimator.u = initial_input
+
+    # Iterate over all
     raise NotImplementedError()
