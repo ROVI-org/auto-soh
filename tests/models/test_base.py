@@ -317,3 +317,20 @@ def test_general_container():
 def test_empty_health():
     example = HealthVariable()
     assert example.get_parameters().shape == (1, 0)
+
+
+def test_expand_names(example_hv):
+    # Test each type of variable
+    assert example_hv.expand_names(['a']) == ['a']
+    assert example_hv.expand_names(['b']) == ['b[0]', 'b[1]']
+    assert example_hv.expand_names(['c']) == ['c.x']
+    assert example_hv.expand_names(['c.x']) == ['c.x']
+    assert example_hv.expand_names(['d']) == ['d.0.x', 'd.1.x']
+    assert example_hv.expand_names(['d.0']) == ['d.0.x']
+    assert example_hv.expand_names(['d.0.x']) == ['d.0.x']
+    assert example_hv.expand_names(['e']) == ['e.first.x']
+    assert example_hv.expand_names(['e.first']) == ['e.first.x']
+    assert example_hv.expand_names(['e.first.x']) == ['e.first.x']
+
+    # Try a list
+    assert example_hv.expand_names(['a', 'b']) == ['a', 'b[0]', 'b[1]']
