@@ -460,6 +460,9 @@ class GeneralContainer(BaseModel,
         batch_param_name = None  # Name of the parameter which is setting the batch size
         for name in self.model_fields.keys():
             param = getattr(self, name)
+            if param is None:
+                continue
+
             my_batch = param.shape[0]
             if batch_size > 1 and my_batch != 1 and my_batch != batch_size:
                 raise ValueError(f'Inconsistent batch sizes. {name} has batch dim of {my_batch},'
@@ -508,7 +511,9 @@ class GeneralContainer(BaseModel,
         # We need to know where to start reading from in the array
         begin_index = 0
         for field_name in self.all_fields:
-            current_field: np.ndarray = getattr(self, field_name)
+            current_field: Optional[np.ndarray] = getattr(self, field_name)
+            if current_field is None:
+                continue
             field_len = current_field.shape[-1]
 
             end_index = begin_index + field_len

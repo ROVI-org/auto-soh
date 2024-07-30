@@ -30,7 +30,7 @@ def cycle_protocol(rng, asoh: ECMASOH, start_time: float = 0.0) -> List[ECMInput
 
     # Get the Qt and CE, which will help determine the currents
     qt = asoh.q_t.amp_hour
-    ce = asoh.ce
+    ce = asoh.ce.item()
 
     # Now, let's choose rest durations and C-rates
     rest0, rest1, rest2 = rng.integers(low=5, high=10, size=3)
@@ -93,7 +93,7 @@ def test_normalization(simple_rint):
 
     # Make the filter without normalization
     init_covar = np.diag([0.1, 0.1, 0.1])
-    r0 = rint_asoh.r0.base_values
+    r0 = rint_asoh.r0.base_values.item()
     ukf_joint = JointUKF(
         model=ecm_model,
         initial_asoh=rint_asoh,
@@ -108,7 +108,7 @@ def test_normalization(simple_rint):
     assert np.allclose(ukf_joint.joint_normalization_factor, 1.)
     assert np.allclose(ukf_joint.covariance_normalization, 1.)
     assert np.allclose(ukf_joint.state.covariance, np.diag([0.1] * 3))
-    assert np.allclose(ukf_joint.state.mean, np.concatenate([rint_transient.to_numpy(), [r0]]))
+    assert np.allclose(ukf_joint.state.mean, np.concatenate([rint_transient.to_numpy()[0, :], [r0]]))
 
     # Make the filter with normalization
     ukf_joint_normed = JointUKF(
@@ -123,12 +123,12 @@ def test_normalization(simple_rint):
     assert np.allclose(ukf_joint_normed.covariance_normalization,
                        [[1., 1., r0], [1., 1., r0], [r0, r0, r0 ** 2]])
     assert np.allclose(ukf_joint_normed.state.covariance, np.diag([0.1, 0.1, 0.1 / r0 ** 2]))
-    assert np.allclose(ukf_joint_normed.state.mean, np.concatenate([rint_transient.to_numpy(), [1]]))
+    assert np.allclose(ukf_joint_normed.state.mean, np.concatenate([rint_transient.to_numpy()[0, :], [1]]))
 
     # Make sure the two filters step correctly
-    applied_control = DeltaDistribution(mean=np.array([1., 1.]))  # Time=1s, I=1 Amp
-    end_soc = 1. / rint_asoh.q_t.value
-    end_voltage = rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)
+    applied_control = DeltaDistribution(mean=np.array([1., 1., 25.]))  # Time=1s, I=1 Amp, 25C
+    end_soc = (1. / rint_asoh.q_t.value).item()
+    end_voltage = (rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)).item()
     observed_voltage = DeltaDistribution(mean=np.array([end_voltage]))
     for ukf in [ukf_joint, ukf_joint_normed]:
         # Test that it runs the cell model properly
@@ -138,7 +138,7 @@ def test_normalization(simple_rint):
             new_controls=applied_control
         )
         actual_states = ukf._denormalize_hidden_array(updated_states)
-        assert np.allclose(actual_states, [end_soc, 0., r0])
+        assert np.allclose(actual_states, [[end_soc, 0., r0]])
 
         # Test that it gets the outputs correctly
         pred_outputs = ukf.predict_measurement(updated_states, controls=applied_control)
@@ -172,12 +172,12 @@ def test_joint_ecm() -> None:
 
     # Now, the transient
     cov_tran_rint = [1. / 12]  # SOC
-    cov_tran_rint += [4 * (asoh_rint.h0.base_values) ** 2 / 12]  # hyst
+    cov_tran_rint += [4 * (asoh_rint.h0.base_values.item()) ** 2 / 12]  # hyst
     cov_tran_rint = np.diag(cov_tran_rint)
 
     # Generate perturbed values
-    tran_rint_perturb = rng.multivariate_normal(mean=transient0_rint.to_numpy(), cov=cov_tran_rint)
-    asoh_rint_perturb = rng.multivariate_normal(mean=asoh_rint.get_parameters(), cov=cov_asoh_rint)
+    tran_rint_perturb = rng.multivariate_normal(mean=transient0_rint.to_numpy()[0, :], cov=cov_tran_rint)
+    asoh_rint_perturb = rng.multivariate_normal(mean=asoh_rint.get_parameters()[0, :], cov=cov_asoh_rint)
     # Make sure the initial SOC is not too off-base
     while tran_rint_perturb[0] > 1.05:
         tran_rint_perturb[0] = rng.normal(loc=1.0, scale=cov_tran_rint[0, 0])
@@ -229,7 +229,7 @@ def test_joint_ecm() -> None:
             # Add noise to give to the UKF and store it
             vt = cell_response.terminal_voltage + rng.normal(loc=0.0, scale=voltage_err / 2)
             noisy_voltage += [vt]
-            # Step the joint estimator``
+            # Step the joint estimator
             measurement = ECMMeasurement(terminal_voltage=vt)
             pred_measure, est_hidden = rint_joint_ukf.step(
                 u=DeltaDistribution(mean=new_input.to_numpy()),
@@ -240,7 +240,7 @@ def test_joint_ecm() -> None:
             joint_ukf_predictions['voltages'] += [pred_measure.model_copy(deep=True)]
 
         # Update the start time of the next cycle
-        start_time = protocol[-1].time + 1.0e-03
+        start_time = protocol[-1].time.item() + 1.0e-03
 
     # Collect results for validation
     # Get real values

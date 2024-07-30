@@ -55,8 +55,8 @@ class LorenzModel(CellModel):
         hidden_states = transient_state.to_numpy()
 
         return LorenzOutputs(
-            terminal_voltage=np.sqrt(np.sum(hidden_states ** 2)),
-            m1=abs(np.sum(hidden_states ** new_inputs.n)) ** (1. / new_inputs.n),
+            terminal_voltage=np.sqrt(np.sum(hidden_states ** 2, axis=1)),
+            m1=abs(np.sum(hidden_states ** new_inputs.n, axis=1)) ** (1. / new_inputs.n),
         )
 
 
@@ -84,7 +84,7 @@ def test_lorenz_ukf():
 
     # Define UKF
     initial_state = MultivariateGaussian(
-        mean=state0.to_numpy() + rng.multivariate_normal(mean=np.zeros(3), cov=cov_state),
+        mean=state0.to_numpy()[0, :] + rng.multivariate_normal(mean=np.zeros(3), cov=cov_state),
         covariance=cov_state
     )
     ukf_chaos = UKF(model=LorenzModel(),
@@ -107,7 +107,7 @@ def test_lorenz_ukf():
     timestamps = [0.0]
 
     # Assign previous control
-    previous_control = DeltaDistribution(mean=u0.to_numpy())
+    previous_control = DeltaDistribution(mean=u0.to_numpy()[0, :])
 
     for _ in range(10000):
         # Get a new time
@@ -125,15 +125,15 @@ def test_lorenz_ukf():
         new_state = ukf_chaos.update_hidden_states(hidden_states=prev_hidden[None, :],
                                                    previous_controls=previous_control,
                                                    new_controls=u)[0, :]
-        real_values['state'] += [new_state.copy()]
+        real_values['state'] += [new_state]
         new_state += rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)
-        noisy_values['state'] += [new_state.copy()]
+        noisy_values['state'] += [new_state]
 
         # Get new measurement
-        m = ukf_chaos.predict_measurement(hidden_states=new_state[None, :], controls=u)
-        real_values['measurements'] += [m.copy()]
+        m = ukf_chaos.predict_measurement(hidden_states=new_state[None, :], controls=u)[0, :]
+        real_values['measurements'] += [m]
         m += rng.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
-        noisy_values['measurements'] += [m.copy()]
+        noisy_values['measurements'] += [m]
 
         # Assemble measurement
         measure = DeltaDistribution(mean=m)

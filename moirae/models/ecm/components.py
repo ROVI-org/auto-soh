@@ -32,7 +32,7 @@ class MaxTheoreticalCapacity(HealthVariable):
         """
         Returns capacity in Amp-hour, as it was initialized.
         """
-        return self.base_values
+        return self.base_values.item()
 
 
 class Resistance(SOCInterpolatedHealth):
@@ -79,7 +79,7 @@ class Capacitance(SOCInterpolatedHealth):
 
 class RCComponent(HealthVariable):
     """
-    Defines a RC component of the ECM
+    Defines an RC component of the ECM
     """
     r: Resistance = Field(description='Resistive element of RC component')
     c: Capacitance = Field(description='Capacitive element of RC component')
@@ -105,8 +105,7 @@ class RCComponent(HealthVariable):
 
 class ReferenceOCV(SOCInterpolatedHealth):
     base_values: ListParameter = \
-        Field(
-            description='Values of reference OCV at specified SOCs. Units: V')
+        Field(description='Values of reference OCV at specified SOCs. Units: V')
     reference_temperature: ScalarParameter = \
         Field(default=25,
               description='Reference temperature for OCV0. Units: °C')

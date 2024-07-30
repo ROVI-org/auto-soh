@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Literal, Callable
+from typing import List, Optional, Union, Literal, Callable, Iterator
 from numbers import Number
 
 import numpy as np
@@ -12,16 +12,16 @@ class SOCInterpolatedHealth(HealthVariable):
     """Defines basic functionality for HealthVariables that need interpolation between SOC pinpoints
     """
     base_values: ListParameter = \
-        Field(default=0,
-              description='Values at specified SOCs')
+        Field(default=0, description='Values at specified SOCs')
     soc_pinpoints: Optional[np.ndarray] = Field(default=None, description='SOC pinpoints for interpolation.')
     interpolation_style: Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                                  'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
 
-    @property
-    def batch_size(self):
-        return self.base_values.shape[0]
+    def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
+        for name, param in super().iter_parameters(updatable_only, recurse):
+            if name != "soc_pinpoints":
+                yield name, param
 
     # Let us cache the interpolation function so we don't have to re-do it every
     # time we want to get a value
@@ -60,7 +60,7 @@ class SOCInterpolatedHealth(HealthVariable):
             y = self.base_values[:, 0]
             if soc_batch_size > 0 and batch_size == 1:
                 return np.repeat(y, soc.size, axis=0).reshape(input_dims)
-            return y
+            return y.reshape(input_dims)
 
         # Run the interpolator, but the results mean something different
         y = self._interp_func(soc)  # interpolator adds a dimension
