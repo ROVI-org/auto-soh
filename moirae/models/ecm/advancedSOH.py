@@ -4,7 +4,7 @@ from typing import Tuple, Optional, Union, List
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import HealthVariable
+from moirae.models.base import HealthVariable, ScalarParameter
 from .components import (MaxTheoreticalCapacity,
                          Resistance,
                          Capacitance,
@@ -19,7 +19,7 @@ from .utils import realistic_fake_ocv
 class ECMASOH(HealthVariable):
     """State of Health for an equivalent circuit model"""
     q_t: MaxTheoreticalCapacity = Field(description='Maximum theoretical discharge capacity (Qt).')
-    ce: float = Field(default=1., description='Coulombic efficiency (CE)')
+    ce: ScalarParameter = Field(default=1., description='Coulombic efficiency (CE)')
     ocv: OpenCircuitVoltage = Field(description='Open Circuit Voltage (OCV)')
     r0: Resistance = Field(description='Series Resistance (R0)')
     c0: Optional[Capacitance] = Field(default=None, description='Series Capacitance (C0)')
@@ -71,16 +71,17 @@ class ECMASOH(HealthVariable):
         OCV = OpenCircuitVoltage(ocv_ref=OCVref, ocv_ent=OCVent)
         # H0 prep
         H0 = HysteresisParameters(base_values=H0, gamma=0.9)
-        # Assemble minimal ASOH
-        asoh = ECMASOH(q_t=qt, ce=CE, ocv=OCV, r0=R0, h0=H0)
+
         # C0 prep
+        c0 = None
         if has_C0:
             if C0 is None:
                 # Make it so that it's impact is at most 10 mV
                 C0 = qt.value / 0.01  # Recall it's stored in Amp-hour
-            C0 = Capacitance(base_values=C0)
-            asoh.c0 = C0
+            c0 = Capacitance(base_values=C0)
+
         # RC prep
+        RCcomps = ()
         if num_RC:
             if RC is None:
                 RC_R = Resistance(base_values=0.01,
@@ -100,8 +101,5 @@ class ECMASOH(HealthVariable):
                                       temperature_dependence_factor=0.0025)
                     RC_C = Capacitance(base_values=C_info)
                     RCcomps += (RCComponent(r=RC_R, c=RC_C).model_copy(),)
-            asoh.rc_elements = RCcomps
-        # Since we are providing a template, we don't want anything to be updatable
-        asoh.mark_all_fixed()
 
-        return asoh
+        return ECMASOH(q_t=qt, ce=CE, ocv=OCV, r0=R0, h0=H0, c0=c0, rc_elements=RCcomps)

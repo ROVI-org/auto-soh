@@ -1,23 +1,19 @@
-from typing import Union, Optional, Sized
+from typing import Union, Sized, Optional
 from numbers import Number
 
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import GeneralContainer
+from moirae.models.base import GeneralContainer, ScalarParameter, ListParameter
 
 
 class ECMTransientVector(GeneralContainer):
     """Description of the state of charge of an ECM and all components"""
 
-    soc: float = Field(default=0.0, description='State of charge (SOC)')
-    q0: Optional[float] = \
-        Field(default=None,
-              description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: Optional[np.ndarray] = \
-        Field(default=None,
-              description='Currents through RC components. Units: Amp')
-    hyst: float = Field(default=0, description='Hysteresis voltage. Units: V')
+    soc: ScalarParameter = Field(description='SOC')
+    q0: Optional[ScalarParameter] = Field(None, description='Charge in the series capacitor. Units: Coulomb')
+    i_rc: ListParameter = Field(default_factory=list, description='Currents through RC components. Units: Amp')
+    hyst: ScalarParameter = Field(0., description='Hysteresis voltage. Units: V')
 
     @classmethod
     def provide_template(cls,
@@ -25,7 +21,7 @@ class ECMTransientVector(GeneralContainer):
                          num_RC: int,
                          soc: float = 0.0,
                          q0: float = 0.0,
-                         i_rc: Union[float, np.ndarray] = None,
+                         i_rc: Union[float, np.ndarray, None] = None,
                          hysteresis: float = 0.0,
                          ) -> 'ECMTransientVector':
         """
@@ -42,18 +38,16 @@ class ECMTransientVector(GeneralContainer):
         Returns:
             A set of parameters describing the current charge state
         """
-        hidden = ECMTransientVector(soc=soc, hyst=hysteresis)
-        if has_C0:
-            hidden.q0 = q0
-        if num_RC:
-            if i_rc is None:
-                i_rc = np.zeros(num_RC)
-            elif isinstance(i_rc, Number):
-                i_rc = i_rc * np.ones(num_RC)
-            elif isinstance(i_rc, Sized):
-                if len(i_rc) != num_RC:
-                    raise ValueError('Mismatch between number of RC currents '
-                                     'provided and number of RC elements!')
-            hidden.i_rc = np.array(i_rc)
 
-        return hidden
+        # Determine the starting current
+        if i_rc is None:
+            i_rc = np.zeros(num_RC)
+        elif isinstance(i_rc, Number):
+            i_rc = i_rc * np.ones(num_RC)
+        elif isinstance(i_rc, Sized):
+            if len(i_rc) != num_RC:
+                raise ValueError('Mismatch between number of RC currents '
+                                 'provided and number of RC elements!')
+        i_rc = np.array(i_rc)
+
+        return ECMTransientVector(soc=soc, hyst=hysteresis, i_rc=i_rc, q0=q0 if has_C0 else None)

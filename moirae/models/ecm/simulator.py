@@ -1,4 +1,4 @@
-from typing import Literal, Tuple, List
+from typing import Literal, Tuple, Union, List
 
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm import (ECMASOH,
@@ -25,8 +25,8 @@ class ECMSimulator():
 
     def __init__(self,
                  asoh: ECMASOH,
-                 transient_state: ECMTransientVector = None,
-                 initial_input: ECMInput = None,
+                 transient_state: Union[ECMTransientVector, None] = None,
+                 initial_input: Union[ECMInput, None] = None,
                  current_behavior: Literal['constant', 'linear'] = 'constant',
                  keep_history: bool = False,
                  ) -> None:
