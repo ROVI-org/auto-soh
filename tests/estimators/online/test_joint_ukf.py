@@ -244,8 +244,8 @@ def test_joint_ecm() -> None:
 
     # Collect results for validation
     # Get real values
-    real_soc = np.array([transient.soc for transient in rint_sim.transient_history])
-    real_hyst = np.array([transient.hyst for transient in rint_sim.transient_history])
+    real_soc = np.array([transient.soc.item() for transient in rint_sim.transient_history])
+    real_hyst = np.array([transient.hyst.item() for transient in rint_sim.transient_history])
 
     # Estimate values and their corresponding uncertainty
     estimated_soc = np.array([estimate.mean[0] for estimate in joint_ukf_predictions['joint_states']])
