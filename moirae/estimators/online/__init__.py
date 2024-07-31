@@ -60,7 +60,11 @@ class OnlineEstimator:
         self._asoh = initial_asoh.model_copy(deep=True)
         self._transients = initial_transients.model_copy(deep=True)
         self._inputs = initial_inputs.model_copy(deep=True)
-        self._num_outputs = len(model.calculate_terminal_voltage(initial_inputs, self._transients, self._asoh))
+
+        # Cache information about the outputs
+        example_outputs = model.calculate_terminal_voltage(initial_inputs, self._transients, self._asoh)
+        self._num_outputs = len(example_outputs)
+        self._output_names = example_outputs.all_names
 
         # The batch size of the two components must be 1
         assert self._transients.batch_size == 1
@@ -83,13 +87,28 @@ class OnlineEstimator:
 
     @cached_property
     def num_transients(self):
-        """Number of values from the hidden state which belong to the transients"""
+        """ Number of values from the hidden state which belong to the transients """
         return len(self._transients)
 
     @property
     def num_output_dimensions(self) -> int:
         """ Expected dimensionality of output measurements """
         return self._num_outputs
+
+    @cached_property
+    def state_names(self) -> Tuple[str, ...]:
+        """ Names of each state variable """
+        return self._transients.all_names + self._asoh.expand_names(self._updatable_names)
+
+    @cached_property
+    def output_names(self) -> Tuple[str, ...]:
+        """ Names of each output variable """
+        return self._output_names
+
+    @cached_property
+    def control_names(self) -> Tuple[str, ...]:
+        """ Names for each of the control variables """
+        return self._inputs.all_names
 
     def _denormalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
         """Apply transformations to the hidden array which transform it from the

@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable
 from typing_extensions import Annotated
 from abc import abstractmethod
 import logging
@@ -193,9 +193,87 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         return sum(x.shape[-1] for _, x in self.iter_parameters())
 
     @property
-    def updatable_names(self) -> list[str]:
+    def updatable_names(self) -> Tuple[str, ...]:
         """Names of all updatable parameters"""
-        return list(k for k, _ in self.iter_parameters())
+        return tuple(k for k, _ in self.iter_parameters())
+
+    @property
+    def all_names(self) -> Tuple[str, ...]:
+        """Names of all updatable parameters"""
+        return tuple(k for k, _ in self.iter_parameters(updatable_only=False))
+
+    def expand_names(self, names: Iterable[str]) -> Tuple[str, ...]:
+        """Expand names which define a collection of values to one for each number.
+
+        Each member of a list of values become are annotated with ``[i]`` notation.
+
+        .. code-block:: python
+
+            class ListHealth(HealthVariable):
+                x: ListParameter = 1.
+
+            a = ListHealth()
+            a.expand_names(['x'])  # == ['x[0]']
+
+        Names of values that are themselves :class:`HealthVariable` are expanded to
+        include all values
+
+        .. code-block:: Python
+
+            class Health(HealthVariable):
+                a: ListHealth
+
+            h = Health(a=a)
+            h.expand_names(["a"])  # == ['a.x[0]']
+            h.expand_names(["a.x"])  # == ['a.x[0]']
+
+        Args:
+            names: List of names to be expanded
+        Returns:
+            Expanded names
+        """
+
+        output = []
+        for name in names:
+            param = getattr(self, name.split(".", maxsplit=1)[0])
+
+            # It is a value of this class
+            if isinstance(param, np.ndarray):
+                if param.shape[1] == 1:
+                    output.append(name)  # It is a scalar
+                else:
+                    output.extend(f'{name}[{i}]' for i in range(param.shape[1]))
+                continue
+
+            # It is multiple values
+            if isinstance(param, HealthVariable) and '.' not in name:  # Entire class
+                sub_names = param.expand_names(param.all_names)
+                prefix = name
+            elif isinstance(param, HealthVariable):  # Specific field within class
+                prefix, sub_name = name.split(".", maxsplit=1)
+                sub_names = param.expand_names([sub_name])
+            elif isinstance(param, (tuple, dict)):
+                sub_count = name.count('.')
+                is_tuple = isinstance(param, tuple)
+                if sub_count == 0:  # All entry, all names
+                    prefix = name
+                    sub_names = []
+                    for i, sub_param in enumerate(param) if is_tuple else param.items():
+                        sub_names.extend(f'{i}.{n}' for n in sub_param.expand_names(sub_param.all_names))
+                elif sub_count == 1:  # Single entry, all names
+                    prefix, index = name.split(".")
+                    sub_param = param[int(index) if is_tuple else index]
+                    sub_names = [f'{index}.{n}' for n in sub_param.expand_names(sub_param.all_names)]
+                else:  # Single entry, specific name
+                    prefix, index, sub_name = name.split(".", maxsplit=2)
+                    sub_param = param[int(index) if is_tuple else index]
+                    sub_names = [f'{index}.{n}' for n in sub_param.expand_names([sub_name])]
+            else:
+                raise NotImplementedError('Unsupported type of nesting')
+
+            output.extend(f'{prefix}.{n}' for n in sub_names)
+
+        return tuple(output)
 
     def mark_all_updatable(self, recurse: bool = True):
         """Make all fields in the model updatable
@@ -446,8 +524,32 @@ class GeneralContainer(BaseModel,
 
     @property
     def all_fields(self) -> tuple[str, ...]:
-        """Names of all fields of the model in the order they appear in :meth:`to_numpy`"""
+        """Names of all fields of the model in the order they appear in :meth:`to_numpy`
+
+        Returns a single name per field, regardless of whether the field is a scalar or vector.
+        See :meth:`all_names` to get a single name per value.
+        """
         return tuple(self.model_fields.keys())
+
+    @property
+    def all_names(self) -> tuple[str, ...]:
+        """Names of each value within the vector"""
+        return tuple(self.expand_names(self.all_fields))
+
+    def expand_names(self, names: Iterable[str]) -> tuple[str, ...]:
+        """Expand a single name per field to a distinct name for each value within the field"""
+
+        output = []
+        for name in names:
+            field: Optional[np.ndarray] = getattr(self, name)
+            if field is None:
+                continue
+            length = field.shape[1]
+            if length == 1:
+                output.append(name)
+            else:
+                output.extend(f'{name}[{i}]' for i in range(length))
+        return output
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """

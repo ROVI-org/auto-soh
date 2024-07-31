@@ -199,23 +199,23 @@ def test_get_number_updatable(example_hv):
 
     example_hv.updatable.add('a')
     assert example_hv.num_updatable == 1
-    assert example_hv.updatable_names == ['a']
+    assert example_hv.updatable_names == ('a',)
 
     example_hv.updatable.add('b')
     assert example_hv.num_updatable == 3
-    assert example_hv.updatable_names == ['a', 'b']
+    assert example_hv.updatable_names == ('a', 'b')
 
     example_hv.updatable.add('c')
     assert example_hv.num_updatable == 3  # Because c.x must be marked updatable too
-    assert example_hv.updatable_names == ['a', 'b']
+    assert example_hv.updatable_names == ('a', 'b')
 
     example_hv.c.mark_all_updatable()
     assert example_hv.num_updatable == 4
-    assert example_hv.updatable_names == ['a', 'b', 'c.x']
+    assert example_hv.updatable_names == ('a', 'b', 'c.x')
 
     example_hv.mark_all_updatable()
     assert example_hv.num_updatable == 3 + 1 + 2 + 1
-    assert example_hv.updatable_names == ['a', 'b', 'c.x', 'd.0.x', 'd.1.x', 'e.first.x']
+    assert example_hv.updatable_names == ('a', 'b', 'c.x', 'd.0.x', 'd.1.x', 'e.first.x')
 
 
 def test_mark_updatable(example_hv):
@@ -317,3 +317,30 @@ def test_general_container():
 def test_empty_health():
     example = HealthVariable()
     assert example.get_parameters().shape == (1, 0)
+
+
+def test_expand_names(example_hv):
+    # Test each type of variable
+    assert example_hv.expand_names(['a']) == ('a',)
+    assert example_hv.expand_names(['b']) == ('b[0]', 'b[1]')
+    assert example_hv.expand_names(['c']) == ('c.x',)
+    assert example_hv.expand_names(['c.x']) == ('c.x',)
+    assert example_hv.expand_names(['d']) == ('d.0.x', 'd.1.x')
+    assert example_hv.expand_names(['d.0']) == ('d.0.x',)
+    assert example_hv.expand_names(['d.0.x']) == ('d.0.x',)
+    assert example_hv.expand_names(['e']) == ('e.first.x',)
+    assert example_hv.expand_names(['e.first']) == ('e.first.x',)
+    assert example_hv.expand_names(['e.first.x']) == ('e.first.x',)
+
+    # Try a list
+    assert example_hv.expand_names(['a', 'b']) == ('a', 'b[0]', 'b[1]',)
+
+
+def test_general_container_names():
+    class TestContainer(GeneralContainer):
+        x: ScalarParameter = 1.
+        y: ListParameter = [1., 2.]
+
+    m = TestContainer()
+    assert m.all_fields == ('x', 'y')
+    assert m.all_names == ('x', 'y[0]', 'y[1]')
