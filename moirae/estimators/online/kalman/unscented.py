@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
-from moirae.estimators.online.distributions import MultivariateGaussian, DeltaDistribution
+from moirae.estimators.online.distributions import MultivariateGaussian
 from moirae.estimators.online.utils import ensure_positive_semi_definite
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities
 
@@ -68,7 +68,6 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
             mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()], axis=1)[0, :],
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
         )
-        self.u = DeltaDistribution(mean=initial_inputs.to_numpy())
 
         # Determine any normalization factors
         self.normalize_asoh = normalize_asoh
@@ -216,26 +215,6 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         w_hid = sigma_pts[:, dim:(2 * dim)].copy()
         v_hid = sigma_pts[:, (2 * dim):].copy()
         return x_hid, w_hid, v_hid
-
-    def _evolve_hidden(self, hidden_states: np.ndarray, new_control: MultivariateRandomDistribution) -> np.ndarray:
-        """
-        Function used to evolve the hidden states obtained from the Sigma points
-
-        Args:
-            hidden_states: array of hidden states from breaking of the Sigma points
-            new_control: new control variables to be given to the model
-
-        Returns:
-            - x_update: updated hidden states
-        """
-        # Get old control
-        u_old = self.u.model_copy(deep=True)
-
-        # Update hidden states
-        x_update = self.update_hidden_states(hidden_states=hidden_states,
-                                             previous_controls=u_old,
-                                             new_controls=new_control)
-        return x_update
 
     def _assemble_unscented_estimate(self, samples: np.ndarray) -> Dict:
         """

@@ -9,7 +9,8 @@ from functools import cached_property
 from typing import Tuple, Union, Collection, Optional
 
 import numpy as np
-from moirae.estimators.online.distributions import MultivariateRandomDistribution
+
+from moirae.estimators.online.distributions import MultivariateRandomDistribution, DeltaDistribution
 
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable
 
@@ -43,6 +44,10 @@ class OnlineEstimator:
     """
     model: CellModel
     """Link to the model describing the known physics of the system"""
+    u: MultivariateRandomDistribution
+    """Control signal applied in the last timestep"""
+    state: MultivariateRandomDistribution
+    """Current estimate for the distribution of state parameters"""
 
     def __init__(self,
                  model: CellModel,
@@ -50,6 +55,7 @@ class OnlineEstimator:
                  initial_transients: GeneralContainer,
                  initial_inputs: InputQuantities,
                  updatable_asoh: Union[bool, Collection[str]] = True):
+        self.u = DeltaDistribution(mean=initial_inputs.to_numpy())
         self.model = model
         self._asoh = initial_asoh.model_copy(deep=True)
         self._transients = initial_transients.model_copy(deep=True)
@@ -204,7 +210,27 @@ class OnlineEstimator:
             y: output measurements
 
         Returns:
-            - Updated estimate of the hidden state, which includes the transient states and ASOH
             - Estimate of the measurements as predicted by the underlying model
+            - Updated estimate of the hidden state, which includes the transient states and ASOH
         """
         raise NotImplementedError()
+
+    def _evolve_hidden(self, hidden_states: np.ndarray, new_control: MultivariateRandomDistribution) -> np.ndarray:
+        """
+        Function used to evolve the hidden states obtained from the Sigma points
+
+        Args:
+            hidden_states: array of hidden states from breaking of the Sigma points
+            new_control: new control variables to be given to the model
+
+        Returns:
+            - x_update: updated hidden states
+        """
+        # Get old control
+        u_old = self.u.model_copy(deep=True)
+
+        # Update hidden states
+        x_update = self.update_hidden_states(hidden_states=hidden_states,
+                                             previous_controls=u_old,
+                                             new_controls=new_control)
+        return x_update
