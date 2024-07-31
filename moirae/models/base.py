@@ -193,16 +193,16 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         return sum(x.shape[-1] for _, x in self.iter_parameters())
 
     @property
-    def updatable_names(self) -> list[str]:
+    def updatable_names(self) -> Tuple[str, ...]:
         """Names of all updatable parameters"""
-        return list(k for k, _ in self.iter_parameters())
+        return tuple(k for k, _ in self.iter_parameters())
 
     @property
-    def all_names(self) -> list[str]:
+    def all_names(self) -> Tuple[str, ...]:
         """Names of all updatable parameters"""
-        return list(k for k, _ in self.iter_parameters(updatable_only=False))
+        return tuple(k for k, _ in self.iter_parameters(updatable_only=False))
 
-    def expand_names(self, names: List[str]) -> List[str]:
+    def expand_names(self, names: Iterable[str]) -> Tuple[str, ...]:
         """Expand names which define a collection of values to one for each number.
 
         Each member of a list of values become are annotated with ``[i]`` notation.
@@ -273,7 +273,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
             output.extend(f'{prefix}.{n}' for n in sub_names)
 
-        return output
+        return tuple(output)
 
     def mark_all_updatable(self, recurse: bool = True):
         """Make all fields in the model updatable
