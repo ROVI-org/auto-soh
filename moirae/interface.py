@@ -42,7 +42,7 @@ def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Del
 def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator
-) -> Tuple[np.ndarray, OnlineEstimator]:
+) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
     Args:
@@ -79,4 +79,12 @@ def run_online_estimate(
         output_mean[i, :] = new_outputs.get_mean()
         output_std[i, :] = np.diag(new_outputs.get_covariance())
 
-    return state_mean, estimator
+    # Compile the outputs into a dataframe
+    output = pd.DataFrame(
+        np.concatenate([state_mean, state_std, output_mean, output_std], axis=1),
+        columns=list(
+            estimator.state_names + tuple(f'{s}_std' for s in estimator.state_names)
+            + estimator.output_names + tuple(f'{s}_std' for s in estimator.output_names)
+        )
+    )
+    return output, estimator
