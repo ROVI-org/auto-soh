@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable
 from typing_extensions import Annotated
 from abc import abstractmethod
 import logging
@@ -251,7 +251,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
                 prefix = name
             elif isinstance(param, HealthVariable):  # Specific field within class
                 prefix, sub_name = name.split(".", maxsplit=1)
-                sub_names = param.expand_names(sub_name)
+                sub_names = param.expand_names([sub_name])
             elif isinstance(param, (tuple, dict)):
                 sub_count = name.count('.')
                 is_tuple = isinstance(param, tuple)
@@ -524,8 +524,32 @@ class GeneralContainer(BaseModel,
 
     @property
     def all_fields(self) -> tuple[str, ...]:
-        """Names of all fields of the model in the order they appear in :meth:`to_numpy`"""
+        """Names of all fields of the model in the order they appear in :meth:`to_numpy`
+
+        Returns a single name per field, regardless of whether the field is a scalar or vector.
+        See :meth:`all_names` to get a single name per value.
+        """
         return tuple(self.model_fields.keys())
+
+    @property
+    def all_names(self) -> tuple[str, ...]:
+        """Names of each value within the vector"""
+        return tuple(self.expand_names(self.all_fields))
+
+    def expand_names(self, names: Iterable[str]) -> tuple[str, ...]:
+        """Expand a single name per field to a distinct name for each value within the field"""
+
+        output = []
+        for name in names:
+            field: Optional[np.ndarray] = getattr(self, name)
+            if field is None:
+                continue
+            length = field.shape[1]
+            if length == 1:
+                output.append(name)
+            else:
+                output.extend(f'{name}[{i}]' for i in range(length))
+        return output
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """

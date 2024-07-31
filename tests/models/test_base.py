@@ -334,3 +334,13 @@ def test_expand_names(example_hv):
 
     # Try a list
     assert example_hv.expand_names(['a', 'b']) == ['a', 'b[0]', 'b[1]']
+
+
+def test_general_container_names():
+    class TestContainer(GeneralContainer):
+        x: ScalarParameter = 1.
+        y: ListParameter = [1., 2.]
+
+    m = TestContainer()
+    assert m.all_fields == ('x', 'y')
+    assert m.all_names == ('x', 'y[0]', 'y[1]')

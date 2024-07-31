@@ -2,7 +2,6 @@ from typing import List
 
 from scipy.linalg import block_diag
 import numpy as np
-import pytest
 
 from moirae.estimators.online.distributions import DeltaDistribution
 from moirae.models.ecm import EquivalentCircuitModel as ECM
@@ -150,7 +149,19 @@ def test_normalization(simple_rint):
         assert np.isfinite(pred_state.get_mean()).all()
 
 
-@pytest.mark.slow
+def test_names(simple_rint):
+    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    ukf_joint = JointUKF(
+        model=ecm_model,
+        initial_asoh=rint_asoh,
+        initial_transients=rint_transient,
+        initial_inputs=ecm_inputs,
+        normalize_asoh=False
+    )
+    assert ukf_joint.state_names == ['soc', 'hyst', 'r0.base_values']
+
+
 def test_joint_ecm() -> None:
     # Initialize RNG
     rng = np.random.default_rng(seed=31415926535897932384626433832)

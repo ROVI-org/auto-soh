@@ -77,13 +77,18 @@ class OnlineEstimator:
 
     @cached_property
     def num_transients(self):
-        """Number of values from the hidden state which belong to the transients"""
+        """ Number of values from the hidden state which belong to the transients """
         return len(self._transients)
 
     @property
     def num_output_dimensions(self) -> int:
         """ Expected dimensionality of output measurements """
         return self._num_outputs
+
+    @cached_property
+    def state_names(self) -> list[str]:
+        """ Names of each state variable """
+        return list(self._transients.all_names) + self._asoh.expand_names(self._updatable_names)
 
     def _denormalize_hidden_array(self, hidden_array: np.ndarray) -> np.ndarray:
         """Apply transformations to the hidden array which transform it from the
