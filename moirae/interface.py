@@ -26,7 +26,7 @@ def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Del
     # TODO (wardlt): Remove hard code from ECM when we're ready (maybe a "from_batdata" to the model class?)
     inputs = ECMInput(
         time=row['test_time'],
-        current=row['current'],
+        current=-row['current'],  # Opposite sign convention from batdata
         temperature=row['temperature'] if use_temp else default_temperature
     )
     outputs = ECMMeasurement(
