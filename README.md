@@ -1,9 +1,12 @@
 # Auto-SOH
 
 [![Python Package](https://github.com/ROVI-org/auto-soh/actions/workflows/python-package.yml/badge.svg)](https://github.com/ROVI-org/auto-soh/actions/workflows/python-package.yml)
+[![Deploy Docs](https://github.com/ROVI-org/auto-soh/actions/workflows/gh-pages.yml/badge.svg?branch=main)](https://rovi-org.github.io/auto-soh/)
 [![Coverage Status](https://coveralls.io/repos/github/ROVI-org/auto-soh/badge.svg?branch=main&kill_cache=1)](https://coveralls.io/github/ROVI-org/auto-soh?branch=main)
 
-Fit State of Health (SOH) to batteries using state estimation techniques. 
+Fit Advanced State of Health (ASOH) to batteries using state estimation techniques. 
+
+See documentation: https://rovi-org.github.io/auto-soh/
 
 ## Installation
 
