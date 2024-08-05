@@ -13,4 +13,4 @@ dependencies:
   - pip:
     - battery-data-toolkit
     - jupyterlab
-    - -e ..[test]
+    - -e ..[test,docs]
