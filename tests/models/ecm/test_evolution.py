@@ -6,26 +6,28 @@ from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm import (ECMASOH,
                                ECMInput,
                                ECMTransientVector)
-from moirae.models.ecm.simulator import ECMSimulator
+from moirae.simulator import Simulator
 
 
 @fixture
-def rint_const() -> ECMSimulator:
+def rint_const() -> Simulator:
     rint_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
     # Removing hysteresis
     rint_asoh.h0.base_values = np.zeros((1, 1))
-    return ECMSimulator(asoh=rint_asoh, keep_history=True)
+    return Simulator(model=ECM(), asoh=rint_asoh, initial_input=ECMInput(),
+                     transient_state=ECMTransientVector(), keep_history=True)
 
 
 @fixture
-def hyst_only() -> ECMSimulator:
+def hyst_only() -> Simulator:
     hyst_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
     # Removing R0
     hyst_asoh.r0.base_values = np.zeros((1, 1))
     # Setting hysteresis to known value and speeding up its rate of asymptotic approach
     hyst_asoh.h0.base_values = np.array([[3 * np.pi / 10]])
     hyst_asoh.h0.gamma = np.array([[15]])
-    return ECMSimulator(asoh=hyst_asoh, keep_history=True)
+    return Simulator(model=ECM(), asoh=hyst_asoh, initial_input=ECMInput(),
+                     transient_state=ECMTransientVector(), keep_history=True)
 
 
 @fixture
@@ -39,7 +41,7 @@ def c0_asoh() -> ECMASOH:
 
 
 @fixture
-def rc_only() -> ECMSimulator:
+def rc_only() -> Simulator:
     asoh = ECMASOH.provide_template(has_C0=False, num_RC=1)
     # Remove R0
     asoh.r0.base_values = np.zeros((1, 1))
@@ -50,7 +52,8 @@ def rc_only() -> ECMSimulator:
     asoh.rc_elements[0].c.base_values = np.zeros((1, 1)) + 3 * np.pi
     # I want the simulator to start at an SOC of 0.5
     start_transient = ECMTransientVector.provide_template(has_C0=False, num_RC=1, soc=0.5, i_rc=np.array([0.]))
-    return ECMSimulator(asoh=asoh, transient_state=start_transient, keep_history=True)
+    return Simulator(model=ECM(), asoh=asoh, initial_input=ECMInput(),
+                     transient_state=start_transient, keep_history=True)
 
 
 def test_current_integration_CE_C0(c0_asoh) -> None:
@@ -106,17 +109,17 @@ def test_rint_const(rint_const) -> None:
     input1 = ECMInput(time=361, current=current)
     # Evolve
     rint_const.evolve(inputs=[input0, input1])
-    assert rint_const.transient_history[1].soc.copy() == 0, 'SOC wrongly changed in first step!'
-    assert np.allclose(rint_const.transient_history[-1].soc.copy(), 0.1), \
+    assert np.allclose(rint_const.transient_history[1].soc, 0), 'SOC wrongly changed in first step!'
+    assert np.allclose(rint_const.transient.soc.copy(), 0.1), \
         'Wrong SOC at the end of constant Rint! Should be 0.1 but is %1.3f' % \
-        rint_const.transient_history[-1].soc.copy()
+        rint_const.transient.soc.copy()
     # Now, let's double check the voltage values are correct. For that, we will need the OCV and the R0 value
     r0 = rint_const.asoh.r0
     ocv = rint_const.asoh.ocv
     vt0 = ocv(0) + (r0.get_value(soc=0) * current)
     vt1 = ocv(0.1) + (r0.get_value(soc=0.1) * current)
-    assert rint_const.measurement_history[1].terminal_voltage.copy() == vt0, 'Wrong initial voltage!'
-    assert np.allclose(rint_const.measurement_history[-1].terminal_voltage.copy(), vt1), 'Wrong final voltage!'
+    assert rint_const.measurement_history[1].terminal_voltage.item() == vt0, 'Wrong initial voltage!'
+    assert np.allclose(rint_const.measurement.terminal_voltage.copy(), vt1), 'Wrong final voltage!'
 
 
 def test_hyst_only(hyst_only) -> None:
@@ -131,13 +134,13 @@ def test_hyst_only(hyst_only) -> None:
     # Evolve charge
     hyst_only.evolve(inputs=chg_ins)
     # Check that we reached 100% SOC
-    assert np.allclose(hyst_only.transient_history[-1].soc.copy(), 1), \
+    assert np.allclose(hyst_only.transient.soc.copy(), 1), \
         'End of charge SOC should be 1.0, instead, it is %1.5f!' % (hyst_only.transient_history[-1].soc.copy())
     # Check final voltage is correct
     vt = hyst_only.asoh.ocv(1.0) + (3 * np.pi / 10)
-    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage.copy(), vt), \
+    assert np.allclose(hyst_only.measurement.terminal_voltage.copy(), vt), \
         'End of charge terminal voltage should be %1.3f, but instead, it is %1.3f!' % \
-        (vt, hyst_only.measurement_history[-1].terminal_voltage.copy())
+        (vt, hyst_only.measurement.terminal_voltage.copy())
     # Briefly rest the cell
     rest_time = np.arange(120) + (chg_time[-1] + 0.001)
     rest_curr = [0] * len(rest_time)
@@ -149,19 +152,19 @@ def test_hyst_only(hyst_only) -> None:
     dischg_ins = [ECMInput(time=t, current=i) for t, i in zip(dischg_time, dischg_currs)]
     # Evolve discharge
     hyst_only.evolve(inputs=dischg_ins)
-    assert np.allclose(hyst_only.transient_history[-1].soc, 0, atol=1e-7), \
+    assert np.allclose(hyst_only.transient.soc, 0, atol=1e-7), \
         'End of discharge SOC should be 0.0, but instead, it is %1.3f!' % \
-        (hyst_only.transient_history[-1].soc.copy())
+        (hyst_only.transient.soc.copy())
     vt = hyst_only.asoh.ocv(0.0) - (3 * np.pi / 10)
-    assert np.allclose(hyst_only.measurement_history[-1].terminal_voltage, vt), \
+    assert np.allclose(hyst_only.measurement.terminal_voltage, vt), \
         'End of discharge terminal voltage should be %1.3f, but instead, it is %1.3f!' % \
-        (vt, hyst_only.measurement_history[-1].terminal_voltage.copy())
+        (vt, hyst_only.measurement.terminal_voltage.copy())
 
 
 def test_RC(rc_only) -> None:
     # Recall that the simulator starts at an SOC of 0.5 with no RC overpotential, which should correspond to a terminal
     # voltage of 3.5 V
-    v0 = rc_only.measurement_history[0].terminal_voltage
+    v0 = rc_only.measurement.terminal_voltage
     assert np.allclose(v0, 3.5), 'Starting teminal voltage should be 3.5 V, but instead, it is %1.3f V!' % v0
     # Let's retrieve valuable info to decide charging and discharging protocols
     Qt = rc_only.asoh.q_t.amp_hour
@@ -173,9 +176,9 @@ def test_RC(rc_only) -> None:
     rc_only.evolve(inputs=chg_ins)
 
     # Let us retrieve the SOCs and the corresponding OCVs to check the voltage convergence
-    chg_socs = [transient.soc.copy() for transient in rc_only.transient_history[1:]]
+    chg_socs = [transient.soc.item() for transient in rc_only.transient_history[1:]]
     chg_ocvs = rc_only.asoh.ocv(chg_socs).squeeze()
-    vrc_calc = np.array([out.terminal_voltage for out in rc_only.measurement_history[1:]]).squeeze() - chg_ocvs
+    vrc_calc = np.array([out.terminal_voltage.item() for out in rc_only.measurement_history[1:]]).squeeze() - chg_ocvs
     # The RC element should asymptotically approach a stage where the current through the resistive component is equal
     # to the total current flowing through the system. Let's them calculate the expected voltage drop across the RC
     r_rc = 10

@@ -66,7 +66,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
         self.state = MultivariateGaussian(
             mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()], axis=1)[0, :],
-            covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
+            covariance=np.eye(self.num_hidden_dimensions) if initial_covariance is None else initial_covariance
         )
 
         # Determine any normalization factors
@@ -75,7 +75,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         self.covariance_normalization = np.ones((self.num_hidden_dimensions, self.num_hidden_dimensions))
         if normalize_asoh:
             self.joint_normalization_factor[self.num_transients:] = self._asoh.get_parameters()
-            # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
+            # Special attention needs to be paid to cases where the initial provided value is 0.0. In these cases,
             # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
             self.joint_normalization_factor[self.joint_normalization_factor == 0] = 1.
             self.covariance_normalization = (self.joint_normalization_factor[None, :] *

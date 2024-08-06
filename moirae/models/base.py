@@ -628,8 +628,8 @@ class InputQuantities(GeneralContainer):
     """
     The control of a battery system, such as the terminal current
     """
-    time: ScalarParameter = Field(description='Timestamp(s) of inputs. Units: s')
-    current: ScalarParameter = Field(description='Current applied to the storage system. Units: A')
+    time: ScalarParameter = Field(default=0., description='Timestamp(s) of inputs. Units: s')
+    current: ScalarParameter = Field(default=0., description='Current applied to the storage system. Units: A')
 
 
 class OutputQuantities(GeneralContainer):
