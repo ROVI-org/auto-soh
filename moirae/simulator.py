@@ -1,5 +1,8 @@
+import numpy as np
+import pandas as pd
 from typing import Tuple, List, Optional
 
+from batdata.data import BatteryDataset
 from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, CellModel, OutputQuantities
 
 
@@ -119,3 +122,32 @@ class Simulator:
             measurements.append(measure)
 
         return measurements
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Compile the history of the simulator as a Pandas dataframe
+
+        Returns:
+            Dataframe with the columns ordered by inputs, states, and outputs
+        """
+
+        if not self.keep_history:
+            raise ValueError('History was not stored. Set keep_history=True')
+
+        batch_size = self.measurement.batch_size
+
+        def _squish(params: List[GeneralContainer]) -> pd.DataFrame:
+            values = np.concatenate([
+                x.to_numpy() if x.batch_size == batch_size else np.repeat(x.to_numpy(), batch_size, axis=0)
+                for x in params], axis=0
+            )
+            return pd.DataFrame(values, columns=params[0].all_names)
+
+        # Make a dataframe of each component of the history
+        member = np.repeat(np.arange(batch_size), len(self.input_history))
+        return pd.concat([
+            pd.DataFrame({'batch': member}),
+            _squish(self.input_history),
+            _squish(self.transient_history),
+            _squish(self.measurement_history)
+        ], axis=1)
