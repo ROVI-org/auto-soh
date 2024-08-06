@@ -32,6 +32,12 @@ def test_dataframe(simple_rint, batched):
 
     assert np.allclose(df['time'].iloc[:rint_asoh.batch_size * 2:rint_asoh.batch_size], [0., 1.])
 
+    # Test converting to batdata
+    output = simulator.to_batdata(extra_columns=True)
+    assert len(output) == rint_asoh.batch_size
+    for batch in output:
+        assert len(batch.validate()) == 0
+
 
 def test_dataframe_failure(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint

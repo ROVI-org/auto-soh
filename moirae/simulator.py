@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Optional
 
+from batdata.data import BatteryDataset
 from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, CellModel, OutputQuantities
 
 
@@ -15,14 +16,11 @@ class Simulator:
     such as :class:`transient_history`.
 
     Args:
+        model: Model used to simulate the battery system
         asoh: Advanced State of Health (A-SOH) of the system. Used to parametrize the dynamics of the system.
-        transient_state: Initial physical transient state of the ECM. If not provided, will be instantiated based on the
-            A-SOH provided assuming with all values initialized to 0.0
-        initial_input: Initial input of the ECM. If not provided, will be instantiated assuming the system starts at
-            time = 0.0 seconds with a current of 0.0 Amps.
-        current_behavior: Determines how to the total current behaves in-between time steps. Can be either 'constant' or
-            'linear'.
-        keep_history: Boolean to determine whether we wish to keep history of the system.
+        transient_state: Initial transient state of the system
+        initial_input: Initial input of the ECM
+        keep_history: Whether to keep history of the system.
     """
 
     transient_history: Optional[List[GeneralContainer]]
@@ -150,3 +148,45 @@ class Simulator:
             _squish(self.transient_history),
             _squish(self.measurement_history)
         ], axis=1)
+
+    def to_batdata(self, extra_columns: bool = False) -> List[BatteryDataset]:
+        """
+        Compile the cycling history as a Battery Data Toolkit dataset.
+
+        Args:
+            extra_columns: Whether to return columns whose names are not yet in the schema
+        Returns:
+            A battery dataset for each batch of the data
+        """
+
+        df = self.to_dataframe()
+
+        # Rename key columns before storing as a battery dataset
+        known_names = {
+            'time': 'test_time',
+            'terminal_voltage': 'voltage'
+        }
+        df.rename(columns=known_names, inplace=True)
+
+        output = []
+        for _, group in df.groupby('batch'):
+            batch = BatteryDataset(raw_data=group.drop(columns=['batch']))
+
+            # Compile names for the other columns
+            #  TODO (wardlt): I bet I can grab the description from the model fields.
+            if extra_columns:
+                batch.metadata.raw_data_columns.update(
+                    (name, f'Input variable from {self.previous_input.__class__.__name__}')
+                    for name in self.previous_input.all_names if name not in known_names
+                )
+                batch.metadata.raw_data_columns.update(
+                    (name, f'Transient state variable from {self.transient.__class__.__name__}')
+                    for name in self.transient.all_names if name not in known_names
+                )
+                batch.metadata.raw_data_columns.update(
+                    (name, f'Measurement variable from {self.measurement.__class__.__name__}')
+                    for name in self.measurement.all_names if name not in known_names
+                )
+
+            output.append(batch)
+        return output
