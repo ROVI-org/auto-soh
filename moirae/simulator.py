@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Optional
 
-from batdata.data import BatteryDataset
 from moirae.models.base import HealthVariable, GeneralContainer, InputQuantities, CellModel, OutputQuantities
 
 

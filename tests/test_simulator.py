@@ -30,6 +30,8 @@ def test_dataframe(simple_rint, batched):
     assert len(df) == 10 * rint_asoh.batch_size
     assert np.all(df.columns[:3] == ['batch', 'time', 'current'])
 
+    assert np.allclose(df['time'].iloc[:rint_asoh.batch_size * 2:rint_asoh.batch_size], [0., 1.])
+
 
 def test_dataframe_failure(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
