@@ -12,8 +12,9 @@ class Simulator:
 
     The current states of a batch of systems are stored as attributes of the class,
     such as :attr:`transient` for the transient states.
-    The history of the states and outputs are stored as a list of NumPy arrays,
-    such as :class:`transient_history`.
+    The history of the states and outputs are stored as lists,
+    such as :attr:`transient_history`,
+    if ``keep_history`` is True.
 
     Args:
         model: Model used to simulate the battery system
