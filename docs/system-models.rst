@@ -13,7 +13,7 @@ Transient State, Inputs, and Outputs
 
 Transient states, inputs, and outputs are represented as a ``GeneralContainer`` object specific to a certain type of battery.
 
-The ``GeneralContainer`` stores numeric values corresponding to different states and
+The :class:`~moirae.models.base.GeneralContainer` stores numeric values corresponding to different states and
 can be easily transformed to or from NumPy arrays.
 
 .. code-block:: python
