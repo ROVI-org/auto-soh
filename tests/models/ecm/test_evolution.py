@@ -15,7 +15,7 @@ def rint_const() -> Simulator:
     # Removing hysteresis
     rint_asoh.h0.base_values = np.zeros((1, 1))
     return Simulator(model=ECM(), asoh=rint_asoh, initial_input=ECMInput(),
-                     transient_state=ECMTransientVector(), keep_history=True)
+                     transient_state=ECMTransientVector.from_asoh(rint_asoh), keep_history=True)
 
 
 @fixture

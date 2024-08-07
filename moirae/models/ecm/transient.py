@@ -5,6 +5,7 @@ from pydantic import Field
 import numpy as np
 
 from moirae.models.base import GeneralContainer, ScalarParameter, ListParameter
+from .advancedSOH import ECMASOH
 
 
 class ECMTransientVector(GeneralContainer):
@@ -51,3 +52,19 @@ class ECMTransientVector(GeneralContainer):
         i_rc = np.array(i_rc)
 
         return ECMTransientVector(soc=soc, hyst=hysteresis, i_rc=i_rc, q0=q0 if has_C0 else None)
+
+    @classmethod
+    def from_asoh(cls, asoh: ECMASOH):
+        """
+        Make a transient vector based on the design of a circuit captured in the state of health
+
+        Args:
+            asoh: State of health for an ECM
+
+        Returns:
+            An appropriate transient state
+        """
+
+        has_C0 = asoh.c0 is not None
+        num_RC = len(asoh.rc_elements)
+        return ECMTransientVector.provide_template(has_C0=has_C0, num_RC=num_RC)
