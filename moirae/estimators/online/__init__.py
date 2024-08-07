@@ -83,7 +83,7 @@ class OnlineEstimator:
             if updatable_transients:
                 self._updatable_transients = list(range(len(self.transients.all_names)))  # Everything
             else:
-                self._updatable_names = []  # Nothing
+                self._updatable_transients = []  # Nothing
         else:
             trans_names = self.transients.all_names
             self._updatable_transients = [trans_names.index(x) for x in updatable_transients]

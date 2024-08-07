@@ -62,8 +62,9 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
                  covariance_process_noise: Optional[np.ndarray] = None,
                  covariance_sensor_noise: Optional[np.ndarray] = None,
                  normalize_asoh: bool = False,
+                 updatable_transients: Union[bool, Collection[str]] = True,
                  updatable_asoh: Union[bool, Collection[str]] = True):
-        super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
+        super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_transients, updatable_asoh)
         self.state = MultivariateGaussian(
             mean=self._to_hidden_state(self.asoh, self.transients),
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
