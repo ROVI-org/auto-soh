@@ -48,10 +48,6 @@ class DualUnscentedKalmanFilter(OnlineEstimator):
             normalize_asoh=False,
             updatable_asoh=False
         )
-        self._asoh_state = MultivariateGaussian(
-            mean=initial_asoh.get_parameters(self._updatable_names),
-            covariance=initial_asoh_covariance,
-        )
         self._ukf_asoh = JointUnscentedKalmanFilter(
             model=model,
             initial_asoh=initial_asoh,
@@ -63,41 +59,42 @@ class DualUnscentedKalmanFilter(OnlineEstimator):
             kappa_param=kappa_asoh_param,
             covariance_process_noise=covariance_asoh_process_noise,
             covariance_sensor_noise=covariance_sensor_noise,
+            updatable_transients=False,
             updatable_asoh=updatable_asoh,
             normalize_asoh=normalize_asoh
         )
 
-        self._x_km1_plus = initial_transients.to_numpy()
+        self._x_km1_plus = initial_transients.to_numpy()[0, :]
 
-    def step(self,
-             u: MultivariateRandomDistribution,
-             y: MultivariateRandomDistribution) \
-        -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
+    def _step(self, u: MultivariateRandomDistribution, y: MultivariateRandomDistribution) \
+            -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
 
         # Update the covariance for the ASOH
         theta_k_minus = self._ukf_asoh.state.get_mean()
         cov_theta_k_minus = self._ukf_asoh.state.get_covariance() + self._ukf_asoh.cov_w
 
         # Compute the updated transient states
-        self._ukf_transient._asoh.set_value(theta_k_minus, self._updatable_names)  # Ensure operating on the same mean
-        sigma_pts = self._ukf_transient.build_sigma_points()
-        x_k_minus, y_k, cov_xy = self._ukf_transient.estimation_update(sigma_pts=sigma_pts, u=u)
+        self._ukf_transient.asoh.update_parameters(theta_k_minus, self._updatable_names)  # Ensure operating on the same mean
+        transients_sigma = self._ukf_transient.build_sigma_points()
+        x_k_minus, y_k, cov_xy = self._ukf_transient.estimation_update(sigma_pts=transients_sigma, u=u)
 
-        # Make sigma points for the ASOH UK
-        theta_sigma = build_sigma_points(
-            self._asoh_state,
-            self._ukf_asoh.cov_w,
-            self._ukf_asoh.cov_v,
-            self._ukf_asoh.gamma_param
-        )
+        # Generate updated transient states and estimate outputs
+        #  using Sigma points from the ASOH UKF
+        self._ukf_asoh.transients.from_numpy(self._x_km1_plus)
+        theta_sigma = self._ukf_asoh.build_sigma_points()
+        _, theta_w_hid, theta_v_hid = self._ukf_asoh._break_sigma_pts(sigma_pts=theta_sigma)
+
         theta_sigma_with_transient = np.concatenate([
-            np.repeat(self._x_km1_plus, theta_sigma.shape[0], axis=0),
-            theta_sigma
-        ])
-        # TODO (wardlt): Just call the CellModel directly
-        tswt_updated = self.update_hidden_states(theta_sigma_with_transient, self.u, u)
-        tswt_yhat = self.predict_measurement(tswt_updated, u)
+            np.repeat(self._x_km1_plus[None, :], theta_sigma.shape[0], axis=0),
+            theta_sigma[:, :self._ukf_asoh.num_hidden_dimensions]
+        ], axis=1)
+        tswt_updated = self._update_hidden_states(theta_sigma_with_transient, self.u, u)
+        tswt_updated[:, self.num_transients:] += theta_w_hid
+        tswt_yhat = self._predict_measurement(tswt_updated, u)
+        tswt_yhat += theta_v_hid
 
+        # Store the x_km1_plus
+        self._x_km1_plus = ...
 
 
 
