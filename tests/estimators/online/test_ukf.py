@@ -122,22 +122,22 @@ def test_lorenz_ukf():
 
         # Compute new true hidden state
         prev_hidden = noisy_values['state'][-1]
-        new_state = ukf_chaos.update_hidden_states(hidden_states=prev_hidden[None, :],
-                                                   previous_controls=previous_control,
-                                                   new_controls=u)[0, :]
+        new_state = ukf_chaos._update_hidden_states(hidden_states=prev_hidden[None, :],
+                                                    previous_controls=previous_control,
+                                                    new_controls=u)[0, :]
         real_values['state'] += [new_state]
         new_state += rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)
         noisy_values['state'] += [new_state]
 
         # Get new measurement
-        m = ukf_chaos.predict_measurement(hidden_states=new_state[None, :], controls=u)[0, :]
+        m = ukf_chaos._predict_measurement(hidden_states=new_state[None, :], controls=u)[0, :]
         real_values['measurements'] += [m]
         m += rng.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
         noisy_values['measurements'] += [m]
 
         # Assemble measurement
         measure = DeltaDistribution(mean=m)
-        ukf_pred, ukf_hid = ukf_chaos.step(u=u, y=measure)
+        ukf_pred, ukf_hid = ukf_chaos._step(u=u, y=measure)
         ukf_values['state'].append(ukf_hid)
         ukf_values['measurements'].append(ukf_pred)
 

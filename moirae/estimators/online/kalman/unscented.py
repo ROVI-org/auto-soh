@@ -65,7 +65,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
                  updatable_asoh: Union[bool, Collection[str]] = True):
         super().__init__(model, initial_asoh, initial_transients, initial_inputs, updatable_asoh)
         self.state = MultivariateGaussian(
-            mean=np.concatenate([self._transients.to_numpy(), self._asoh.get_parameters()], axis=1)[0, :],
+            mean=self._to_hidden_state(self.asoh, self.transients),
             covariance=np.zeros((self.num_hidden_dimensions,) * 2) if initial_covariance is None else initial_covariance
         )
 
@@ -74,7 +74,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         self.joint_normalization_factor = np.ones(self.num_hidden_dimensions)
         self.covariance_normalization = np.ones((self.num_hidden_dimensions, self.num_hidden_dimensions))
         if normalize_asoh:
-            self.joint_normalization_factor[self.num_transients:] = self._asoh.get_parameters()
+            self.joint_normalization_factor[self.num_transients:] = self.asoh.get_parameters()
             # Special attention needs to be paid to cases whewre the initial provided value is 0.0. In these cases,
             # the normalization factor remains equal to 1. (variable is "un-normalized" and treated as raw.)
             self.joint_normalization_factor[self.joint_normalization_factor == 0] = 1.
@@ -147,10 +147,10 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         hidden_array[:, self.num_transients:] = np.clip(hidden_array[:, self.num_transients:], 1e-16, np.inf)
         return hidden_array
 
-    def step(self,
-             u: MultivariateRandomDistribution,
-             y: MultivariateRandomDistribution
-             ) -> Tuple[MultivariateGaussian, MultivariateGaussian]:
+    def _step(self,
+              u: MultivariateRandomDistribution,
+              y: MultivariateRandomDistribution
+              ) -> Tuple[MultivariateGaussian, MultivariateGaussian]:
 
         """
         Steps the UKF
@@ -265,7 +265,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         x_hid, w_hid, v_hid = self._break_sigma_pts(sigma_pts=sigma_pts)
 
         # Step 1b: evolve hidden states based on the model and the previous input
-        x_updated = self._evolve_hidden(hidden_states=x_hid, new_control=u)
+        x_updated = self._update_hidden_states(hidden_states=x_hid, new_controls=u, previous_controls=self.u)
         # Don't forget to include process noise!
         x_updated += w_hid
         # Assemble x_k_minus
@@ -273,7 +273,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         x_k_minus = MultivariateGaussian.model_validate(x_k_minus_info)
 
         # Step 1c: use updated hidden states to predict outputs
-        y_preds = self.predict_measurement(x_updated, controls=u)
+        y_preds = self._predict_measurement(x_updated, controls=u)
         # Don't forget to include sensor noise!
         y_preds += v_hid
         # Assemble y_hat
