@@ -22,6 +22,40 @@ def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
     return np.matmul(cov_xy, np.linalg.inv(cov_y))
 
 
+def build_sigma_points(state: MultivariateRandomDistribution,
+                       cov_w: np.ndarray,
+                       cov_v: np.ndarray,
+                       gamma_param: float) -> np.ndarray:
+    """
+    Build sigma points given covariance matrices of the hidden state and
+    noise terms related to process and sensor
+
+    Args:
+        state: State of the Kalman filter
+        cov_w: Process noise covariance matrix
+        cov_v: Sensor noise covariance matrix
+        gamma_param: Gamma
+
+    Returns:
+        Sigma points
+    """
+    # Building augmented state (recall noise terms are all zero-mean!)
+    x_aug = np.hstack((state.get_mean(), np.zeros(cov_w.shape[0] + cov_v.shape[0])))
+
+    # Now, build the augmented covariance
+    cov_aug = block_diag(state.get_covariance(), cov_w, cov_v)
+    # Making sure this is positive semi-definite
+    cov_aug = ensure_positive_semi_definite(cov_aug)
+
+    # Sigma points are the augmented "mean" + each individual row of the transpose of the Cholesky decomposition of
+    # Cov_aug, with a weighing factor of plus and minus gamma_param
+    sqrt_cov_aug = np.linalg.cholesky(cov_aug).T
+    aux_sigma_pts = np.vstack((np.zeros((x_aug.shape[0],)),
+                               gamma_param * sqrt_cov_aug,
+                               -gamma_param * sqrt_cov_aug))
+    return x_aug + aux_sigma_pts
+
+
 class JointUnscentedKalmanFilter(OnlineEstimator):
     """An Unscented Kalman Filter that estimates both transient and ASOH parameters.
 
@@ -181,22 +215,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
             2D numpy array, where each row represents an "augmented state" consisting of hidden state, process noise,
             and sensor noise, in that order.
         """
-        # Building augmented state (recall noise terms are all zero-mean!)
-        x_aug = np.hstack((self.state.mean, np.zeros(self.num_hidden_dimensions + self.num_output_dimensions)))
-
-        # Now, build the augmented covariance
-        cov_aug = block_diag(self.state.covariance, self.cov_w, self.cov_v)
-        # Making sure this is positive semi-definite
-        cov_aug = ensure_positive_semi_definite(cov_aug)
-
-        # Sigma points are the augmented "mean" + each individual row of the transpose of the Cholesky decomposition of
-        # Cov_aug, with a weighing factor of plus and minus gamma_param
-        sqrt_cov_aug = np.linalg.cholesky(cov_aug).T
-        aux_sigma_pts = np.vstack((np.zeros((self._aug_len,)),
-                                   self.gamma_param * sqrt_cov_aug,
-                                   -self.gamma_param * sqrt_cov_aug))
-        sigma_pts = x_aug + aux_sigma_pts
-        return sigma_pts
+        return build_sigma_points(self.state, self.cov_w, self.cov_v, self.gamma_param)
 
     def _break_sigma_pts(self, sigma_pts: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
