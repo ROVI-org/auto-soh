@@ -22,3 +22,14 @@ def test_full_asoh_template(full_asoh):
     assert np.allclose(full_asoh.rc_elements[1].r.get_value(soc=0.25), 3.25), 'Wrong R_RC_2 value!'
     assert np.allclose(full_asoh.rc_elements[0].c.get_value(soc=0.75), 575), 'Wrong C_RC_1 value!'
     assert np.allclose(full_asoh.rc_elements[1].c.get_value(soc=0.37), 637), 'Wrong R_RC_2 value!'
+
+
+def test_json(full_asoh):
+    as_json = full_asoh.model_dump_json()
+    from_json = ECMASOH.model_validate_json(as_json)
+    for (name_a, value_a), (name_b, value_b) in zip(
+            from_json.iter_parameters(updatable_only=False),
+            full_asoh.iter_parameters(updatable_only=False)
+    ):
+        assert name_a == name_b
+        assert np.allclose(value_a, value_b)
