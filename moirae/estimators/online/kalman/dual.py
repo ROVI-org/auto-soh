@@ -83,7 +83,7 @@ class DualUnscentedKalmanFilter(OnlineEstimator):
         transients_sigma = self._ukf_transient.build_sigma_points()
         # A-SOH
         asoh_sigma = self._ukf_asoh.build_sigma_points()
-        _, asoh_w_hid, asoh_v_hid = self._ukf_asoh._break_sigma_pts(sigma_pts=asoh_sigma)
+        asoh_vals, asoh_w_hid, asoh_v_hid = self._ukf_asoh._break_sigma_pts(sigma_pts=asoh_sigma)
 
         # Step 1: perform "estimation" steps
         # (for the A-SOH estimator hidden state, the mean stays the same, but process noise is added to the covariance)
@@ -104,23 +104,28 @@ class DualUnscentedKalmanFilter(OnlineEstimator):
         asoh_ypred = self._predict_measurement(asoh_with_transient_updated, u)
         asoh_ypred += asoh_v_hid  # adding sensor noise to predictions
         # Assemble "estimate" and predictions
-        asoh_x_k_minus = MultivariateGaussian(self._ukf_asoh._assemble_unscented_estimate(asoh_sigma))
-        asoh_y_hat = MultivariateGaussian(self._ukf_asoh._assemble_unscented_estimate(asoh_ypred))
+        asoh_vals += asoh_w_hid
+        asoh_x_k_minus = MultivariateGaussian.model_validate(
+            self._ukf_asoh._assemble_unscented_estimate(asoh_vals))
+        asoh_y_hat = MultivariateGaussian.model_validate(self._ukf_asoh._assemble_unscented_estimate(asoh_ypred))
         # Now, compute covariance
-        asoh_cov_xy = self._ukf_asoh._get_unscented_covariance(array0=(asoh_sigma - asoh_x_k_minus.get_mean()),
+        asoh_cov_xy = self._ukf_asoh._get_unscented_covariance(array0=(asoh_vals - asoh_x_k_minus.get_mean()),
                                                                array1=(asoh_ypred - asoh_y_hat.get_mean()))
 
         # Step 2: perform correction steps
         # Transient
         self._ukf_transient.correction_update(x_k_minus=transients_x_k_minus,
                                               y_hat=transients_y_hat,
-                                              cov_xy=transients_cov_xy)
+                                              cov_xy=transients_cov_xy,
+                                              y=y)
+        # A-SOH
         self._ukf_asoh.correction_update(x_k_minus=asoh_x_k_minus,
                                          y_hat=asoh_y_hat,
-                                         cov_xy=asoh_cov_xy)
+                                         cov_xy=asoh_cov_xy,
+                                         y=y)
 
         # Store the x_km1_plus
-        self._x_km1_plus = self._ukf_transient.state.model_copy(deep=True)
+        self._x_km1_plus = self._ukf_transient.state.get_mean()
 
         # Now, prepare returns
         # Joint state
