@@ -7,7 +7,7 @@ from abc import abstractmethod
 import logging
 
 import numpy as np
-from pydantic import BaseModel, Field, BeforeValidator, model_validator
+from pydantic import BaseModel, Field, BeforeValidator, model_validator, WrapSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +39,18 @@ def enforce_dimensions(x: Any, dim=1) -> np.ndarray:
         raise ValueError(f'We do not yet support arrays with dimensionality of {dim}')
 
 
+def _encode_ndarray(value: np.ndarray, handler) -> List:
+    """Encode a numpy array as a regular list"""
+    return value.tolist()
+
+
 ScalarParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
+    WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 ListParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
+    WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 
 
@@ -65,8 +72,13 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     The numpy arrays used to store parameters are 2D arrays where the first dimension is a batch dimension,
     even for parameters which represent scalar values.
-    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameters` for list values
+    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameter` for list values
     to enable automatic conversion from user-supplied to the internal format used by :class:`HealthVariable`.
+
+    .. note::
+
+        The ``ListParameter`` and ``ScalarParameter`` classes also supply methods needed for serialization to
+        and parsing form JSON.
 
     Using a System Health
     ---------------------
