@@ -164,6 +164,40 @@ def test_names(simple_rint):
     assert ukf_joint.control_names == ('time', 'current', 'temperature')
 
 
+def test_partial_transients(simple_rint):
+    """Test a filter which only includes some of the transiet variables"""
+
+    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    ukf_joint = JointUKF(
+        model=ecm_model,
+        initial_asoh=rint_asoh,
+        initial_transients=rint_transient,
+        initial_inputs=ecm_inputs,
+        initial_covariance=np.atleast_2d(0.01),
+        normalize_asoh=False,
+        updatable_transients=('soc',),
+        updatable_asoh=False
+    )
+    assert ukf_joint.num_hidden_dimensions == 1
+    assert ukf_joint.state_names == ('soc',)
+    assert ukf_joint.output_names == ('terminal_voltage',)
+    assert ukf_joint.control_names == ('time', 'current', 'temperature')
+
+    # Make sure it only changes the soc when stepping
+    example_inputs = ECMInput(time=1., current=1.)
+    known_output = ecm_model.calculate_terminal_voltage(example_inputs, rint_transient, rint_asoh)
+    output_dist, state_dist = ukf_joint.step(
+        ECMInput(time=1., current=1.),
+        known_output
+    )
+    state_mean = state_dist.get_mean()
+    assert state_mean.shape == (1,)
+    assert state_mean[0] > 0
+
+    assert np.allclose(output_dist.get_mean(), known_output.to_numpy(), atol=0.2)
+
+
 def test_joint_ecm() -> None:
     # Initialize RNG
     rng = np.random.default_rng(seed=31415926535897932384626433832)

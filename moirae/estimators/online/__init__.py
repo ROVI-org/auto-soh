@@ -116,7 +116,8 @@ class OnlineEstimator:
     @cached_property
     def state_names(self) -> Tuple[str, ...]:
         """ Names of each state variable """
-        return self.transients.all_names + self.asoh.expand_names(self._updatable_names)
+        trans_names = tuple([self.transients.all_names[s] for s in self._updatable_transients])
+        return trans_names + self.asoh.expand_names(self._updatable_names)
 
     @cached_property
     def output_names(self) -> Tuple[str, ...]:
@@ -202,7 +203,7 @@ class OnlineEstimator:
         new_transients = self.model.update_transient_state(previous_inputs, new_inputs=new_inputs,
                                                            transient_state=my_transients,
                                                            asoh=my_asoh)
-        output[:, :self.num_transients] = new_transients.to_numpy()
+        output[:, :self.num_transients] = new_transients.to_numpy()[:, self._updatable_transients]
         return self._normalize_hidden_array(output)
 
     def _create_cell_model_inputs(self, hidden_states) -> Tuple[HealthVariable, GeneralContainer]:
@@ -263,7 +264,8 @@ class OnlineEstimator:
 
         Returns:
             - Estimate of the measurements as predicted by the underlying model
-            - Updated estimate of the hidden state, which includes the transient states and ASOH
+            - Updated estimate of the hidden state, which includes only the variables defined
+              in :attr:`state_names`
         """
 
         # Unpack the input and outputs into plain numpy arrays
