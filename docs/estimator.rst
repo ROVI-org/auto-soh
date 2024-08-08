@@ -56,5 +56,5 @@ All estimators provide access to the state through the ``estimator.state`` attri
 which can include elements from the transient and ASOH.
 
 Retrieve the identities of each state variable using ``estimator.state_names``
-or access the data current estimates for the transient and ASOH via the
+or access the current estimates for the transient state and ASOH via the
 ``estimator.asoh`` and ``estimator.transient`` attributes.

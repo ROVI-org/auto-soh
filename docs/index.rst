@@ -10,6 +10,7 @@ which define the physics of a variety of storage systems.
    :caption: Contents:
 
    system-models
+   simulator
    estimator
 
 

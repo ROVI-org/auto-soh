@@ -8,7 +8,7 @@ from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
 from moirae.models.ecm.transient import ECMTransientVector
-from moirae.models.ecm.simulator import ECMSimulator
+from moirae.simulator import Simulator
 from moirae.estimators.online.kalman.unscented import JointUnscentedKalmanFilter as JointUKF
 
 
@@ -209,7 +209,13 @@ def test_joint_ecm() -> None:
 
     # Initialize transient state and simulator
     transient0_rint = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=1.0)
-    rint_sim = ECMSimulator(asoh=asoh_rint, transient_state=transient0_rint, keep_history=True)
+    rint_sim = Simulator(
+        model=ECM(),
+        asoh=asoh_rint,
+        initial_input=ECMInput(),
+        transient_state=transient0_rint,
+        keep_history=True
+    )
 
     # Set up covariances for estimator
     # Start with the A-SOH

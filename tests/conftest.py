@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 from moirae.models.ecm import ECMASOH, ECMTransientVector, EquivalentCircuitModel, ECMInput
-from moirae.models.ecm.simulator import ECMSimulator
+from moirae.simulator import Simulator
 
 
 @fixture()
@@ -34,7 +34,13 @@ def timeseries_dataset(simple_rint) -> BatteryDataset:
     rest_time = 20.
 
     # Run the model
-    simulator = ECMSimulator(rint_asoh, keep_history=False)
+    simulator = Simulator(
+        EquivalentCircuitModel(),
+        rint_asoh,
+        initial_input=ECMInput(time=0., current=0.),
+        transient_state=ECMTransientVector(soc=0.),
+        keep_history=False
+    )
     output = defaultdict(list)
     start_time = 0.
 
