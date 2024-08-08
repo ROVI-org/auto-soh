@@ -266,8 +266,9 @@ class OnlineEstimator:
         """
 
         # Unpack the input and outputs into plain numpy arrays
-        new_state, pred_outputs = self._step(
-            DeltaDistribution(mean=u.to_numpy()),
+        new_inputs = DeltaDistribution(mean=u.to_numpy())
+        pred_outputs, new_state = self._step(
+            new_inputs,
             DeltaDistribution(mean=y.to_numpy())
         )
 
@@ -281,7 +282,9 @@ class OnlineEstimator:
         new_asoh[0, :] = new_mean[self.num_transients:]
         self.asoh.update_parameters(new_asoh, self._updatable_names)
 
-        return new_state, pred_outputs
+        # Store these inputs as the previous
+        self.u = new_inputs
+        return pred_outputs, new_state
 
     @abstractmethod
     def _step(self, u: MultivariateRandomDistribution, y: MultivariateRandomDistribution) \
