@@ -6,33 +6,41 @@ from pytest import fixture
 
 from moirae.models.ecm import (ECMASOH,
                                ECMInput,
-                               ECMTransientVector
-                               )
-from moirae.models.ecm.simulator import ECMSimulator
+                               ECMTransientVector)
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.simulator import Simulator
 
 
 @fixture
-def rint() -> Tuple[ECMTransientVector, ECMASOH, ECMSimulator]:
+def rint() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
     soc = np.array([0, 0.25, 0.75])
     hyst = np.array([-1, 0, 1])
     transient = ECMTransientVector(soc=soc, hyst=hyst)
     asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
     # Make hysteresis approach asymptotic value fast
     asoh.h0.gamma = 100
-    simulator = ECMSimulator(asoh=asoh, transient_state=transient, keep_history=True)
-    return (transient, asoh, simulator)
+    simulator = Simulator(model=ECM(),
+                          asoh=asoh,
+                          transient_state=transient,
+                          initial_input=ECMInput(),
+                          keep_history=True)
+    return transient, asoh, simulator
 
 
 @fixture
-def pngv() -> Tuple[ECMTransientVector, ECMASOH, ECMSimulator]:
+def pngv() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
     soc = np.array([0, 0.25, 0.75])
     hyst = np.array([-1, 0, 1])
     q0 = np.array([0., 1., 2])
     i_rc = np.arange(6, dtype=float).reshape((3, 2))
     transient = ECMTransientVector(soc=soc, hyst=hyst, q0=q0, i_rc=i_rc)
     asoh = ECMASOH.provide_template(has_C0=True, num_RC=2)
-    simulator = ECMSimulator(asoh=asoh, transient_state=transient, keep_history=True)
-    return (transient, asoh, simulator)
+    simulator = Simulator(model=ECM(),
+                          asoh=asoh,
+                          transient_state=transient,
+                          initial_input=ECMInput(),
+                          keep_history=True)
+    return transient, asoh, simulator
 
 
 def test_rint(rint) -> None:
@@ -47,13 +55,13 @@ def test_rint(rint) -> None:
     new_input = ECMInput(time=3600, current=current)
     simulator.evolve([new_input])
     # Validate
-    assert np.allclose([0.25, 0.5, 1.], simulator.transient_history[-1].soc[:, 0]), \
-        f'Wrong Rint SOCs: {simulator.transient_history[-1].soc}'
-    assert simulator.transient_history[-1].hyst.shape == (3, 1), \
-        f'Hysteresis batching did not work: {simulator.transient_history[-1].hyst.shape}'
+    assert np.allclose([0.25, 0.5, 1.], simulator.transient.soc[:, 0]), \
+        f'Wrong Rint SOCs: {simulator.transient.soc}'
+    assert simulator.transient.hyst.shape == (3, 1), \
+        f'Hysteresis batching did not work: {simulator.transient.hyst.shape}'
     # hysteresis should be at the max, as it approaches the true value very quickly
-    assert np.allclose(asoh.h0.base_values, simulator.transient_history[-1].hyst), \
-        f'Wrong hysteresis values: {simulator.transient_history[-1].hyst}'
+    assert np.allclose(asoh.h0.base_values, simulator.transient.hyst), \
+        f'Wrong hysteresis values: {simulator.transient.hyst}'
 
 
 def test_pngv(pngv) -> None:
@@ -70,15 +78,15 @@ def test_pngv(pngv) -> None:
     new_input = ECMInput(time=3600, current=current)
     simulator.evolve([new_input])
     # Validate
-    assert np.allclose([0.25, 0.5, 1.], simulator.transient_history[-1].soc.copy().flatten()), \
-        f'Wrong Rint SOCs: {simulator.transient_history[-1].soc.copy()}'
-    assert np.allclose(initial_q0 + (3600 * current), simulator.transient_history[-1].q0.copy()), \
-        f'Wrong q0 evolution: {simulator.transient_history[-1].q0.copy()}'
-    assert simulator.transient_history[-1].i_rc.copy().shape == (3, 2), \
-        f'Wrong i_rc shape: {simulator.transient_history[-1].i_rc.copy().shape}'
+    assert np.allclose([0.25, 0.5, 1.], simulator.transient.soc.copy().flatten()), \
+        f'Wrong Rint SOCs: {simulator.transient_history.soc}'
+    assert np.allclose(initial_q0 + (3600 * current), simulator.transient.q0), \
+        f'Wrong q0 evolution: {simulator.transient.q0}'
+    assert simulator.transient.i_rc.copy().shape == (3, 2), \
+        f'Wrong i_rc shape: {simulator.transient.i_rc.shape}'
     # at this point, the currents should all be pretty close to the total current
-    assert np.allclose(current, simulator.transient_history[-1].i_rc.copy()), \
-        f'Wrong i_rc values: {simulator.transient_history[-1].i_rc.copy()}'
+    assert np.allclose(current, simulator.transient.i_rc), \
+        f'Wrong i_rc values: {simulator.transient.i_rc}'
 
 
 def test_numpy_operations(pngv):
