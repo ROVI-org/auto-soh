@@ -146,4 +146,4 @@ class DualUnscentedKalmanFilter(OnlineEstimator):
         y_hat_cov = 0.25 * (transients_y_hat.get_covariance() + asoh_y_hat.get_covariance())
         y_hat = MultivariateGaussian(mean=y_hat_mean, covariance=y_hat_cov)
 
-        return (joint_state, y_hat)
+        return y_hat, joint_state

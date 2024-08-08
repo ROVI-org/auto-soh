@@ -1,7 +1,7 @@
 import numpy as np
 
-from moirae.estimators.online import DeltaDistribution
 from moirae.estimators.online.kalman.dual import DualUnscentedKalmanFilter
+from moirae.models.ecm import ECMInput, ECMMeasurement
 
 
 def test_step(simple_rint):
@@ -22,11 +22,9 @@ def test_step(simple_rint):
         initial_asoh_covariance=np.atleast_2d([[0.01]]),
     )
 
-    applied_control = DeltaDistribution(mean=np.array([1., 1., 25.]))  # Time=1s, I=1 Amp, 25C
     end_soc = (1. / rint_asoh.q_t.value).item()
     end_voltage = (rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)).item()
-    observed_voltage = DeltaDistribution(mean=np.array([end_voltage]))
-    ukf_dual._step(
-        applied_control,
-        observed_voltage
+    ukf_dual.step(
+        ECMInput(time=1, current=1),
+        ECMMeasurement(terminal_voltage=end_voltage)
     )

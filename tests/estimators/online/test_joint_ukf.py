@@ -284,9 +284,9 @@ def test_joint_ecm() -> None:
             noisy_voltage += [vt]
             # Step the joint estimator
             measurement = ECMMeasurement(terminal_voltage=vt)
-            pred_measure, est_hidden = rint_joint_ukf._step(
-                u=DeltaDistribution(mean=new_input.to_numpy()),
-                y=DeltaDistribution(mean=measurement.to_numpy())
+            pred_measure, est_hidden = rint_joint_ukf.step(
+                u=new_input,
+                y=measurement
             )
             # Save to the dictionary
             joint_ukf_predictions['joint_states'] += [est_hidden.model_copy(deep=True)]

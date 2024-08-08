@@ -267,7 +267,7 @@ class OnlineEstimator:
 
         # Unpack the input and outputs into plain numpy arrays
         new_inputs = DeltaDistribution(mean=u.to_numpy())
-        new_state, pred_outputs = self._step(
+        pred_outputs, new_state = self._step(
             new_inputs,
             DeltaDistribution(mean=y.to_numpy())
         )
@@ -284,7 +284,7 @@ class OnlineEstimator:
 
         # Store these inputs as the previous
         self.u = new_inputs
-        return new_state, pred_outputs
+        return pred_outputs, new_state
 
     @abstractmethod
     def _step(self, u: MultivariateRandomDistribution, y: MultivariateRandomDistribution) \
