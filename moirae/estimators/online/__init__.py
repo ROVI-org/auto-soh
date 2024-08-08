@@ -18,28 +18,25 @@ from moirae.models.base import CellModel, GeneralContainer, InputQuantities, Hea
 # TODO (wardlt): Move normalization to a model metaclass. Maybe a ModelFilterInterface we had earlier ;)
 class OnlineEstimator:
     """
-    Defines the base structure of an online estimator, an
+    Defines the base structure of an online estimator.
 
-    All estimators require...
+    Implementations must provide the :meth:`_step` operation and can operate without any knowledge of the
+    underlying model or the role of individual elements of the hidden state by employing the utility
+    operations provide by the base class:
 
-    1. A :class:`~moirae.models.base.CellModel` which describes how the system state is expected to change and
-        relate the current state to observable measurements.
-    2. An initial estimate for the parameters of the system, which we refer to as the Advanced State of Health (ASOH).
-    3. An initial estimate for the transient states of the system
-    4. Identification of which parameters to treat as hidden state. Many implementations of estimators are composites
-        which rely on different estimators to adjust subsets of states separately.
-
-    Different implementations may require other information, such as an initial guess for the
-    probability distribution for the values of the states (transient or ASOH).
-
-    Use the estimator by calling the :meth:`step` function to update the estimated state
-    provided a new observation of the outputs of the system.
+    - :meth:`_to_hidden_state` to assemble an initial hidden state vector from the provided transients and ASOH.
+    - :meth:`_update_hidden_states` to project the hidden states forward in time given the physics model.
+    - :meth:`_predict_measurement` to estimate the observables of the system.
+    - :meth:`_create_cell_model_inputs` to convert the hidden state to transient state and ASOH.
 
     Args:
         model: Model used to describe the underlying physics of the storage system
         initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
         initial_transients: Initial estimates for the transient states of the battery
         initial_inputs: Initial inputs to the system
+        updatable_transients: Whether to estimate values for all transient states (``True``),
+            none of the states (``False``),
+            or only a select set of them (provide a list of names).
         updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
             none of the updatable parameters (``False``),
             or only a select set of them (provide a list of names).
@@ -116,7 +113,8 @@ class OnlineEstimator:
     @cached_property
     def state_names(self) -> Tuple[str, ...]:
         """ Names of each state variable """
-        return self.transients.all_names + self.asoh.expand_names(self._updatable_names)
+        trans_names = tuple([self.transients.all_names[s] for s in self._updatable_transients])
+        return trans_names + self.asoh.expand_names(self._updatable_names)
 
     @cached_property
     def output_names(self) -> Tuple[str, ...]:
@@ -202,7 +200,7 @@ class OnlineEstimator:
         new_transients = self.model.update_transient_state(previous_inputs, new_inputs=new_inputs,
                                                            transient_state=my_transients,
                                                            asoh=my_asoh)
-        output[:, :self.num_transients] = new_transients.to_numpy()
+        output[:, :self.num_transients] = new_transients.to_numpy()[:, self._updatable_transients]
         return self._normalize_hidden_array(output)
 
     def _create_cell_model_inputs(self, hidden_states) -> Tuple[HealthVariable, GeneralContainer]:
@@ -263,7 +261,8 @@ class OnlineEstimator:
 
         Returns:
             - Estimate of the measurements as predicted by the underlying model
-            - Updated estimate of the hidden state, which includes the transient states and ASOH
+            - Updated estimate of the hidden state, which includes only the variables defined
+              in :attr:`state_names`
         """
 
         # Unpack the input and outputs into plain numpy arrays
