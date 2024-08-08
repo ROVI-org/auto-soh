@@ -11,6 +11,7 @@ which define the physics of a variety of storage systems.
 
    system-models
    simulator
+   estimator
 
 
 Why the name?

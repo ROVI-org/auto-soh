@@ -131,8 +131,8 @@ def test_normalization(simple_rint):
     observed_voltage = DeltaDistribution(mean=np.array([end_voltage]))
     for ukf in [ukf_joint, ukf_joint_normed]:
         # Test that it runs the cell model properly
-        updated_states = ukf.update_hidden_states(
-            hidden_states=ukf.state.mean[None, :],
+        updated_states = ukf._update_hidden_states(
+            hidden_states=ukf.state.get_mean()[None, :],
             previous_controls=DeltaDistribution(mean=np.array([0, 1])),
             new_controls=applied_control
         )
@@ -140,11 +140,11 @@ def test_normalization(simple_rint):
         assert np.allclose(actual_states, [[end_soc, 0., r0]])
 
         # Test that it gets the outputs correctly
-        pred_outputs = ukf.predict_measurement(updated_states, controls=applied_control)
+        pred_outputs = ukf._predict_measurement(updated_states, controls=applied_control)
         assert np.allclose(pred_outputs, end_voltage)
 
         # Make sure nothing odd happens
-        pred_voltage, pred_state = ukf.step(applied_control, observed_voltage)
+        pred_voltage, pred_state = ukf._step(applied_control, observed_voltage)
         assert np.isfinite(pred_voltage.get_mean()).all()
         assert np.isfinite(pred_state.get_mean()).all()
 
@@ -162,6 +162,40 @@ def test_names(simple_rint):
     assert ukf_joint.state_names == ('soc', 'hyst', 'r0.base_values')
     assert ukf_joint.output_names == ('terminal_voltage',)
     assert ukf_joint.control_names == ('time', 'current', 'temperature')
+
+
+def test_partial_transients(simple_rint):
+    """Test a filter which only includes some of the transiet variables"""
+
+    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    ukf_joint = JointUKF(
+        model=ecm_model,
+        initial_asoh=rint_asoh,
+        initial_transients=rint_transient,
+        initial_inputs=ecm_inputs,
+        initial_covariance=np.atleast_2d(0.01),
+        normalize_asoh=False,
+        updatable_transients=('soc',),
+        updatable_asoh=False
+    )
+    assert ukf_joint.num_hidden_dimensions == 1
+    assert ukf_joint.state_names == ('soc',)
+    assert ukf_joint.output_names == ('terminal_voltage',)
+    assert ukf_joint.control_names == ('time', 'current', 'temperature')
+
+    # Make sure it only changes the soc when stepping
+    example_inputs = ECMInput(time=1., current=1.)
+    known_output = ecm_model.calculate_terminal_voltage(example_inputs, rint_transient, rint_asoh)
+    output_dist, state_dist = ukf_joint.step(
+        ECMInput(time=1., current=1.),
+        known_output
+    )
+    state_mean = state_dist.get_mean()
+    assert state_mean.shape == (1,)
+    assert state_mean[0] > 0
+
+    assert np.allclose(output_dist.get_mean(), known_output.to_numpy(), atol=0.2)
 
 
 def test_joint_ecm() -> None:
@@ -250,7 +284,7 @@ def test_joint_ecm() -> None:
             noisy_voltage += [vt]
             # Step the joint estimator
             measurement = ECMMeasurement(terminal_voltage=vt)
-            pred_measure, est_hidden = rint_joint_ukf.step(
+            pred_measure, est_hidden = rint_joint_ukf._step(
                 u=DeltaDistribution(mean=new_input.to_numpy()),
                 y=DeltaDistribution(mean=measurement.to_numpy())
             )

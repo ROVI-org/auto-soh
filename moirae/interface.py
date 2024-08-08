@@ -72,7 +72,7 @@ def run_online_estimate(
     # Iterate over all timesteps
     for i, (_, row) in enumerate(dataset.raw_data.reset_index().iterrows()):  # .reset_index to iterate in sort order
         controls, measurements = _row_to_inputs(row)
-        new_outputs, new_state = estimator.step(controls, measurements)
+        new_outputs, new_state = estimator._step(controls, measurements)
 
         state_mean[i, :] = new_state.get_mean()
         state_std[i, :] = np.diag(new_state.get_covariance())
