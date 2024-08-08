@@ -45,7 +45,7 @@ class Resistance(SOCInterpolatedHealth):
     reference_temperature: Optional[float] = \
         Field(default=25,
               description='Reference temperature for internal parameters. Units: °C')
-    temperature_dependence_factor: Optional[ScalarParameter] = \
+    temperature_dependence_factor: ScalarParameter = \
         Field(default=0,
               description='Factor determining dependence of R0 with temperature. Units: 1/°C')
 
