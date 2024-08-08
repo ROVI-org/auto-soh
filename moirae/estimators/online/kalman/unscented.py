@@ -255,7 +255,7 @@ class JointUnscentedKalmanFilter(OnlineEstimator):
         cov = self._get_unscented_covariance(array0=diffs)
         return {'mean': mu, 'covariance': cov}
 
-    def _get_unscented_covariance(self, array0: np.ndarray, array1: np.ndarray = None) -> np.ndarray:
+    def _get_unscented_covariance(self, array0: np.ndarray, array1: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Functions that computes the unscented covariance between zero-mean arrays. If second array is not provided,
         this is equivalent to computing the unscented variance of the only provided array.
