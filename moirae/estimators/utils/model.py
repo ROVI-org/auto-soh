@@ -15,11 +15,15 @@ class HiddenUpdateFunction(Callable[[np.ndarray, np.ndarray, np.ndarray], np.nda
         - Values for the ASOH parameters that remain fixed
         - An example transient state and input to be passed to the function which will be used as a template
 
+    The resultant function will take numpy arrays as inputs and produce numpy arrays as outputs
+
     Args:
         cell_model: Model which defines the physics of the system being modeled
         asoh: Values for all state of health parameters of the model
-        transient_state: Example transient state for the system
-
+        transient_state: Current values of the transient state of the system
+        input_template: Example input values for the model
+        transient_inputs: Whether to include the transient state as inputs
+        asoh_inputs: Names of the ASOH parameters to include as inputs
     """
 
     cell_model: CellModel
