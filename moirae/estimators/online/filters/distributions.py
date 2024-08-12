@@ -34,7 +34,7 @@ class DeltaDistribution(MultivariateRandomDistribution):
         return self.mean.copy()
 
     def get_covariance(self) -> np.ndarray:
-        return np.zeros_like(self.mean) + np.inf
+        return np.zeros_like(self.mean)
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
