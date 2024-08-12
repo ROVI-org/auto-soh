@@ -2,8 +2,8 @@ import numpy as np
 
 from moirae.estimators.online.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.kalman.unscented import UnscentedKalmanFilter as UKF
-from moirae.models.base import CellModel, InputQuantities, GeneralContainer, HealthVariable, OutputQuantities, \
-    ScalarParameter
+from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, OutputQuantities, \
+    ScalarParameter, CellModel
 
 
 # Define Lorenz dynamics

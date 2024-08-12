@@ -1,7 +1,7 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
 from typing_extensions import Annotated
 from abc import abstractmethod
 import logging
@@ -441,7 +441,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
 
-    def get_parameters(self, names: Optional[list[str]] = None) -> np.ndarray:
+    def get_parameters(self, names: Optional[Sequence[str]] = None) -> np.ndarray:
         """Get updatable parameters as a numpy vector
 
         Args:
@@ -473,7 +473,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             output.append(value)
         return np.concatenate(output, axis=1)  # Combine along the non-batched dimension
 
-    def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
+    def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[Sequence[str]] = None):
         """Set the value for updatable parameters given their names
 
         Args:
@@ -561,7 +561,7 @@ class GeneralContainer(BaseModel,
                 output.append(name)
             else:
                 output.extend(f'{name}[{i}]' for i in range(length))
-        return output
+        return tuple(output)
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """
