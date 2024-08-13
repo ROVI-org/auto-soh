@@ -12,23 +12,25 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable
     """
 
-    @abstractmethod
-    def get_mean(self) -> np.ndarray:
-        """
-        Provides mean (first moment) of distribution
-        """
-        pass
-
     @computed_field
     @property
     def num_dimensions(self) -> int:
         """ Number of dimensions of random variable """
         return len(self.get_mean())
 
+    @abstractmethod
+    def get_mean(self) -> np.ndarray:
+        """
+        Provides mean (first moment) of distribution
+        """
+        raise NotImplementedError('Please implement in child class!')
+
+    @abstractmethod
     def get_covariance(self) -> np.ndarray:
         """
         Provides the covariance of the distribution
         """
+        raise NotImplementedError('Please implement in child class!')
 
 
 class DeltaDistribution(MultivariateRandomDistribution):
