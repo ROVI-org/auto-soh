@@ -16,7 +16,7 @@ from moirae.models.base import CellModel, GeneralContainer, InputQuantities, Hea
 
 
 # TODO (wardlt): Move normalization to a model metaclass. Maybe a ModelFilterInterface we had earlier ;)
-class OnlineEstimator:
+class HealthEstimator:
     """
     Defines the base structure of an online estimator.
 
