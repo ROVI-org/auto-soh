@@ -8,8 +8,10 @@ from moirae.estimators.online.filters.kalman.unscented import compute_unscented_
 
 
 # Define Lorenz dynamics
-# Define Lorenz dynamics
 class Lorenz(ModelWrapper):
+    """
+    Class to wrap the dynamics of the Lorenz attractor in a way that is ready to be taken by the filters
+    """
     def __init__(self) -> None:
         pass
 
@@ -55,9 +57,46 @@ class Lorenz(ModelWrapper):
         return np.hstack((m0, m1))
 
 
+class LinearMotion(ModelWrapper):
+    """
+    Class to wrap simple linear motion dynamics to perform a test of the UKF step that can be tracked by hand.
+    The hidden states correspond to a position along a 1D axis, and the control is the velocity.
+    """
+    def __init__(self) -> None:
+        pass
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        """ Outputs expected dimensionality of hidden state """
+        return 1
+
+    @property
+    def num_output_dimensions(self) -> int:
+        """ Outputs expected dimensionality of output measurements """
+        return 1
+
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
+        delta_t = new_controls[0] - previous_controls[0]
+        velocity = previous_controls[1]
+        return hidden_states + (delta_t * velocity)
+
+    def predict_measurement(self,
+                            hidden_states: np.ndarray,
+                            controls: np.ndarray) -> np.ndarray:
+        return hidden_states
+
+
 @fixture
 def lorenz_model() -> Lorenz:
     return Lorenz()
+
+
+@fixture
+def linear_motion() -> LinearMotion:
+    return LinearMotion()
 
 
 def test_covariance_assembly():
@@ -81,6 +120,47 @@ def test_covariance_assembly():
     unscented_cov = compute_unscented_covariance(cov_weights=cov_weights, array0=samples)
 
     assert np.allclose(covariance, unscented_cov, rtol=2.0e-02)
+
+
+def test_step(linear_motion):
+
+    # Definine true initial state
+    state0 = np.array([10])
+
+    # Noise terms
+    process_noise = np.atleast_2d(1.0e-02)
+    sensor_noise = np.atleast_2d(1.0e-02)
+
+    # Initial control
+    u0 = DeltaDistribution(mean=np.array([0, 1]))
+
+    # Define initial guesses
+    state_guess = np.array([9])
+    cov_state = np.diag([1])
+    initial_hidden = MultivariateGaussian(mean=state_guess, covariance=cov_state)
+
+    # Set up UKF
+    ukf = UKF(model=linear_motion,
+              initial_hidden=initial_hidden,
+              initial_controls=u0,
+              covariance_process_noise=process_noise,
+              covariance_sensor_noise=sensor_noise)
+
+    # Now, let us perform one step corresponding to 1s
+    u1 = DeltaDistribution(mean=np.array([1, 0]))
+    deltaS = (u1.get_mean()[0] - u0.get_mean()[0]) * u0.get_mean()[1]
+    state1 = state0 + deltaS
+
+    # Because the measurement is equivalent to the hidden state, they are perfectly correlated, so the filter should be
+    # able to assign the value of the measurement directly to the hidden state
+    # Similarly, because their correlation is exact, the gain matrix will force the covariance to be reduced to 0.
+    # The covariance for the predicted output, however, should be the initial hidden state covariance, plus the process
+    # noise, plus the sensor noise
+    ukf_hid, ukf_pred = ukf.step(new_controls=u1, measurements=DeltaDistribution(mean=state1))
+    assert np.allclose(ukf_hid.get_mean(), state1)
+    assert np.allclose(ukf_hid.get_covariance(), 0)
+    assert np.allclose(ukf_pred.get_mean(), state_guess + deltaS)
+    assert np.allclose(ukf_pred.get_covariance(), cov_state + process_noise + sensor_noise)
 
 
 def test_lorenz_full_ukf(lorenz_model):
@@ -149,7 +229,7 @@ def test_lorenz_full_ukf(lorenz_model):
 
         # Assemble measurement
         measure = DeltaDistribution(mean=m)
-        ukf_pred, ukf_hid = ukf_chaos.step(new_controls=u, measurements=measure)
+        ukf_hid, ukf_pred = ukf_chaos.step(new_controls=u, measurements=measure)
         ukf_values['state'].append(ukf_hid)
         ukf_values['measurements'].append(ukf_pred)
 
