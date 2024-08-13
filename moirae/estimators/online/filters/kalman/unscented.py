@@ -37,7 +37,7 @@ def assemble_unscented_estimate_from_samples(samples: np.ndarray,
 
 def compute_unscented_covariance(cov_weights: np.ndarray,
                                  array0: np.ndarray,
-                                 array1: Optional[np.ndarray],
+                                 array1: Optional[np.ndarray] = None,
                                  ) -> np.ndarray:
     """
     Function that computes the unscented covariance between zero-mean arrays. If second array is not provided,
@@ -290,7 +290,7 @@ class UnscentedKalmanFilter(BaseFilter):
         x_k_minus = MultivariateGaussian.model_validate(x_k_minus_info)
 
         # Step 1c: use updated hidden states to predict outpus
-        y_preds = self._predict_outputs(updated_hidden_states=x_updated, new_controls=new_controls, **kwargs)
+        y_preds = self._predict_outputs(updated_hidden_states=x_updated, controls=new_controls, **kwargs)
         # Don't forget to include sensor noise!
         y_preds += v_hid
         # Assemble y_hat
