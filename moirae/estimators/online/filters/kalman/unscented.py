@@ -222,8 +222,8 @@ class UnscentedKalmanFilter(BaseFilter):
 
         # Update hidden states
         x_update = self.model.update_hidden_states(hidden_states=hidden_states,
-                                                   previous_controls=u_old,
-                                                   new_controls=new_controls,
+                                                   previous_controls=u_old.get_mean(),
+                                                   new_controls=new_controls.get_mean(),
                                                    **kwargs)
         return x_update
 
@@ -258,7 +258,8 @@ class UnscentedKalmanFilter(BaseFilter):
         Returns:
             y_preds: predicted outputs based on provided hidden states and control
         """
-        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states, controls=controls, **kwargs)
+        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states,
+                                                 controls=controls.get_mean(), **kwargs)
         return y_preds
 
     def estimation_update(self,
