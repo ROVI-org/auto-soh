@@ -2,19 +2,18 @@
 from pytest import raises
 import numpy as np
 
-from moirae.estimators.utils.model import CellModelInterface
+from moirae.estimators.utils.model import JointCellModelInterface
 
 
 def test_update_hidden_only(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
 
-    cell_function = CellModelInterface(
-        cell_model=ecm,
+    cell_function = JointCellModelInterface(
+        model=ecm,
         asoh=rint_asoh,
-        transient_state=rint_transient,
+        transients=rint_transient,
         input_template=rint_inputs,
         asoh_inputs=tuple(),
-        transient_inputs=True,
     )
 
     rint_inputs.current = -np.atleast_2d(1.0)  # Negative current is charging
@@ -40,34 +39,6 @@ def test_update_hidden_only(simple_rint):
     assert np.allclose(output, expected_voltage)
 
 
-def test_update_asoh_only(simple_rint):
-    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
-    rint_asoh.mark_updatable('q_t.base_values')
-    assert rint_asoh.num_updatable == 1
-
-    cell_function = CellModelInterface(
-        cell_model=ecm,
-        asoh=rint_asoh,
-        transient_state=rint_transient,
-        input_template=rint_inputs,
-        asoh_inputs=('q_t.base_values',),
-        transient_inputs=False,
-    )
-
-    rint_inputs.current = -np.atleast_2d(1.0)  # Negative current is charging
-    new_inputs = rint_inputs.model_copy(deep=True)
-    rint_inputs.time = np.atleast_2d([1.0])
-
-    hidden_state = cell_function.create_hidden_state(rint_asoh, rint_transient)
-    assert np.allclose(hidden_state, [[10.]])
-    new_hidden = cell_function.update_hidden_state(
-        hidden_states=hidden_state,
-        new_control=new_inputs.to_numpy(),
-        previous_control=rint_inputs.to_numpy()
-    )
-    assert np.allclose(new_hidden, hidden_state)  # No update because there is no transient state
-
-
 def test_update_batched_inputs(simple_rint):
     """Make sure we get an error if provided batched inputs to the initializer"""
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
@@ -76,22 +47,20 @@ def test_update_batched_inputs(simple_rint):
     rint_transient.from_numpy(np.array([[0.0, 0.0], [0.1, 0.0]]))
 
     with raises(ValueError, match='transient state must be 1. Found: 2'):
-        CellModelInterface(
-            cell_model=ecm,
+        JointCellModelInterface(
+            model=ecm,
             asoh=rint_asoh,
-            transient_state=rint_transient,
+            transients=rint_transient,
             input_template=rint_inputs,
             asoh_inputs=('q_t.base_values',),
-            transient_inputs=False,
         )
 
     rint_asoh.update_parameters(np.array([[10.], [9.], [11.]]), ['q_t.base_values'])
     with raises(ValueError, match='ASOH must be 1. Found: 3'):
-        CellModelInterface(
-            cell_model=ecm,
+        JointCellModelInterface(
+            model=ecm,
             asoh=rint_asoh,
-            transient_state=rint_transient,
+            transients=rint_transient,
             input_template=rint_inputs,
             asoh_inputs=('q_t.base_values',),
-            transient_inputs=False,
         )
