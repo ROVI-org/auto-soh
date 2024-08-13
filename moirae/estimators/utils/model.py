@@ -2,12 +2,12 @@
 widely-used Python types, such as Numpy Arrays."""
 
 import numpy as np
-from typing import Callable, Tuple
+from typing import Tuple
 
 from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel
 
 
-class HiddenUpdateFunction(Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]):
+class CellModelInterface:
     """Function to produce an updated estimate for hidden states based on a :class:`CellModel`
 
     Create the hidden update function by defining
@@ -98,10 +98,10 @@ class HiddenUpdateFunction(Callable[[np.ndarray, np.ndarray, np.ndarray], np.nda
         my_asoh.update_parameters(hidden_states[:, self.num_transients:], self.asoh_inputs)
         return my_asoh, my_transients
 
-    def __call__(self,
-                 hidden_states: np.ndarray,
-                 new_control: np.ndarray,
-                 previous_control: np.ndarray) -> np.ndarray:
+    def update_hidden_state(self,
+                            hidden_states: np.ndarray,
+                            new_control: np.ndarray,
+                            previous_control: np.ndarray) -> np.ndarray:
         """Predict the update for hidden states under specified controls
 
         Args:
@@ -131,3 +131,24 @@ class HiddenUpdateFunction(Callable[[np.ndarray, np.ndarray, np.ndarray], np.nda
                                                            asoh=my_asoh)
         output[:, :self.num_transients] = new_transients.to_numpy()
         return output
+
+    def predict_outputs(self,
+                        hidden_states: np.ndarray,
+                        new_control: np.ndarray) -> np.ndarray:
+        """Predict the observable outputs of the CellModel provided the current hidden states
+
+        Args:
+            hidden_states: A batch of hidden states as a 2D numpy array. The first dimension is the batch dimension
+            new_control: Control at the present timestep
+        Returns:
+            Outputs for each hidden state in the batch
+        """
+
+        # First, transform the controls into ECM inputs
+        inputs = self.input_template.model_copy(deep=True)
+        inputs.from_numpy(new_control)
+
+        # Now, iterate through hidden states to compute terminal voltage
+        my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
+        outputs = self.model.calculate_terminal_voltage(new_inputs=inputs, transient_state=my_transients, asoh=my_asoh)
+        return outputs.to_numpy()
