@@ -7,7 +7,7 @@ from scipy.linalg import block_diag
 from moirae.estimators.online.filters.distributions import (MultivariateRandomDistribution,
                                                             MultivariateGaussian,
                                                             DeltaDistribution)
-from moirae.estimators.online.filters.base import BaseFilter
+from moirae.estimators.online.filters.base import ModelWrapper, BaseFilter
 from .utils import ensure_positive_semi_definite, calculate_gain_matrix
 
 
@@ -70,7 +70,7 @@ class UnscentedKalmanFilter(BaseFilter):
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
     """
     def __init__(self,
-                 model,
+                 model: ModelWrapper,
                  initial_hidden: MultivariateGaussian,
                  initial_controls: MultivariateRandomDistribution,
                  alpha_param: float = 1.,

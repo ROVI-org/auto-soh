@@ -2,13 +2,14 @@ import numpy as np
 from pytest import fixture
 
 from moirae.estimators.online.filters.distributions import (MultivariateGaussian, DeltaDistribution)
+from moirae.estimators.online.filters.base import ModelWrapper
 from moirae.estimators.online.filters.kalman.unscented import UnscentedKalmanFilter as UKF
 from moirae.estimators.online.filters.kalman.unscented import compute_unscented_covariance
 
 
 # Define Lorenz dynamics
 # Define Lorenz dynamics
-class Lorenz():
+class Lorenz(ModelWrapper):
     def __init__(self) -> None:
         pass
 
@@ -24,13 +25,13 @@ class Lorenz():
 
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
-                             previous_controls: DeltaDistribution,
-                             new_controls: DeltaDistribution) -> np.ndarray:
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
         # Get attractor params
-        sigma = new_controls.mean[1]
-        rho = new_controls.mean[2]
-        beta = new_controls.mean[3]
-        dt = new_controls.mean[0] - previous_controls.mean[0]
+        sigma = new_controls[1]
+        rho = new_controls[2]
+        beta = new_controls[3]
+        dt = new_controls[0] - previous_controls[0]
 
         # Compute derivatives
         dxdt = sigma * (hidden_states[:, 1] - hidden_states[:, 0])
@@ -44,9 +45,9 @@ class Lorenz():
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
-                            controls: DeltaDistribution) -> np.ndarray:
+                            controls: np.ndarray) -> np.ndarray:
         # Get power parameter
-        n = controls.mean[4]
+        n = controls[4]
 
         # Compute outputs
         m0 = ((np.sum(hidden_states ** 2, axis=1)) ** (1./2.)).reshape((-1, 1))
@@ -134,14 +135,14 @@ def test_lorenz_full_ukf(lorenz_model):
         # Compute new true hidden state
         prev_hidden = noisy_values['state'][-1]
         new_state = lorenz_model.update_hidden_states(hidden_states=prev_hidden,
-                                                      previous_controls=previous_control,
-                                                      new_controls=u)
+                                                      previous_controls=previous_control.get_mean(),
+                                                      new_controls=u.get_mean())
         real_values['state'] += [new_state.copy()]
         new_state += rng.multivariate_normal(mean=np.zeros(3), cov=process_noise)
         noisy_values['state'] += [new_state.copy()]
 
         # Get new measurement
-        m = lorenz_model.predict_measurement(hidden_states=new_state, controls=u)
+        m = lorenz_model.predict_measurement(hidden_states=new_state, controls=u.get_mean())
         real_values['measurements'] += [m.copy()]
         m += rng.multivariate_normal(mean=np.zeros(2), cov=sensor_noise)
         noisy_values['measurements'] += [m.copy()]
