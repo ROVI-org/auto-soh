@@ -78,7 +78,6 @@ def test_covariance_assembly():
 
     # Unscented covariance calculation
     unscented_cov = compute_unscented_covariance(cov_weights=cov_weights, array0=samples)
-    print(unscented_cov)
 
     assert np.allclose(covariance, unscented_cov, rtol=2.0e-02)
 
