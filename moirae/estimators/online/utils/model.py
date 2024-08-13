@@ -1,10 +1,19 @@
 """Tools to reduce operations on :class:`~moirae.models.base.CellModel` to functions which act only on
 widely-used Python types, such as Numpy Arrays."""
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional, Union
 
 from moirae.estimators.online.filters.base import ModelWrapper
-from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel
+from moirae.estimators.online.filters.distributions import DeltaDistribution, MultivariateGaussian
+from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
+
+
+def convert_vals_model_to_filter(
+        model_quantities: Union[GeneralContainer, InputQuantities, OutputQuantities],
+        uncertainty_matrix: Optional[np.ndarray] = None) -> Union[DeltaDistribution, MultivariateGaussian]:
+    if uncertainty_matrix is None:
+        return DeltaDistribution(mean=model_quantities.to_numpy())
+    return MultivariateGaussian(mean=model_quantities.to_numpy(), covariance=uncertainty_matrix)
 
 
 # TODO (wardlt): Implement the "ASOHOnly" interface needed by the Dual Estimator by making it such that
@@ -15,7 +24,7 @@ class CellModelInterface(ModelWrapper):
     """Link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
     the filter implementations."""
 
-    model: CellModel
+    cell_model: CellModel
     """Cell model underpinning the update functions"""
     asoh: HealthVariable
     """ASOH values passed to each call of the cell model"""
@@ -35,14 +44,14 @@ class CellModelInterface(ModelWrapper):
             raise ValueError(f'The batch size of the transient state must be 1. Found: {transients.batch_size}')
 
         self.transients = transients
-        self.model = cell_model
+        self.cell_model = cell_model
         self.asoh = asoh
         self.input_template = input_template
 
         # Capture the shape of the outputs
-        self._num_output_dimensions = self.model.calculate_terminal_voltage(self.input_template,
-                                                                            self.transients,
-                                                                            self.asoh).to_numpy().shape[1]
+        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(self.input_template,
+                                                                                 self.transients,
+                                                                                 self.asoh).to_numpy().shape[1]
 
     @property
     def num_output_dimensions(self) -> int:
@@ -60,7 +69,7 @@ class JointCellModelInterface(CellModelInterface):
     The resultant function will take numpy arrays as inputs and produce numpy arrays as outputs
 
     Args:
-        model: Model which defines the physics of the system being modeled
+        cell_model: Model which defines the physics of the system being modeled
         asoh: Values for all state of health parameters of the model
         transients: Current values of the transient state of the system
         input_template: Example input values for the model
@@ -68,14 +77,16 @@ class JointCellModelInterface(CellModelInterface):
     """
 
     def __init__(self,
-                 model: CellModel,
+                 cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
                  input_template: InputQuantities,
-                 asoh_inputs: Tuple[str]):
-        super().__init__(model, asoh, transients, input_template)
+                 asoh_inputs: Optional[Tuple[str]] = None):
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, input_template=input_template)
 
         # Store the information about the identity of variables in the transient state
+        if asoh_inputs is None:
+            asoh_inputs = asoh.updatable_names
         self.asoh_inputs = asoh_inputs
         self.num_transients = transients.to_numpy().shape[1]
         self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
@@ -134,9 +145,9 @@ class JointCellModelInterface(CellModelInterface):
 
         # Produce an updated estimate for the transient states, hold the ASOH parameters constant
         output = hidden_states.copy()
-        new_transients = self.model.update_transient_state(previous_inputs, new_inputs=new_inputs,
-                                                           transient_state=my_transients,
-                                                           asoh=my_asoh)
+        new_transients = self.cell_model.update_transient_state(previous_inputs, new_inputs=new_inputs,
+                                                                transient_state=my_transients,
+                                                                asoh=my_asoh)
         output[:, :self.num_transients] = new_transients.to_numpy()
         return output
 
@@ -149,5 +160,7 @@ class JointCellModelInterface(CellModelInterface):
 
         # Now, iterate through hidden states to compute terminal voltage
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
-        outputs = self.model.calculate_terminal_voltage(new_inputs=inputs, transient_state=my_transients, asoh=my_asoh)
+        outputs = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
+                                                             transient_state=my_transients,
+                                                             asoh=my_asoh)
         return outputs.to_numpy()
