@@ -2,7 +2,7 @@
 from pytest import raises
 import numpy as np
 
-from moirae.estimators.utils.model import JointCellModelInterface
+from moirae.estimators.online.utils.model import JointCellModelInterface
 
 
 def test_update_hidden_only(simple_rint):
@@ -15,6 +15,8 @@ def test_update_hidden_only(simple_rint):
         input_template=rint_inputs,
         asoh_inputs=tuple(),
     )
+    assert cell_function.num_output_dimensions == 1
+    assert cell_function.num_hidden_dimensions == 2
 
     rint_inputs.current = -np.atleast_2d(1.0)  # Negative current is charging
     new_inputs = rint_inputs.model_copy(deep=True)
@@ -23,17 +25,17 @@ def test_update_hidden_only(simple_rint):
     # Test the update function
     hidden_state = cell_function.create_hidden_state(rint_asoh, rint_transient)
     assert np.allclose(hidden_state, [[0.0, 0.0]])
-    new_hidden = cell_function.update_hidden_state(
+    new_hidden = cell_function.update_hidden_states(
         hidden_states=hidden_state,
-        new_control=new_inputs.to_numpy(),
-        previous_control=rint_inputs.to_numpy()
+        previous_controls=rint_inputs.to_numpy(),
+        new_controls=new_inputs.to_numpy()
     )
     assert np.allclose(new_hidden[0, 0], 1. / 3600 / 10)
 
     # Test the output function
-    output = cell_function.predict_outputs(
+    output = cell_function.predict_measurement(
         hidden_states=hidden_state,
-        new_control=new_inputs.to_numpy()
+        controls=new_inputs.to_numpy()
     )
     expected_voltage = rint_asoh.ocv(soc=0.) + new_inputs.current * rint_asoh.r0.get_value(soc=0.)
     assert np.allclose(output, expected_voltage)

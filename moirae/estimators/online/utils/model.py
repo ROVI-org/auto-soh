@@ -1,10 +1,9 @@
-"""Tools to reduce operations on :class:`~moirae.models.baseCellModel` to functions which act only on
+"""Tools to reduce operations on :class:`~moirae.models.base.CellModel` to functions which act only on
 widely-used Python types, such as Numpy Arrays."""
-from abc import abstractmethod
-
 import numpy as np
 from typing import Tuple
 
+from moirae.estimators.online.filters.base import ModelWrapper
 from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel
 
 
@@ -12,7 +11,7 @@ from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable
 #  the `predict_output` function first estimates how the transients will update for each set of ASOH,
 #  then uses the updated transient states and ASOH to determine the outptus
 
-class CellModelInterface:
+class CellModelInterface(ModelWrapper):
     """Link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
     the filter implementations."""
 
@@ -26,8 +25,8 @@ class CellModelInterface:
     def __init__(self,
                  cell_model: CellModel,
                  asoh: HealthVariable,
-                 transients: GeneralContainer
-                 ):
+                 transients: GeneralContainer,
+                 input_template: InputQuantities):
 
         # Store the ASOH and transient state, making sure they are not batched
         if asoh.batch_size > 1:
@@ -38,31 +37,16 @@ class CellModelInterface:
         self.transients = transients
         self.model = cell_model
         self.asoh = asoh
+        self.input_template = input_template
 
-    @abstractmethod
-    def update_hidden_state(self, hidden_states, new_control, previous_control):
-        """Predict the update for hidden states under specified controls
+        # Capture the shape of the outputs
+        self._num_output_dimensions = self.model.calculate_terminal_voltage(self.input_template,
+                                                                            self.transients,
+                                                                            self.asoh).to_numpy().shape[1]
 
-        Args:
-            hidden_states: A batch of hidden states as a 2D numpy array. The first dimension is the batch dimension
-            new_control: Control at the present timestep
-            previous_control: Control at the previous timestep
-        Returns:
-            Updated hidden states
-        """
-        pass
-
-    @abstractmethod
-    def predict_outputs(self, hidden_states, new_control):
-        """Predict the observable outputs of the CellModel provided the current hidden states
-
-        Args:
-            hidden_states: A batch of hidden states as a 2D numpy array. The first dimension is the batch dimension
-            new_control: Control at the present timestep
-        Returns:
-            Outputs for each hidden state in the batch
-        """
-        pass
+    @property
+    def num_output_dimensions(self) -> int:
+        return self._num_output_dimensions
 
 
 class JointCellModelInterface(CellModelInterface):
@@ -76,11 +60,11 @@ class JointCellModelInterface(CellModelInterface):
     The resultant function will take numpy arrays as inputs and produce numpy arrays as outputs
 
     Args:
-        cell_model: Model which defines the physics of the system being modeled
+        model: Model which defines the physics of the system being modeled
         asoh: Values for all state of health parameters of the model
         transients: Current values of the transient state of the system
         input_template: Example input values for the model
-        asoh_inputs: Names of the ASOH parameters to include as inputs
+        asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
     """
 
     def __init__(self,
@@ -89,13 +73,16 @@ class JointCellModelInterface(CellModelInterface):
                  transients: GeneralContainer,
                  input_template: InputQuantities,
                  asoh_inputs: Tuple[str]):
-        super().__init__(model, asoh, transients)
+        super().__init__(model, asoh, transients, input_template)
 
         # Store the information about the identity of variables in the transient state
         self.asoh_inputs = asoh_inputs
-        self.input_template = input_template
         self.num_transients = transients.to_numpy().shape[1]
         self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        return self.num_transients + self.num_asoh
 
     def create_hidden_state(self, asoh: HealthVariable, transients: GeneralContainer) -> np.ndarray:
         """Transform the state of health and transients states (quantities used by CellModel)
@@ -105,7 +92,7 @@ class JointCellModelInterface(CellModelInterface):
             asoh: Values of the ASOH parameter
             transients: Values of the transient states
         Returns:
-            A hidden state vector ready for use in :meth:`__call__`
+            A hidden state vector ready for use in a filter
         """
 
         return np.concatenate([
@@ -133,25 +120,15 @@ class JointCellModelInterface(CellModelInterface):
         my_asoh.update_parameters(hidden_states[:, self.num_transients:], self.asoh_inputs)
         return my_asoh, my_transients
 
-    def update_hidden_state(self,
-                            hidden_states: np.ndarray,
-                            new_control: np.ndarray,
-                            previous_control: np.ndarray) -> np.ndarray:
-        """Predict the update for hidden states under specified controls
-
-        Args:
-            hidden_states: A batch of hidden states as a 2D numpy array. The first dimension is the batch dimension
-            new_control: Control at the present timestep
-            previous_control: Control at the previous timestep
-        Returns:
-            Updated hidden states
-        """
-
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
         # Transmute the controls and hidden state into the form required for the CellModel
         previous_inputs = self.input_template.model_copy(deep=True)
-        previous_inputs.from_numpy(previous_control)
+        previous_inputs.from_numpy(previous_controls)
         new_inputs = self.input_template.model_copy(deep=True)
-        new_inputs.from_numpy(new_control)
+        new_inputs.from_numpy(new_controls)
 
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
 
@@ -163,21 +140,12 @@ class JointCellModelInterface(CellModelInterface):
         output[:, :self.num_transients] = new_transients.to_numpy()
         return output
 
-    def predict_outputs(self,
-                        hidden_states: np.ndarray,
-                        new_control: np.ndarray) -> np.ndarray:
-        """Predict the observable outputs of the CellModel provided the current hidden states
-
-        Args:
-            hidden_states: A batch of hidden states as a 2D numpy array. The first dimension is the batch dimension
-            new_control: Control at the present timestep
-        Returns:
-            Outputs for each hidden state in the batch
-        """
-
+    def predict_measurement(self,
+                            hidden_states: np.ndarray,
+                            controls: np.ndarray) -> np.ndarray:
         # First, transform the controls into ECM inputs
         inputs = self.input_template.model_copy(deep=True)
-        inputs.from_numpy(new_control)
+        inputs.from_numpy(controls)
 
         # Now, iterate through hidden states to compute terminal voltage
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
