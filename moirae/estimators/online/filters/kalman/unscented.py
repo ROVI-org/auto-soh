@@ -157,7 +157,7 @@ class UnscentedKalmanFilter(BaseFilter):
         # Don't forget to update the internal control!
         self.controls = new_controls.model_copy(deep=True)
         # Return
-        return (y_k.model_copy(deep=True), self.hidden.model_copy(deep=True))
+        return (self.hidden.model_copy(deep=True), y_k.model_copy(deep=True))
 
     def build_sigma_points(self) -> np.ndarray:
         """
@@ -326,8 +326,8 @@ class UnscentedKalmanFilter(BaseFilter):
         innovation = innovation.flatten()
 
         # Step 2c: update the hidden state mean and covariance
-        x_k_hat_plus = x_k_minus.mean + np.matmul(l_k, innovation)
-        cov_x_k_plus = x_k_minus.covariance - np.matmul(l_k, np.matmul(y_hat.covariance, l_k.T))
+        x_k_hat_plus = x_k_minus.get_mean() + np.matmul(l_k, innovation)
+        cov_x_k_plus = x_k_minus.get_covariance() - np.matmul(l_k, np.matmul(y_hat.get_covariance(), l_k.T))
         # Make sure this new covariance is positive semi-definite
         cov_x_k_plus = ensure_positive_semi_definite(cov_x_k_plus)
         # Set internal state
