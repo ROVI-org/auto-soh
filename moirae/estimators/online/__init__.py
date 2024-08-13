@@ -10,7 +10,7 @@ from typing import Tuple, Union, Collection, Optional
 
 import numpy as np
 
-from moirae.estimators.online.distributions import MultivariateRandomDistribution, DeltaDistribution
+from moirae.estimators.online.filters.distributions import MultivariateRandomDistribution, DeltaDistribution
 
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable, OutputQuantities
 
