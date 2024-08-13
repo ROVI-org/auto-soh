@@ -1,13 +1,13 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical model which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
 from typing_extensions import Annotated
 from abc import abstractmethod
 import logging
 
 import numpy as np
-from pydantic import BaseModel, Field, BeforeValidator, model_validator
+from pydantic import BaseModel, Field, BeforeValidator, model_validator, WrapSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +39,18 @@ def enforce_dimensions(x: Any, dim=1) -> np.ndarray:
         raise ValueError(f'We do not yet support arrays with dimensionality of {dim}')
 
 
+def _encode_ndarray(value: np.ndarray, handler) -> List:
+    """Encode a numpy array as a regular list"""
+    return value.tolist()
+
+
 ScalarParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
+    WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 ListParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True)
+    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
+    WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 
 
@@ -65,8 +72,13 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     The numpy arrays used to store parameters are 2D arrays where the first dimension is a batch dimension,
     even for parameters which represent scalar values.
-    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameters` for list values
+    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameter` for list values
     to enable automatic conversion from user-supplied to the internal format used by :class:`HealthVariable`.
+
+    .. note::
+
+        The ``ListParameter`` and ``ScalarParameter`` classes also supply methods needed for serialization to
+        and parsing form JSON.
 
     Using a System Health
     ---------------------
@@ -429,7 +441,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             else:
                 logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
 
-    def get_parameters(self, names: Optional[list[str]] = None) -> np.ndarray:
+    def get_parameters(self, names: Optional[Sequence[str]] = None) -> np.ndarray:
         """Get updatable parameters as a numpy vector
 
         Args:
@@ -461,7 +473,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             output.append(value)
         return np.concatenate(output, axis=1)  # Combine along the non-batched dimension
 
-    def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[list[str]] = None):
+    def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[Sequence[str]] = None):
         """Set the value for updatable parameters given their names
 
         Args:
@@ -549,7 +561,7 @@ class GeneralContainer(BaseModel,
                 output.append(name)
             else:
                 output.extend(f'{name}[{i}]' for i in range(length))
-        return output
+        return tuple(output)
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """
@@ -628,8 +640,8 @@ class InputQuantities(GeneralContainer):
     """
     The control of a battery system, such as the terminal current
     """
-    time: ScalarParameter = Field(description='Timestamp(s) of inputs. Units: s')
-    current: ScalarParameter = Field(description='Current applied to the storage system. Units: A')
+    time: ScalarParameter = Field(default=0., description='Timestamp(s) of inputs. Units: s')
+    current: ScalarParameter = Field(default=0., description='Current applied to the storage system. Units: A')
 
 
 class OutputQuantities(GeneralContainer):

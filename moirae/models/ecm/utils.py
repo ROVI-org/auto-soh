@@ -2,7 +2,7 @@ from typing import List, Optional, Union, Literal, Callable, Iterator
 from numbers import Number
 
 import numpy as np
-from pydantic import Field, computed_field
+from pydantic import Field, field_serializer
 from scipy.interpolate import interp1d
 
 from moirae.models.base import HealthVariable, ListParameter
@@ -18,14 +18,15 @@ class SOCInterpolatedHealth(HealthVariable):
                                  'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
 
+    @field_serializer('soc_pinpoints', when_used='json-unless-none')
+    def _serialize_numpy(self, value: np.ndarray):
+        return value.tolist()
+
     def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
         for name, param in super().iter_parameters(updatable_only, recurse):
             if name != "soc_pinpoints":
                 yield name, param
 
-    # Let us cache the interpolation function so we don't have to re-do it every
-    # time we want to get a value
-    @computed_field
     @property
     def _interp_func(self) -> Callable:
         """

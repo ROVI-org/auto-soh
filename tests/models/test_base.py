@@ -1,4 +1,5 @@
 from typing import Union
+import json
 
 import numpy as np
 from pydantic import Field
@@ -344,3 +345,17 @@ def test_general_container_names():
     m = TestContainer()
     assert m.all_fields == ('x', 'y')
     assert m.all_names == ('x', 'y[0]', 'y[1]')
+
+
+def test_json(example_hv):
+    as_json = example_hv.model_dump_json()
+    as_dict = json.loads(as_json)
+    assert as_dict['a'] == example_hv.a.tolist()
+
+    from_json = ExampleHealthVariable.model_validate_json(as_json)
+    for (name_a, value_a), (name_b, value_b) in zip(
+            from_json.iter_parameters(updatable_only=False),
+            example_hv.iter_parameters(updatable_only=False)
+    ):
+        assert name_a == name_b
+        assert np.allclose(value_a, value_b)
