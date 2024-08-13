@@ -4,16 +4,13 @@ from typing import Tuple
 
 import numpy as np
 
-from moirae.models.base import CellModel
 from .distributions import MultivariateRandomDistribution
 
 
 class ModelWrapper():
     """
-    Args:
-        cell_model: cell model to be used
+    Base class that dictates how a model has to be wrapped to interface with the filters
     """
-    cell_model: CellModel
 
     @property
     @abstractmethod
