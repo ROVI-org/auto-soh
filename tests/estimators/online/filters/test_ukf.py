@@ -3,6 +3,7 @@ from pytest import fixture
 
 from moirae.estimators.online.filters.distributions import (MultivariateGaussian, DeltaDistribution)
 from moirae.estimators.online.filters.kalman.unscented import UnscentedKalmanFilter as UKF
+from moirae.estimators.online.filters.kalman.unscented import compute_unscented_covariance
 
 
 # Define Lorenz dynamics
@@ -58,7 +59,31 @@ def lorenz_model() -> Lorenz:
     return Lorenz()
 
 
-def test_lorenz_ukf(lorenz_model):
+def test_covariance_assembly():
+    # Initiate RNG
+    rng = np.random.default_rng(1001001)
+
+    # Specify many samples
+    num_samples = 10000
+
+    # Specify desired mean and covariance
+    mean = np.zeros(2)
+    covariance = np.array([[1, -0.5], [-0.5, 2]])
+
+    # Generate samples
+    samples = rng.multivariate_normal(mean=mean, cov=covariance, size=num_samples)
+
+    # Specify covariance weights
+    cov_weights = np.ones(num_samples) / num_samples
+
+    # Unscented covariance calculation
+    unscented_cov = compute_unscented_covariance(cov_weights=cov_weights, array0=samples)
+    print(unscented_cov)
+
+    assert np.allclose(covariance, unscented_cov, rtol=2.0e-02)
+
+
+def test_lorenz_full_ukf(lorenz_model):
     # Initiate RNG
     rng = np.random.default_rng(314159)
 
