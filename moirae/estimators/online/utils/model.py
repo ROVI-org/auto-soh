@@ -11,6 +11,17 @@ from moirae.models.base import InputQuantities, OutputQuantities, GeneralContain
 def convert_vals_model_to_filter(
         model_quantities: Union[GeneralContainer, InputQuantities, OutputQuantities],
         uncertainty_matrix: Optional[np.ndarray] = None) -> Union[DeltaDistribution, MultivariateGaussian]:
+    """
+    Function that converts model-related quantities (but not HealthVariable!) to filter-related quantities.
+    If uncertainty is provided, assumes a Multivariate Gaussian. Otherwise, assumes Delta Distribution
+
+    Args:
+        model_quantities: model-related object to be converted into filter-related object
+        uncertainty_matrix: 2D array to be used as covariance matrix; if not provided, returns DeltaDistribution
+
+    Returns:
+        a corresponding MultivariateRandomDistribution (either Gaussian or Delta)
+    """
     if uncertainty_matrix is None:
         return DeltaDistribution(mean=model_quantities.to_numpy())
     return MultivariateGaussian(mean=model_quantities.to_numpy(), covariance=uncertainty_matrix)
