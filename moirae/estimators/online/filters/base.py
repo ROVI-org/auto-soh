@@ -17,10 +17,10 @@ class BaseFilter():
     def __init__(self,
                  model,
                  initial_hidden: MultivariateRandomDistribution,
-                 initial_control: MultivariateRandomDistribution) -> None:
+                 initial_controls: MultivariateRandomDistribution) -> None:
         self.model = model
         self.hidden = initial_hidden.model_copy(deep=True)
-        self.control = initial_control.model_copy(deep=True)
+        self.controls = initial_controls.model_copy(deep=True)
 
     @abstractmethod
     def step(self,
