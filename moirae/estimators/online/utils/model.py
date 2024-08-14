@@ -5,11 +5,11 @@ from typing import Tuple, Optional, Union
 
 from moirae.estimators.online.filters.base import ModelWrapper
 from moirae.estimators.online.filters.distributions import DeltaDistribution, MultivariateGaussian
-from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
+from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel
 
 
 def convert_vals_model_to_filter(
-        model_quantities: Union[GeneralContainer, InputQuantities, OutputQuantities],
+        model_quantities: GeneralContainer,
         uncertainty_matrix: Optional[np.ndarray] = None) -> Union[DeltaDistribution, MultivariateGaussian]:
     """
     Function that converts model-related quantities (but not HealthVariable!) to filter-related quantities.
