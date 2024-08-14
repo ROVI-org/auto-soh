@@ -92,7 +92,7 @@ class OnlineEstimator:
     @abstractmethod
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
         """
-        Compute current estiamtor for the transient states and ASOH
+        Compute current estimator for the transient states and ASOH
 
         Returns:
             - Estimate for the transient state
