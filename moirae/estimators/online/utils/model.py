@@ -137,8 +137,7 @@ class JointCellModelInterface(CellModelInterface):
 
         # Update any parameters for the transient state
         my_transients = self.transients.model_copy(deep=True)
-        batch_transients = np.repeat(self.transients.to_numpy(), axis=0, repeats=hidden_states.shape[0])
-        my_transients.from_numpy(batch_transients)
+        my_transients.from_numpy(hidden_states[:, :self.num_transients])
 
         # Update the ASOH accordingly
         my_asoh = self.asoh.model_copy(deep=True)
