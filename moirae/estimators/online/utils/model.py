@@ -23,8 +23,8 @@ def convert_vals_model_to_filter(
         a corresponding MultivariateRandomDistribution (either Gaussian or Delta)
     """
     if uncertainty_matrix is None:
-        return DeltaDistribution(mean=model_quantities.to_numpy())
-    return MultivariateGaussian(mean=model_quantities.to_numpy().flatten(), covariance=uncertainty_matrix)
+        return DeltaDistribution(mean=model_quantities.to_numpy()[0, :])
+    return MultivariateGaussian(mean=model_quantities.to_numpy()[0, :], covariance=uncertainty_matrix)
 
 
 # TODO (wardlt): Implement the "ASOHOnly" interface needed by the Dual Estimator by making it such that

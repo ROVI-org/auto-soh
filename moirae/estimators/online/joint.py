@@ -112,7 +112,7 @@ class JointEstimator(OnlineEstimator):
             joint_hidden_covariance = block_diag(covariance_transient, covariance_asoh)
         else:
             joint_hidden_covariance = covariance_joint
-        joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean, covariance=joint_hidden_covariance)
+        joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean[0, :], covariance=joint_hidden_covariance)
         # Initial controls
         initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs,
                                                         uncertainty_matrix=inputs_uncertainty)

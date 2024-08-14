@@ -13,7 +13,6 @@ from moirae.estimators.online.filters.distributions import MultivariateRandomDis
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable, OutputQuantities
 
 
-# TODO (wardlt): Move normalization to a model metaclass. Maybe a ModelFilterInterface we had earlier ;)
 class OnlineEstimator:
     """
     Defines the base structure of an online estimator.
@@ -23,6 +22,9 @@ class OnlineEstimator:
         initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
         initial_transients: Initial estimates for the transient states of the battery
         initial_inputs: Initial inputs to the system
+        updatable_transients: Whether to estimate values for all transient states (``True``),
+            none of the states (``False``),
+            or only a select set of them (provide a list of names).
         updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
             none of the updatable parameters (``False``),
             or only a select set of them (provide a list of names).
@@ -72,7 +74,9 @@ class OnlineEstimator:
     @cached_property
     def state_names(self) -> Tuple[str, ...]:
         """ Names of each state variable """
-        return self.transients.all_names + self.asoh.expand_names(self._updatable_names)
+        # trans_names = tuple([self.transients.all_names[s] for s in self._updatable_transients])
+        trans_names = self.transients.all_names
+        return trans_names + self.asoh.expand_names(self._updatable_names)
 
     @cached_property
     def output_names(self) -> Tuple[str, ...]:
