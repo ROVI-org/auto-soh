@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 from batdata.data import BatteryDataset
 
-from moirae.estimators.online import OnlineEstimator, DeltaDistribution
+from moirae.estimators.online import OnlineEstimator
+from moirae.models.base import InputQuantities, OutputQuantities
 from moirae.models.ecm import ECMInput, ECMMeasurement
 
 
-def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[DeltaDistribution, DeltaDistribution]:
+def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
     """Convert a row from the time series data to a distribution object
 
     Args:
@@ -33,10 +34,7 @@ def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Del
         terminal_voltage=row['voltage']
     )
 
-    return (
-        DeltaDistribution(mean=inputs.to_numpy()[0, :]),
-        DeltaDistribution(mean=outputs.to_numpy()[0, :]),
-    )
+    return inputs, outputs
 
 
 def run_online_estimate(
