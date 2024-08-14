@@ -1,15 +1,16 @@
 """ Framework for joint estimation of transient vector and A-SOH"""
-from typing import Tuple, Self, Optional
+from typing import Tuple, Optional
+from typing_extensions import Self
 
 import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
-from utils.model import JointCellModelInterface, convert_vals_model_to_filter
+from .utils.model import JointCellModelInterface, convert_vals_model_to_filter
 from moirae.estimators.online import OnlineEstimator
-from filters.base import BaseFilter
-from filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
-from filters.kalman.unscented import UnscentedKalmanFilter as UKF
+from .filters.base import BaseFilter
+from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
+from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
 
 
 class JointEstimator(OnlineEstimator):
@@ -24,7 +25,7 @@ class JointEstimator(OnlineEstimator):
                              'physics')
         model_interface = joint_filter.model
         super().__init__(
-            model=model_interface.cell_model,
+            cell_model=model_interface.cell_model,
             initial_asoh=model_interface.asoh,
             initial_transients=model_interface.transients,
             initial_inputs=model_interface.input_template,
