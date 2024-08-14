@@ -4,7 +4,6 @@ from typing import Tuple, Self, Optional
 import numpy as np
 from scipy.linalg import block_diag
 
-from moirae.estimators.online.utils.model import CellModelInterface
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
 from utils.model import JointCellModelInterface, convert_vals_model_to_filter
 from moirae.estimators.online import OnlineEstimator
@@ -21,7 +20,8 @@ class JointEstimator(OnlineEstimator):
 
     def __init__(self, joint_filter: BaseFilter):
         if not isinstance(joint_filter.model, JointCellModelInterface):
-            raise ValueError('The joint estimator only works for a filter which uses a CellModel to describe the physics')
+            raise ValueError('The joint estimator only works for a filter which uses a JointCellModel to describe the '
+                             'physics')
         model_interface = joint_filter.model
         super().__init__(
             model=model_interface.cell_model,
@@ -34,8 +34,13 @@ class JointEstimator(OnlineEstimator):
         self.joint_model = joint_filter.model
 
     @property
-    def state(self):
-        return self.filter.hidden
+    def state(self) -> MultivariateRandomDistribution:
+        return self.filter.hidden.model_copy(deep=True)
+
+    def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
+        joint_state = self.state
+        estimated_asoh, estimated_transient = self.joint_model.create_cell_model_inputs(hidden_states=joint_state)
+        return estimated_transient, estimated_asoh
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
             Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
