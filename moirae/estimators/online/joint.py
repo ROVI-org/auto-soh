@@ -64,6 +64,10 @@ class JointEstimator(OnlineEstimator):
                                            covariance_transient: Optional[np.ndarray] = None,
                                            covariance_asoh: Optional[np.ndarray] = None,
                                            inputs_uncertainty: Optional[np.ndarray] = None,
+                                           joint_covariance_process_noise: Optional[np.ndarray] = None,
+                                           transient_covariance_process_noise: Optional[np.ndarray] = None,
+                                           asoh_covariance_process_noise: Optional[np.ndarray] = None,
+                                           covariance_sensor_noise: Optional[np.ndarray] = None,
                                            **filter_args) -> Self:
         """
         Function to help the user initialize a UKF-based joint estimation without needing to define the filter and
@@ -83,6 +87,16 @@ class JointEstimator(OnlineEstimator):
             covariance_asoh: specifies the raw (un-normalized) covariance of the A-SOH; it is not used if
                 covariance_joint was provided
             inputs_uncertainty: uncertainty matrix of the inputs; if not provided, assumes inputs are exact
+            joint_covariance_process_noise: process noise covariance for the joint state, considering transient and
+                A-SOH noises
+            transient_covariance_process_noise: process noise for transient update; only used if
+                joint_covariance_process_noise was not provided
+            asoh_covariance_process_noise: process noise for A-SOH update; only used if joint_covariance_process_noise
+                was not provided
+            covariance_sensor_noise: sensor noise for outputs; if denoising is applied, must match the proper
+                dimensionality
+            **filter_args: additional keywords to be given the the UKF; can include alpha_param, beta_param, and
+                kappa_param
         """
         # Start by assembling the joint model wrapper
         joint_model = JointCellModelInterface(cell_model=cell_model,
@@ -102,20 +116,18 @@ class JointEstimator(OnlineEstimator):
         initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs,
                                                         uncertainty_matrix=inputs_uncertainty)
 
+        # Process noise
+        if joint_covariance_process_noise is None:
+            if (transient_covariance_process_noise is not None) and (asoh_covariance_process_noise is not None):
+                joint_covariance_process_noise = block_diag(transient_covariance_process_noise,
+                                                            asoh_covariance_process_noise)
+
         # Initialize filter
         ukf = UKF(model=joint_model,
                   initial_hidden=joint_initial_hidden,
-                  initial_controls=initial_controls)
-        '''
-        ukf = UKF(model = joint_model,
-                  initial_hidden: MultivariateGaussian,
-                  initial_controls: MultivariateRandomDistribution,
-                  alpha_param: float = 1.,
-                  kappa_param: Union[float, Literal['automatic']] = 0.,
-                  beta_param: float = 2.,
-                  covariance_process_noise: Optional[np.ndarray] = None,
-                  covariance_sensor_noise: Optional[np.ndarray] = None
-                  )
-        '''
+                  initial_controls=initial_controls,
+                  covariance_process_noise=joint_covariance_process_noise,
+                  covariance_sensor_noise=covariance_sensor_noise,
+                  **filter_args)
 
         return JointEstimator(joint_filter=ukf)
