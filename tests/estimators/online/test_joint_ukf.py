@@ -3,13 +3,12 @@ from typing import List
 from scipy.linalg import block_diag
 import numpy as np
 
-from moirae.estimators.online.distributions import DeltaDistribution
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
 from moirae.models.ecm.transient import ECMTransientVector
 from moirae.simulator import Simulator
-from moirae.estimators.online.kalman.unscented import JointUnscentedKalmanFilter as JointUKF
+from moirae.estimators.online.joint import JointEstimator
 
 
 def cycle_protocol(rng, asoh: ECMASOH, start_time: float = 0.0) -> List[ECMInput]:
@@ -82,120 +81,19 @@ def cycle_protocol(rng, asoh: ECMASOH, start_time: float = 0.0) -> List[ECMInput
     return ecm_inputs
 
 
-def test_normalization(simple_rint):
-    """Make sure that normalizing the ASOH parameters works as expected"""
-
-    # Make the serial resistor updatable
-    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
-    rint_asoh.mark_updatable('r0.base_values')
-    assert rint_asoh.num_updatable == 1
-
-    # Make the filter without normalization
-    init_covar = np.diag([0.1, 0.1, 0.1])
-    r0 = rint_asoh.r0.base_values.item()
-    ukf_joint = JointUKF(
-        model=ecm_model,
-        initial_asoh=rint_asoh,
-        initial_transients=rint_transient,
-        initial_inputs=ecm_inputs,
-        initial_covariance=np.diag([0.1, 0.1, 0.1]),
-        normalize_asoh=False
-    )
-    assert ukf_joint.num_transients == 2  # SOC, hysteresis
-    assert ukf_joint.num_hidden_dimensions == 3  # Includes r_int
-    assert ukf_joint.num_output_dimensions == 1  # Just the Voltage
-    assert np.allclose(ukf_joint.joint_normalization_factor, 1.)
-    assert np.allclose(ukf_joint.covariance_normalization, 1.)
-    assert np.allclose(ukf_joint.state.covariance, np.diag([0.1] * 3))
-    assert np.allclose(ukf_joint.state.mean, np.concatenate([rint_transient.to_numpy()[0, :], [r0]]))
-
-    # Make the filter with normalization
-    ukf_joint_normed = JointUKF(
-        model=ecm_model,
-        initial_asoh=rint_asoh,
-        initial_transients=rint_transient,
-        initial_inputs=ecm_inputs,
-        initial_covariance=init_covar,
-        normalize_asoh=True
-    )
-    assert np.allclose(ukf_joint_normed.joint_normalization_factor, [1., 1., r0])
-    assert np.allclose(ukf_joint_normed.covariance_normalization,
-                       [[1., 1., r0], [1., 1., r0], [r0, r0, r0 ** 2]])
-    assert np.allclose(ukf_joint_normed.state.covariance, np.diag([0.1, 0.1, 0.1 / r0 ** 2]))
-    assert np.allclose(ukf_joint_normed.state.mean, np.concatenate([rint_transient.to_numpy()[0, :], [1]]))
-
-    # Make sure the two filters step correctly
-    applied_control = DeltaDistribution(mean=np.array([1., 1., 25.]))  # Time=1s, I=1 Amp, 25C
-    end_soc = (1. / rint_asoh.q_t.value).item()
-    end_voltage = (rint_asoh.ocv.get_value(soc=end_soc) + 1. * rint_asoh.r0.get_value(soc=end_soc)).item()
-    observed_voltage = DeltaDistribution(mean=np.array([end_voltage]))
-    for ukf in [ukf_joint, ukf_joint_normed]:
-        # Test that it runs the cell model properly
-        updated_states = ukf._update_hidden_states(
-            hidden_states=ukf.state.get_mean()[None, :],
-            previous_controls=DeltaDistribution(mean=np.array([0, 1])),
-            new_controls=applied_control
-        )
-        actual_states = ukf._denormalize_hidden_array(updated_states)
-        assert np.allclose(actual_states, [[end_soc, 0., r0]])
-
-        # Test that it gets the outputs correctly
-        pred_outputs = ukf._predict_measurement(updated_states, controls=applied_control)
-        assert np.allclose(pred_outputs, end_voltage)
-
-        # Make sure nothing odd happens
-        pred_voltage, pred_state = ukf._step(applied_control, observed_voltage)
-        assert np.isfinite(pred_voltage.get_mean()).all()
-        assert np.isfinite(pred_state.get_mean()).all()
-
-
 def test_names(simple_rint):
     rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
-    ukf_joint = JointUKF(
-        model=ecm_model,
+    ukf_joint = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=ecm_model,
         initial_asoh=rint_asoh,
         initial_transients=rint_transient,
         initial_inputs=ecm_inputs,
-        normalize_asoh=False
+        covariance_joint=np.eye(3),
     )
     assert ukf_joint.state_names == ('soc', 'hyst', 'r0.base_values')
     assert ukf_joint.output_names == ('terminal_voltage',)
     assert ukf_joint.control_names == ('time', 'current', 'temperature')
-
-
-def test_partial_transients(simple_rint):
-    """Test a filter which only includes some of the transiet variables"""
-
-    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
-    rint_asoh.mark_updatable('r0.base_values')
-    ukf_joint = JointUKF(
-        model=ecm_model,
-        initial_asoh=rint_asoh,
-        initial_transients=rint_transient,
-        initial_inputs=ecm_inputs,
-        initial_covariance=np.atleast_2d(0.01),
-        normalize_asoh=False,
-        updatable_transients=('soc',),
-        updatable_asoh=False
-    )
-    assert ukf_joint.num_hidden_dimensions == 1
-    assert ukf_joint.state_names == ('soc',)
-    assert ukf_joint.output_names == ('terminal_voltage',)
-    assert ukf_joint.control_names == ('time', 'current', 'temperature')
-
-    # Make sure it only changes the soc when stepping
-    example_inputs = ECMInput(time=1., current=1.)
-    known_output = ecm_model.calculate_terminal_voltage(example_inputs, rint_transient, rint_asoh)
-    output_dist, state_dist = ukf_joint.step(
-        ECMInput(time=1., current=1.),
-        known_output
-    )
-    state_mean = state_dist.get_mean()
-    assert state_mean.shape == (1,)
-    assert state_mean[0] > 0
-
-    assert np.allclose(output_dist.get_mean(), known_output.to_numpy(), atol=0.2)
 
 
 def test_joint_ecm() -> None:
@@ -247,16 +145,15 @@ def test_joint_ecm() -> None:
     noise_asoh = 1.0e-10 * np.eye(len(asoh_rint_perturb))
     noise_asoh[0, 0] = 6.25e-04  # Qt value is 10 Amp-hour, so +/- 0.05 Amp-hour is reasonable
     noise_tran = 1.0e-08 * np.eye(2)
-    rint_joint_ukf = JointUKF(
-        model=ECM(),
-        initial_transients=transient0_rint_off,
+    rint_joint_ukf = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=ECM(),
         initial_asoh=asoh_rint_off,
+        initial_transients=transient0_rint_off,
         initial_inputs=rint_sim.previous_input.model_copy(deep=True),
-        initial_covariance=block_diag(cov_tran_rint, cov_asoh_rint),
+        covariance_joint=block_diag(cov_tran_rint, cov_asoh_rint),
         # TODO (wardlt): Consider keeping ASOH and transients as separate kwargs
-        covariance_process_noise=block_diag(noise_tran, noise_asoh),
-        covariance_sensor_noise=noise_sensor,
-        normalize_asoh=False
+        joint_covariance_process_noise=block_diag(noise_tran, noise_asoh),
+        covariance_sensor_noise=noise_sensor
     )
 
     # Co-simulate
@@ -284,9 +181,9 @@ def test_joint_ecm() -> None:
             noisy_voltage += [vt]
             # Step the joint estimator
             measurement = ECMMeasurement(terminal_voltage=vt)
-            pred_measure, est_hidden = rint_joint_ukf._step(
-                u=DeltaDistribution(mean=new_input.to_numpy()),
-                y=DeltaDistribution(mean=measurement.to_numpy())
+            est_hidden, pred_measure = rint_joint_ukf.step(
+                inputs=new_input,
+                measurements=measurement
             )
             # Save to the dictionary
             joint_ukf_predictions['joint_states'] += [est_hidden.model_copy(deep=True)]

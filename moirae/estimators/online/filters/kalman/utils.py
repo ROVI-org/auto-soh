@@ -1,4 +1,4 @@
-""" Utility definitions for base estimators """
+""" Utility functions for Kálmán filters"""
 import numpy as np
 
 
@@ -19,9 +19,9 @@ def ensure_positive_semi_definite(Sig: np.ndarray) -> np.ndarray:
             np.linalg.cholesky(Sig)  # throws LinAlgError if not
             return Sig.copy()
         except np.linalg.LinAlgError:
-            return enforce_positive_semi_defiteness(Sig)
+            return enforce_positive_semi_defiteness(Sig).copy()
     else:
-        return enforce_positive_semi_defiteness(Sig)
+        return enforce_positive_semi_defiteness(Sig).copy()
 
 
 def enforce_positive_semi_defiteness(Sig: np.ndarray) -> np.ndarray:
@@ -39,3 +39,15 @@ def enforce_positive_semi_defiteness(Sig: np.ndarray) -> np.ndarray:
     _, S_diagonal, V_complex_conjugate = np.linalg.svd(Sig)
     H_matrix = np.matmul(V_complex_conjugate.T, np.matmul(S_diagonal, V_complex_conjugate))
     return (Sig + Sig.T + H_matrix + H_matrix.T) / 4
+
+
+def calculate_gain_matrix(cov_xy: np.ndarray, cov_y: np.ndarray) -> np.ndarray:
+    """
+    Function to calculate Kálmán gain, defined as
+    L = cov_xy * (cov_y^(-1))
+
+    Args:
+        cov_xy: covariance between x and y (hidden states and outputs, respectively)
+        cov_y: variance of y (output)
+    """
+    return np.matmul(cov_xy, np.linalg.inv(cov_y))

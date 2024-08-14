@@ -3,7 +3,7 @@ from typing import Literal
 
 import numpy as np
 
-from moirae.models.base import CellModel
+from ..base import CellModel
 from moirae.models.ecm.ins_outs import ECMInput, ECMMeasurement
 from moirae.models.ecm.transient import ECMTransientVector
 from .advancedSOH import ECMASOH

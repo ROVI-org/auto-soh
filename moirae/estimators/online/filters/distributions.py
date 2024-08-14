@@ -12,17 +12,25 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable
     """
 
+    @computed_field
+    @property
+    def num_dimensions(self) -> int:
+        """ Number of dimensions of random variable """
+        return len(self.get_mean())
+
     @abstractmethod
     def get_mean(self) -> np.ndarray:
         """
         Provides mean (first moment) of distribution
         """
-        pass
+        raise NotImplementedError('Please implement in child class!')
 
+    @abstractmethod
     def get_covariance(self) -> np.ndarray:
         """
         Provides the covariance of the distribution
         """
+        raise NotImplementedError('Please implement in child class!')
 
 
 class DeltaDistribution(MultivariateRandomDistribution):
@@ -34,7 +42,7 @@ class DeltaDistribution(MultivariateRandomDistribution):
         return self.mean.copy()
 
     def get_covariance(self) -> np.ndarray:
-        return np.zeros_like(self.mean) + np.inf
+        return np.zeros_like(self.mean)
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
@@ -81,12 +89,6 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
             msg += ', but covariance has shape ' + str(self.covariance.shape)
             raise ValueError(msg)
         return self
-
-    @computed_field
-    @property
-    def num_dimensions(self) -> int:
-        """ Number of dimensions of random variable """
-        return len(self.mean)
 
     def get_mean(self) -> np.ndarray:
         return self.mean.copy()
