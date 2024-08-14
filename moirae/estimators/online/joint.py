@@ -4,62 +4,49 @@ from typing import Tuple, Self, Optional
 import numpy as np
 from scipy.linalg import block_diag
 
+from moirae.estimators.online.utils.model import CellModelInterface
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
 from utils.model import JointCellModelInterface, convert_vals_model_to_filter
-from moirae.estimators.online import HealthEstimator
+from moirae.estimators.online import OnlineEstimator
 from filters.base import BaseFilter
 from filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
 from filters.kalman.unscented import UnscentedKalmanFilter as UKF
 
 
-class JointEstimator(HealthEstimator):
+class JointEstimator(OnlineEstimator):
     """
     In joint estimation, the transient vector and A-SOH values are estimated jointly, in a single array, using a single
     filter. Because of this simplicity, all that it truly needs to operate is the filter object
     """
-    joint_model: JointCellModelInterface
 
-    def __init__(self, filter: BaseFilter):
-        self.filter = filter
-        self.joint_model = filter.model
+    def __init__(self, joint_filter: BaseFilter):
+        if not isinstance(joint_filter.model, JointCellModelInterface):
+            raise ValueError('The joint estimator only works for a filter which uses a CellModel to describe the physics')
+        model_interface = joint_filter.model
+        super().__init__(
+            model=model_interface.cell_model,
+            initial_asoh=model_interface.asoh,
+            initial_transients=model_interface.transients,
+            initial_inputs=model_interface.input_template,
+            updatable_asoh=model_interface.asoh_inputs
+        )
+        self.filter = joint_filter
+        self.joint_model = joint_filter.model
 
-    # TODO (vventuri): convert this later to allow for uncertain input quantities
-    def _convert_inputs(self, inputs: InputQuantities) -> MultivariateRandomDistribution:
-        return convert_vals_model_to_filter(inputs)
+    @property
+    def state(self):
+        return self.filter.hidden
 
-    # TODO (vventuri): convert this later to allow for uncertain measurement quantities
-    def _convert_measurements(self, measurements: OutputQuantities) -> MultivariateRandomDistribution:
-        return convert_vals_model_to_filter(measurements)
-
-    def step(self,
-             inputs: InputQuantities,
-             measurements: OutputQuantities) -> Tuple[GeneralContainer, HealthVariable, OutputQuantities]:
-        """
-        Main step functionality of the joint estimator.
-
-        Args:
-            inputs: new inputs
-            measurements: measured quantities from the cell
-
-        Returns:
-            estimated_transient: estimated transient vector
-            estimated_asoh: estimated A-SOH
-            predicted_output: predicted values of the output quantities
-        """
-
-        refactored_inputs = self._convert_inputs(inputs=inputs)
-        refactored_measurements = self._convert_measurements(measurements=measurements)
+    def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
+            Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
+        # TODO (vventuri): convert this later to allow for uncertain input quantities
+        refactored_inputs = convert_vals_model_to_filter(inputs)
+        refactored_measurements = convert_vals_model_to_filter(measurements)
 
         joint_estimate, output_predicted = self.filter.step(new_controls=refactored_inputs,
                                                             measurements=refactored_measurements)
 
-        estimated_transient, estimated_asoh = \
-            self.joint_model.create_cell_model_inputs(hidden_states=np.atleast_2d(joint_estimate.get_mean()))
-
-        predicted_outputs = measurements.model_copy(deep=True)
-        predicted_outputs.from_numpy(output_predicted.get_mean())
-
-        return estimated_transient, estimated_asoh, predicted_outputs
+        return joint_estimate, output_predicted
 
     @classmethod
     def initialize_unscented_kalman_filter(cls,
@@ -126,4 +113,4 @@ class JointEstimator(HealthEstimator):
                   )
         '''
 
-        return JointEstimator(filter=ukf)
+        return JointEstimator(joint_filter=ukf)

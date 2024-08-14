@@ -20,6 +20,6 @@ def test_interface(simple_rint, timeseries_dataset):
     state_mean, estimator = run_online_estimate(timeseries_dataset, ukf)
     assert state_mean.shape == (
         len(timeseries_dataset.raw_data),
-        ukf.num_hidden_dimensions * 2 + ukf.num_output_dimensions * 2
+        ukf.num_state_dimensions * 2 + ukf.num_output_dimensions * 2
     )
-    assert estimator.u.get_mean()[0] == timeseries_dataset.raw_data['test_time'].max()
+    assert estimator._u.get_mean()[0] == timeseries_dataset.raw_data['test_time'].max()

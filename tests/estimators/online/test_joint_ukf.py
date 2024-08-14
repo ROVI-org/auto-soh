@@ -102,7 +102,7 @@ def test_normalization(simple_rint):
         normalize_asoh=False
     )
     assert ukf_joint.num_transients == 2  # SOC, hysteresis
-    assert ukf_joint.num_hidden_dimensions == 3  # Includes r_int
+    assert ukf_joint.num_state_dimensions == 3  # Includes r_int
     assert ukf_joint.num_output_dimensions == 1  # Just the Voltage
     assert np.allclose(ukf_joint.joint_normalization_factor, 1.)
     assert np.allclose(ukf_joint.covariance_normalization, 1.)
@@ -179,7 +179,7 @@ def test_partial_transients(simple_rint):
         updatable_transients=('soc',),
         updatable_asoh=False
     )
-    assert ukf_joint.num_hidden_dimensions == 1
+    assert ukf_joint.num_state_dimensions == 1
     assert ukf_joint.state_names == ('soc',)
     assert ukf_joint.output_names == ('terminal_voltage',)
     assert ukf_joint.control_names == ('time', 'current', 'temperature')

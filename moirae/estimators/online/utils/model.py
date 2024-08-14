@@ -87,6 +87,9 @@ class JointCellModelInterface(CellModelInterface):
         asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
     """
 
+    asoh_inputs: Tuple[str]
+    """Names of the parameters from the ASOH which are used as inputs to the model"""
+
     def __init__(self,
                  cell_model: CellModel,
                  asoh: HealthVariable,

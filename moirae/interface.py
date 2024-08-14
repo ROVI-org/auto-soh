@@ -61,18 +61,18 @@ def run_online_estimate(
 
     # Update the initial inputs for the
     initial_input, _ = _row_to_inputs(dataset.raw_data.iloc[0])
-    estimator.u = initial_input
+    estimator._u = initial_input
 
     # Initialize the output arrays
-    state_mean = np.zeros((len(dataset.raw_data), estimator.num_hidden_dimensions))
-    state_std = np.zeros((len(dataset.raw_data), estimator.num_hidden_dimensions))
+    state_mean = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
+    state_std = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
     output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
     output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
     # Iterate over all timesteps
     for i, (_, row) in enumerate(dataset.raw_data.reset_index().iterrows()):  # .reset_index to iterate in sort order
         controls, measurements = _row_to_inputs(row)
-        new_outputs, new_state = estimator._step(controls, measurements)
+        new_state, new_outputs = estimator.step(controls, measurements)
 
         state_mean[i, :] = new_state.get_mean()
         state_std[i, :] = np.diag(new_state.get_covariance())
