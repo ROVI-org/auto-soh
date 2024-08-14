@@ -8,8 +8,6 @@ from abc import abstractmethod
 from functools import cached_property
 from typing import Tuple, Union, Collection, Optional
 
-import numpy as np
-
 from moirae.estimators.online.filters.distributions import MultivariateRandomDistribution, DeltaDistribution
 
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable, OutputQuantities
@@ -21,7 +19,7 @@ class OnlineEstimator:
     Defines the base structure of an online estimator.
 
     Args:
-        model: Model used to describe the underlying physics of the storage system
+        cell_model: Cell model used to describe the underlying physics of the storage system
         initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
         initial_transients: Initial estimates for the transient states of the battery
         initial_inputs: Initial inputs to the system
@@ -31,19 +29,19 @@ class OnlineEstimator:
     """
 
     def __init__(self,
-                 model: CellModel,
+                 cell_model: CellModel,
                  initial_asoh: HealthVariable,
                  initial_transients: GeneralContainer,
                  initial_inputs: InputQuantities,
                  updatable_asoh: Union[bool, Collection[str]] = True):
         self._u = DeltaDistribution(mean=initial_inputs.to_numpy())
-        self.model = model
+        self.cell_model = cell_model
         self.asoh = initial_asoh.model_copy(deep=True)
         self.transients = initial_transients.model_copy(deep=True)
         self._inputs = initial_inputs.model_copy(deep=True)
 
         # Cache information about the outputs
-        example_outputs = model.calculate_terminal_voltage(initial_inputs, self.transients, self.asoh)
+        example_outputs = cell_model.calculate_terminal_voltage(initial_inputs, self.transients, self.asoh)
         self._num_outputs = len(example_outputs)
         self._output_names = example_outputs.all_names
 
@@ -91,6 +89,7 @@ class OnlineEstimator:
         """Multivariate probability distribution for all state variables"""
         raise NotImplementedError()
 
+    @abstractmethod
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
         """
         Compute current estiamtor for the transient states and ASOH
@@ -101,6 +100,7 @@ class OnlineEstimator:
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
             Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
         """Function to step the estimator, provided new control variables and output measurements.
