@@ -9,7 +9,7 @@ def test_update_hidden_only(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
 
     cell_function = JointCellModelInterface(
-        model=ecm,
+        cell_model=ecm,
         asoh=rint_asoh,
         transients=rint_transient,
         input_template=rint_inputs,
@@ -50,7 +50,7 @@ def test_update_batched_inputs(simple_rint):
 
     with raises(ValueError, match='transient state must be 1. Found: 2'):
         JointCellModelInterface(
-            model=ecm,
+            cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
             input_template=rint_inputs,
@@ -60,7 +60,7 @@ def test_update_batched_inputs(simple_rint):
     rint_asoh.update_parameters(np.array([[10.], [9.], [11.]]), ['q_t.base_values'])
     with raises(ValueError, match='ASOH must be 1. Found: 3'):
         JointCellModelInterface(
-            model=ecm,
+            cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
             input_template=rint_inputs,
