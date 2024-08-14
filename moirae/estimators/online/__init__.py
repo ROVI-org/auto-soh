@@ -8,7 +8,7 @@ from abc import abstractmethod
 from functools import cached_property
 from typing import Tuple, Union, Collection, Optional
 
-from moirae.estimators.online.filters.distributions import MultivariateRandomDistribution, DeltaDistribution
+from moirae.estimators.online.filters.distributions import MultivariateRandomDistribution
 
 from moirae.models.base import CellModel, GeneralContainer, InputQuantities, HealthVariable, OutputQuantities
 
@@ -36,7 +36,6 @@ class OnlineEstimator:
                  initial_transients: GeneralContainer,
                  initial_inputs: InputQuantities,
                  updatable_asoh: Union[bool, Collection[str]] = True):
-        self._u = DeltaDistribution(mean=initial_inputs.to_numpy())
         self.cell_model = cell_model
         self.asoh = initial_asoh.model_copy(deep=True)
         self.transients = initial_transients.model_copy(deep=True)
