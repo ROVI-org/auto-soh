@@ -35,17 +35,16 @@ class EquivalentCircuitModel(CellModel):
             transient_state: ECMTransientVector,
             asoh: ECMASOH
     ) -> ECMTransientVector:
-        """
-        Update transient state.
-        Remember how the hidden state is setup and meant to be updated assuming
-        constant current behavior:
-        soc_(k+1) = soc_k +
-            [coulombic_eff * delta_t * (I_k + (0.5 * I_slope * delta_t))/ Q_total]
-        q0_(k+1) = q0_k - delta_t * I_k
-        i_(j, k+1) = [exp(-delta_t/Tau_j,k) * i_j,k] +
-            + [(1 - exp(-delta_t/Tau_j,k) * (I_k - I_slope * Tau_j,k)]
-        hyst_(k+1) = [see code, it's messy]
-        """
+        # Update transient state.
+        # Remember how the hidden state is setup and meant to be updated assuming
+        # constant current behavior:
+        # soc_(k+1) = soc_k +
+        #     [coulombic_eff * delta_t * (I_k + (0.5 * I_slope * delta_t))/ Q_total]
+        # q0_(k+1) = q0_k - delta_t * I_k
+        # i_(j, k+1) = [exp(-delta_t/Tau_j,k) * i_j,k] +
+        #     + [(1 - exp(-delta_t/Tau_j,k) * (I_k - I_slope * Tau_j,k)]
+        # hyst_(k+1) = [see code, it's messy]
+
         # Get basic info
         delta_t = new_inputs.time - previous_inputs.time
         current_k = previous_inputs.current
@@ -136,15 +135,12 @@ class EquivalentCircuitModel(CellModel):
             new_inputs: ECMInput,
             transient_state: ECMTransientVector,
             asoh: ECMASOH) -> ECMMeasurement:
-        """
-        Compute expected output (terminal voltage, etc.) of a the model.
-        Recall the calculation of terminal voltage:
-        V_T = OCV(SOC,T) +
-                + [current * R0(SOC,T)] +
-                + [q_i / C0(SOC)] +
-                + Sum[I_j * R_j(SOC,T)] +
-                + hyst(SOC,T)
-        """
+        # Recall the calculation of terminal voltage:
+        # V_T = OCV(SOC,T) +
+        #         + [current * R0(SOC,T)] +
+        #         + [q_i / C0(SOC)] +
+        #         + Sum[I_j * R_j(SOC,T)] +
+        #         + hyst(SOC,T)
         # Start with OCV
         Vt = asoh.ocv(soc=transient_state.soc, temp=new_inputs.temperature)
 

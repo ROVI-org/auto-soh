@@ -1,8 +1,5 @@
 """
-Collection of online estimators
-
-Here, we include base classes to facilitate  definition of online estimators and hidden states, as well as to establish
-interfaces between online estimators and models, transient states, and A-SOH parameters.
+Estimators which incrementally adjust estimates for system state.
 """
 from abc import abstractmethod
 from functools import cached_property
@@ -15,19 +12,16 @@ from moirae.models.base import CellModel, GeneralContainer, InputQuantities, Hea
 
 class OnlineEstimator:
     """
-    Defines the base structure of an online estimator.
+    The interface for all online estimation frameworks
 
     Args:
         cell_model: Cell model used to describe the underlying physics of the storage system
         initial_asoh: Initial estimates for the health parameters of the battery, those being estimated or not
         initial_transients: Initial estimates for the transient states of the battery
         initial_inputs: Initial inputs to the system
-        updatable_transients: Whether to estimate values for all transient states (``True``),
-            none of the states (``False``),
-            or only a select set of them (provide a list of names).
         updatable_asoh: Whether to estimate values for all updatable parameters (``True``),
             none of the updatable parameters (``False``),
-            or only a select set of them (provide a list of names).
+            or a list of specific parameters.
     """
 
     def __init__(self,

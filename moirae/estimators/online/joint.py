@@ -15,8 +15,12 @@ from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
 
 class JointEstimator(OnlineEstimator):
     """
-    In joint estimation, the transient vector and A-SOH values are estimated jointly, in a single array, using a single
-    filter. Because of this simplicity, all that it truly needs to operate is the filter object
+    Estimate the transient vector and A-SOH values are estimated jointly, in a single array, using a single filter.
+
+    Create a joint estimator by supplying a single filter.
+
+    Args:
+        joint_filter: A filter configured to operate using a :class:`~moirae.models.base.CellModel`.
     """
 
     def __init__(self, joint_filter: BaseFilter):
