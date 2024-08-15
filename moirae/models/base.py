@@ -1,6 +1,6 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
-and the mathematical model which links state, control, and outputs together."""
+and the mathematical models which links state, control, and outputs together."""
 from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
 from typing_extensions import Annotated
 from abc import abstractmethod

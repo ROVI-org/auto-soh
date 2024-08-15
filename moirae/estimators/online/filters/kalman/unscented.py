@@ -55,8 +55,8 @@ class UnscentedKalmanFilter(BaseFilter):
 
     Args:
         model: model describing the system
-        initial_state: initial hidden state of the system
-        initial_control: initial control on the system
+        initial_hidden: initial hidden state of the system
+        initial_controls: initial control on the system
         alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the
                     spread of the sigma points; lower values keep sigma
                     points closer to the mean, alpha=1 effectively brings

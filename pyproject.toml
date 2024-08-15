@@ -30,6 +30,7 @@ test = [
 docs = [
     'sphinx',
     'pydata-sphinx-theme',
+    'sphinx-pydantic'
 ]
 
 [project.urls]
