@@ -11,7 +11,7 @@ class ModelWrapper():
     """
     Base class that dictates how a model has to be wrapped to interface with the filters
 
-    All inputs, whether hidden state or controols, are 2D arrays where the first 
+    All inputs, whether hidden state or controols, are 2D arrays where the first
     dimension is the batch dimension. The batch dimension must be 1 or, if not,
     the same value as any other non-unity batch sizes for the purpose
     of `NumPy broadcasting <https://numpy.org/doc/stable/user/basics.broadcasting.html>`_.
