@@ -46,7 +46,7 @@ class CellModelInterface(ModelWrapper):
                  cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
-                 input_template: InputQuantities):
+                 inputs: InputQuantities):
 
         # Store the ASOH and transient state, making sure they are not batched
         if asoh.batch_size > 1:
@@ -57,16 +57,99 @@ class CellModelInterface(ModelWrapper):
         self.transients = transients
         self.cell_model = cell_model
         self.asoh = asoh
-        self.input_template = input_template
+        self.inputs = inputs
 
         # Capture the shape of the outputs
-        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(self.input_template,
+        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(self.inputs,
                                                                                  self.transients,
                                                                                  self.asoh).to_numpy().shape[1]
 
     @property
     def num_output_dimensions(self) -> int:
         return self._num_output_dimensions
+
+
+class DegradationModelInterface(CellModelInterface):
+    """
+    Link between A-SOH degradation models and the numpy-only interface of the
+    :class:`~moirae.estimators.online.filters.base.BaseFilter`. If provides the model wrapper need for dual estimation
+    frameworks
+    """
+
+    asoh_inputs: Tuple[str]
+    """Names of the parameters from the ASOH which are used as inputs to the model"""
+
+    def __init__(self,
+                 cell_model: CellModel,
+                 # TODO (vventuri): allow for passing an A-SOH degradation model!
+                 asoh: HealthVariable,
+                 transients: GeneralContainer,
+                 inputs: InputQuantities,
+                 asoh_inputs: Optional[Tuple[str]] = None) -> None:
+
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
+
+        # Store the information about the identity of variables in the transient state
+        if asoh_inputs is None:
+            asoh_inputs = asoh.updatable_names
+        self.asoh_inputs = asoh_inputs
+        self.num_transients = transients.to_numpy().shape[1]
+        self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        return self.num_asoh
+
+    def create_degradation_inputs(self, hidden_states: np.ndarray) -> HealthVariable:
+        """
+        Helper function to take hidden states and convert them to A-SOH object to be given to degradation model
+        """
+        asoh_template = self.asoh.model_copy(deep=True)
+        return asoh_template.update_parameters(hidden_states, self.asoh_inputs)
+
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes a numpy representation of the A-SOH and degrades it using the degradation model and the
+        previous and new controls. If the degradation model needs information for further in the past, it is responsible
+        for keeping track of that. The degration model will also be provided the current estimate of the transient
+        vector.
+        """
+        # Remember that, during this step, we should also store the previous controls so that the transient vector can
+        # be propagated through the hidden states in the predict measurement step
+        previous_inputs = self.inputs.model_copy(deep=True)
+        previous_inputs.from_numpy(previous_controls)
+        self._previous_inputs = previous_inputs
+
+        return hidden_states.copy()
+
+    def predict_measurement(self,
+                            hidden_states: np.ndarray,
+                            controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes the numpy-representation of the estimated of A-SOH and computes predictions of the
+        measurement. Recall that, for that, we first need to propagate the transients through the A-SOH estimates
+        """
+        # First, transform the controls into ECM inputs
+        inputs = self.inputs.model_copy(deep=True)
+        inputs.from_numpy(controls)
+
+        # Do the same for the A-SOH
+        asoh = self.create_degradation_inputs(hidden_states=hidden_states)
+
+        # Now, propagate the transients through the A-SOH
+        propagated_transients = self.cell_model.update_transient_state(previous_inputs=self._previous_inputs,
+                                                                       new_inputs=inputs,
+                                                                       transient_state=self.transients,
+                                                                       asoh=asoh)
+
+        # Finally, compute outputs
+        outputs = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
+                                                             transient_state=propagated_transients,
+                                                             asoh=asoh)
+        return outputs.to_numpy()
 
 
 class JointCellModelInterface(CellModelInterface):
@@ -83,7 +166,7 @@ class JointCellModelInterface(CellModelInterface):
         cell_model: Model which defines the physics of the system being modeled
         asoh: Values for all state of health parameters of the model
         transients: Current values of the transient state of the system
-        input_template: Example input values for the model
+        inputs: Example input values for the model
         asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
     """
 
@@ -94,9 +177,9 @@ class JointCellModelInterface(CellModelInterface):
                  cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
-                 input_template: InputQuantities,
+                 inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None):
-        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, input_template=input_template)
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
 
         # Store the information about the identity of variables in the transient state
         if asoh_inputs is None:
@@ -149,16 +232,17 @@ class JointCellModelInterface(CellModelInterface):
                              previous_controls: np.ndarray,
                              new_controls: np.ndarray) -> np.ndarray:
         # Transmute the controls and hidden state into the form required for the CellModel
-        previous_inputs = self.input_template.model_copy(deep=True)
+        previous_inputs = self.inputs.model_copy(deep=True)
         previous_inputs.from_numpy(previous_controls)
-        new_inputs = self.input_template.model_copy(deep=True)
+        new_inputs = self.inputs.model_copy(deep=True)
         new_inputs.from_numpy(new_controls)
 
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
 
         # Produce an updated estimate for the transient states, hold the ASOH parameters constant
         output = hidden_states.copy()
-        new_transients = self.cell_model.update_transient_state(previous_inputs, new_inputs=new_inputs,
+        new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
+                                                                new_inputs=new_inputs,
                                                                 transient_state=my_transients,
                                                                 asoh=my_asoh)
         output[:, :self.num_transients] = new_transients.to_numpy()
@@ -168,7 +252,7 @@ class JointCellModelInterface(CellModelInterface):
                             hidden_states: np.ndarray,
                             controls: np.ndarray) -> np.ndarray:
         # First, transform the controls into ECM inputs
-        inputs = self.input_template.model_copy(deep=True)
+        inputs = self.inputs.model_copy(deep=True)
         inputs.from_numpy(controls)
 
         # Now, iterate through hidden states to compute terminal voltage
