@@ -69,7 +69,7 @@ class BaseCellWrapper(ModelWrapper):
         return self._num_output_dimensions
 
 
-class DegradationModelInterface(BaseCellWrapper):
+class DegradationModelWrapper(BaseCellWrapper):
     """
     Link between A-SOH degradation models and the numpy-only interface of the
     :class:`~moirae.estimators.online.filters.base.BaseFilter`. If provides the model wrapper need for dual estimation
@@ -150,7 +150,6 @@ class DegradationModelInterface(BaseCellWrapper):
                                                              transient_state=propagated_transients,
                                                              asoh=asoh)
         return outputs.to_numpy()
-
 
 
 class JointCellModelWrapper(BaseCellWrapper):
