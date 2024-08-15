@@ -10,6 +10,11 @@ from .distributions import MultivariateRandomDistribution
 class ModelWrapper():
     """
     Base class that dictates how a model has to be wrapped to interface with the filters
+
+    All inputs, whether hidden state or controols, are 2D arrays where the first 
+    dimension is the batch dimension. The batch dimension must be 1 or, if not,
+    the same value as any other non-unity batch sizes for the purpose
+    of `NumPy broadcasting <https://numpy.org/doc/stable/user/basics.broadcasting.html>`_.
     """
 
     @property
@@ -50,7 +55,7 @@ class ModelWrapper():
             controls: numpy array corresponding to the controls
 
         Returns:
-            numpy array corresponding to predicted outputs, one for each pair (hidden_state, controls)
+            numpy array corresponding to predicted outputs
         """
         raise NotImplementedError('Please implement in child class!')
 
