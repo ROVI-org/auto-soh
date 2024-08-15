@@ -100,8 +100,7 @@ class CellModelWrapper(BaseCellWrapper):
                  cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
-                 inputs: InputQuantities,
-                 asoh_inputs: Optional[Tuple[str]] = None) -> None:
+                 inputs: InputQuantities) -> None:
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
 
         self.num_transients = transients.to_numpy().shape[1]
