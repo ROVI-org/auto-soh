@@ -12,8 +12,9 @@ def convert_vals_model_to_filter(
         model_quantities: GeneralContainer,
         uncertainty_matrix: Optional[np.ndarray] = None) -> Union[DeltaDistribution, MultivariateGaussian]:
     """
-    Function that converts model-related quantities (but not HealthVariable!) to filter-related quantities.
-    If uncertainty is provided, assumes a Multivariate Gaussian. Otherwise, assumes Delta Distribution
+    Function that converts :class:`~moirae.model.base.GeneralContainer` object to filter-related quantities.
+    If uncertainty is provided, assumes a :class:`~moirae.estimators.online.filters.distributions.MultivariateGaussian`.
+    Otherwise, assumes :class:`~moirae.estimators.online.filters.distributions.DeltaDistribution`.
 
     Args:
         model_quantities: model-related object to be converted into filter-related object
@@ -27,13 +28,33 @@ def convert_vals_model_to_filter(
     return MultivariateGaussian(mean=model_quantities.to_numpy()[0, :], covariance=uncertainty_matrix)
 
 
-# TODO (wardlt): Implement the "ASOHOnly" interface needed by the Dual Estimator by making it such that
-#  the `predict_output` function first estimates how the transients will update for each set of ASOH,
-#  then uses the updated transient states and ASOH to determine the outptus
+def convert_numpy_to_model(filter_array: np.ndarray,
+                           template: Union[GeneralContainer, HealthVariable],
+                           names: Optional[Tuple[str, ...]] = None) -> Union[GeneralContainer, HealthVariable]:
+    """
+    Function to convert numpy arrays to model-related object given a template of said object: either a
+    :class:`~moirae.model.base.GeneralContainer` or a :class:`~moirae.model.base.HealthVariable`.
+
+    Args:
+        filter_array: array of numerical values to be converted
+        template: template object to be used; original object will not be modified
+        names: in case of a `HealthVariable`, can update specific names
+
+    Returns:
+        corresponding model-related object given by template with numerical values from the array
+    """
+    model_related_object = template.model_copy(deep=True)
+    if isinstance(model_related_object, GeneralContainer):
+        return model_related_object.from_numpy(filter_array)
+    else:
+        return model_related_object.update_parameters(values=filter_array, names=names)
+
 
 class BaseCellWrapper(ModelWrapper):
-    """Link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
-    the filter implementations."""
+    """
+    Base link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
+    the filter implementations.
+    """
 
     cell_model: CellModel
     """Cell model underpinning the update functions"""
@@ -60,13 +81,71 @@ class BaseCellWrapper(ModelWrapper):
         self.inputs = inputs
 
         # Capture the shape of the outputs
-        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(self.inputs,
-                                                                                 self.transients,
-                                                                                 self.asoh).to_numpy().shape[1]
+        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(new_inputs=self.inputs,
+                                                                                 transient_state=self.transients,
+                                                                                 asoh=self.asoh).to_numpy().shape[1]
 
     @property
     def num_output_dimensions(self) -> int:
         return self._num_output_dimensions
+
+
+class CellModelWrapper(BaseCellWrapper):
+    """
+    Base link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
+    :class:`~moirae.estimators.online.filters.base.BaseFilter` filter implementations. This particular wrapper does not
+    touch the A-SOH, but only uses it for predictions.
+    """
+    def __init__(self,
+                 cell_model: CellModel,
+                 asoh: HealthVariable,
+                 transients: GeneralContainer,
+                 inputs: InputQuantities,
+                 asoh_inputs: Optional[Tuple[str]] = None) -> None:
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
+
+        self.num_transients = transients.to_numpy().shape[1]
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        return self.num_transients
+
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes a numpy representation of the transient states and updates it based on the cell model, the
+        previous and new controls. Recall the cell model needs the A-SOH as well!
+        """
+        # Convert objects
+        transients = convert_numpy_to_model(filter_array=hidden_states, template=self.transients)
+        previous_inputs = convert_numpy_to_model(filter_array=previous_controls, template=self.inputs)
+        new_inputs = convert_numpy_to_model(filter_array=new_controls, template=self.inputs)
+
+        # Update transients
+        new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
+                                                                new_inputs=new_inputs,
+                                                                transient_state=transients,
+                                                                asoh=self.asoh)
+
+        return new_transients.to_numpy()
+
+    def predict_measurement(self, hidden_states: np.ndarray, controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes a numpy representation of the transient state and of the controls, and predicts measurements
+        from it
+        """
+        # Convert objects
+        transients = convert_numpy_to_model(filter_array=hidden_states, template=self.transients)
+        inputs = convert_numpy_to_model(filter_array=controls, template=self.inputs)
+
+        # Get output
+        measurements = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
+                                                                  transient_state=transients,
+                                                                  asoh=self.asoh)
+
+        return measurements.to_numpy()
 
 
 class DegradationModelWrapper(BaseCellWrapper):
@@ -95,17 +174,18 @@ class DegradationModelWrapper(BaseCellWrapper):
         self.asoh_inputs = asoh_inputs
         self.num_transients = transients.to_numpy().shape[1]
         self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
+        # Storing "previous inputs" just in case a call to `predict_measurement` is made prematurely
+        self._previous_inputs = inputs.model_copy(deep=True)
 
     @property
     def num_hidden_dimensions(self) -> int:
         return self.num_asoh
 
-    def create_degradation_inputs(self, hidden_states: np.ndarray) -> HealthVariable:
+    def _convert_hidden_to_asoh(self, hidden_states: np.ndarray) -> HealthVariable:
         """
         Helper function to take hidden states and convert them to A-SOH object to be given to degradation model
         """
-        asoh_template = self.asoh.model_copy(deep=True)
-        return asoh_template.update_parameters(hidden_states, self.asoh_inputs)
+        return convert_numpy_to_model(filter_array=hidden_states, template=self.asoh, names=self.asoh_inputs)
 
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
@@ -119,8 +199,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         """
         # Remember that, during this step, we should also store the previous controls so that the transient vector can
         # be propagated through the hidden states in the predict measurement step
-        previous_inputs = self.inputs.model_copy(deep=True)
-        previous_inputs.from_numpy(previous_controls)
+        previous_inputs = convert_numpy_to_model(filter_array=previous_controls, template=self.inputs)
         self._previous_inputs = previous_inputs
 
         return hidden_states.copy()
@@ -137,7 +216,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         inputs.from_numpy(controls)
 
         # Do the same for the A-SOH
-        asoh = self.create_degradation_inputs(hidden_states=hidden_states)
+        asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
 
         # Now, propagate the transients through the A-SOH
         propagated_transients = self.cell_model.update_transient_state(previous_inputs=self._previous_inputs,
