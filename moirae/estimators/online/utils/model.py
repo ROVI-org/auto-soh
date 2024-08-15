@@ -24,8 +24,8 @@ def convert_vals_model_to_filter(
         a corresponding MultivariateRandomDistribution (either Gaussian or Delta)
     """
     if uncertainty_matrix is None:
-        return DeltaDistribution(mean=model_quantities.to_numpy()[0, :])
-    return MultivariateGaussian(mean=model_quantities.to_numpy()[0, :], covariance=uncertainty_matrix)
+        return DeltaDistribution(mean=model_quantities.to_numpy().flatten())
+    return MultivariateGaussian(mean=model_quantities.to_numpy().flatten(), covariance=uncertainty_matrix)
 
 
 def convert_numpy_to_model(filter_array: np.ndarray,
