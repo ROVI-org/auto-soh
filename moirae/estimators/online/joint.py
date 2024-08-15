@@ -6,7 +6,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
-from .utils.model import JointCellModelInterface, convert_vals_model_to_filter
+from .utils.model import JointCellModelWrapper, convert_vals_model_to_filter
 from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
@@ -20,7 +20,7 @@ class JointEstimator(OnlineEstimator):
     """
 
     def __init__(self, joint_filter: BaseFilter):
-        if not isinstance(joint_filter.model, JointCellModelInterface):
+        if not isinstance(joint_filter.model, JointCellModelWrapper):
             raise ValueError('The joint estimator only works for a filter which uses a JointCellModel to describe the '
                              'physics')
         model_interface = joint_filter.model
@@ -100,10 +100,10 @@ class JointEstimator(OnlineEstimator):
                 kappa_param
         """
         # Start by assembling the joint model wrapper
-        joint_model = JointCellModelInterface(cell_model=cell_model,
-                                              asoh=initial_asoh,
-                                              transients=initial_transients,
-                                              input_template=initial_inputs)
+        joint_model = JointCellModelWrapper(cell_model=cell_model,
+                                            asoh=initial_asoh,
+                                            transients=initial_transients,
+                                            input_template=initial_inputs)
 
         # Prepare objects to be given to UKF
         # Joint hidden state

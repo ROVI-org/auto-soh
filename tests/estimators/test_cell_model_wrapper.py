@@ -2,17 +2,17 @@
 from pytest import raises
 import numpy as np
 
-from moirae.estimators.online.utils.model import JointCellModelInterface
+from moirae.estimators.online.utils.model import JointCellModelWrapper
 
 
 def test_update_hidden_only(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
 
-    cell_function = JointCellModelInterface(
+    cell_function = JointCellModelWrapper(
         cell_model=ecm,
         asoh=rint_asoh,
         transients=rint_transient,
-        input_template=rint_inputs,
+        inputs=rint_inputs,
         asoh_inputs=tuple(),
     )
     assert cell_function.num_output_dimensions == 1
@@ -49,20 +49,20 @@ def test_update_batched_inputs(simple_rint):
     rint_transient.from_numpy(np.array([[0.0, 0.0], [0.1, 0.0]]))
 
     with raises(ValueError, match='transient state must be 1. Found: 2'):
-        JointCellModelInterface(
+        JointCellModelWrapper(
             cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
-            input_template=rint_inputs,
+            inputs=rint_inputs,
             asoh_inputs=('q_t.base_values',),
         )
 
     rint_asoh.update_parameters(np.array([[10.], [9.], [11.]]), ['q_t.base_values'])
     with raises(ValueError, match='ASOH must be 1. Found: 3'):
-        JointCellModelInterface(
+        JointCellModelWrapper(
             cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
-            input_template=rint_inputs,
+            inputs=rint_inputs,
             asoh_inputs=('q_t.base_values',),
         )

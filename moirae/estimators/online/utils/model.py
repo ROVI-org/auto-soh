@@ -31,7 +31,7 @@ def convert_vals_model_to_filter(
 #  the `predict_output` function first estimates how the transients will update for each set of ASOH,
 #  then uses the updated transient states and ASOH to determine the outptus
 
-class CellModelInterface(ModelWrapper):
+class BaseCellWrapper(ModelWrapper):
     """Link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
     the filter implementations."""
 
@@ -69,7 +69,7 @@ class CellModelInterface(ModelWrapper):
         return self._num_output_dimensions
 
 
-class DegradationModelInterface(CellModelInterface):
+class DegradationModelInterface(BaseCellWrapper):
     """
     Link between A-SOH degradation models and the numpy-only interface of the
     :class:`~moirae.estimators.online.filters.base.BaseFilter`. If provides the model wrapper need for dual estimation
@@ -152,7 +152,8 @@ class DegradationModelInterface(CellModelInterface):
         return outputs.to_numpy()
 
 
-class JointCellModelInterface(CellModelInterface):
+
+class JointCellModelWrapper(BaseCellWrapper):
     """Interface used when the hidden state used by a filter includes the transient states.
 
     Create the interface by defining
