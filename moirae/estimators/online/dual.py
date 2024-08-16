@@ -1,5 +1,5 @@
 """ Framework for dual estimation of transient vector and A-SOH"""
-from typing import Tuple, Optional, Dict
+from typing import Union, Tuple, Optional, TypedDict, Literal
 from typing_extensions import Self
 
 import numpy as np
@@ -10,6 +10,17 @@ from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
 from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
+
+
+class individual_UKF_tuning_inputs(TypedDict):
+    alpha_param: Optional[float]
+    beta_param: Optional[float]
+    kappa_param: Optional[Union[float, Literal['automatic']]]
+
+
+class dual_ukf_tuning_inputs(TypedDict):
+    transient: Optional[individual_UKF_tuning_inputs]
+    asoh: Optional[individual_UKF_tuning_inputs]
 
 
 class DualEstimator(OnlineEstimator):
@@ -95,7 +106,7 @@ class DualEstimator(OnlineEstimator):
                                            transient_covariance_process_noise: Optional[np.ndarray] = None,
                                            asoh_covariance_process_noise: Optional[np.ndarray] = None,
                                            covariance_sensor_noise: Optional[np.ndarray] = None,
-                                           filter_args: Optional[Dict] = None) -> Self:
+                                           filter_args: Optional[dual_ukf_tuning_inputs] = None) -> Self:
         """
         Function to help the user initialize a UKF-based dual estimation without needing to define each filter and
         model wrapper individually.
@@ -142,13 +153,19 @@ class DualEstimator(OnlineEstimator):
                            initial_hidden=transients_hidden,
                            initial_controls=initial_controls,
                            covariance_process_noise=transient_covariance_process_noise,
-                           covariance_sensor_noise=covariance_sensor_noise,
-                           **filter_args['transient'])
+                           covariance_sensor_noise=covariance_sensor_noise)
         asoh_filter = UKF(model=asoh_wrapper,
                           initial_hidden=asoh_hidden,
                           initial_controls=initial_controls,
                           covariance_process_noise=asoh_covariance_process_noise,
-                          covariance_sensor_noise=covariance_sensor_noise,
-                          **filter_args['asoh'])
+                          covariance_sensor_noise=covariance_sensor_noise)
+
+        if filter_args is not None:
+            if 'transient' in filter_args.keys():
+                for tuning_param, value in filter_args['transient'].items():
+                    setattr(trans_filter, tuning_param, value)
+            if 'asoh' in filter_args.keys():
+                for tuning_param, value in filter_args['asoh'].items():
+                    setattr(trans_filter, tuning_param, value)
 
         return DualEstimator(transient_filter=trans_filter, asoh_filter=asoh_filter)
