@@ -145,7 +145,8 @@ class DualEstimator(OnlineEstimator):
         # Prepare multivariate Gaussians
         transients_hidden = convert_vals_model_to_filter(model_quantities=initial_transients,
                                                          uncertainty_matrix=covariance_transient)
-        asoh_hidden = MultivariateGaussian(mean=initial_asoh.get_parameters(), uncertainty_matrix=covariance_asoh)
+        asoh_hidden = MultivariateGaussian(mean=initial_asoh.get_parameters().flatten(),
+                                           covariance=covariance_asoh)
         initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs)
 
         # Initialize filters
