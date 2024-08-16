@@ -73,11 +73,11 @@ class UnscentedKalmanFilter(BaseFilter):
                  model: ModelWrapper,
                  initial_hidden: MultivariateGaussian,
                  initial_controls: MultivariateRandomDistribution,
+                 covariance_process_noise: Optional[np.ndarray] = None,
+                 covariance_sensor_noise: Optional[np.ndarray] = None,
                  alpha_param: float = 1.,
                  kappa_param: Union[float, Literal['automatic']] = 0.,
-                 beta_param: float = 2.,
-                 covariance_process_noise: Optional[np.ndarray] = None,
-                 covariance_sensor_noise: Optional[np.ndarray] = None):
+                 beta_param: float = 2.):
         # Store main parameters
         super().__init__(model=model, initial_hidden=initial_hidden, initial_controls=initial_controls)
 
