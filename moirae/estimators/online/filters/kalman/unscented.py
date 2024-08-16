@@ -1,5 +1,6 @@
 """ Definition of Unscented Kálmán Filter (UKF)"""
 from typing import Union, Literal, Optional, Tuple, Dict
+from functools import cached_property
 
 import numpy as np
 from scipy.linalg import block_diag
@@ -101,9 +102,6 @@ class UnscentedKalmanFilter(BaseFilter):
             assert self._aug_len + kappa_param > 0, \
                 'Kappa parameter (%f) must be > - Augmented_length L (%d)!' % (kappa_param, self._aug_len)
             self.kappa_param = kappa_param
-        self.gamma_param = alpha_param * np.sqrt(self._aug_len + kappa_param)
-        self.lambda_param = (alpha_param * alpha_param *
-                             (self._aug_len + kappa_param)) - self._aug_len
 
         # Taking care of covariances
         if covariance_process_noise is None:  # assume std = 1.0e-8
@@ -123,14 +121,26 @@ class UnscentedKalmanFilter(BaseFilter):
         self.cov_w = covariance_process_noise.copy()
         self.cov_v = covariance_sensor_noise.copy()
 
-        # Finally, we can set the weights for the mean and covariance updates
+    @cached_property
+    def gamma_param(self) -> float:
+        return self.alpha_param * np.sqrt(self._aug_len + self.kappa_param)
+
+    @cached_property
+    def lambda_param(self) -> float:
+        return (self.alpha_param * self.alpha_param * (self._aug_len + self.kappa_param)) - self._aug_len
+
+    @cached_property
+    def mean_weights(self) -> np.ndarray:
         mean_weights = 0.5 * np.ones((2 * self._aug_len + 1))
         mean_weights[0] = self.lambda_param
-        mean_weights /= (alpha_param * alpha_param * (self._aug_len + kappa_param))
-        self.mean_weights = mean_weights.copy()
-        cov_weights = mean_weights.copy()
-        cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
-        self.cov_weights = cov_weights.copy()
+        mean_weights /= (self.alpha_param * self.alpha_param * (self._aug_len + self.kappa_param))
+        return mean_weights
+
+    @cached_property
+    def cov_weights(self) -> np.ndarray:
+        cov_weights = self.mean_weights.copy()
+        cov_weights[0] += 1 - (self.alpha_param * self.alpha_param) + self.beta_param
+        return cov_weights
 
     def step(self,
              new_controls: MultivariateRandomDistribution,
