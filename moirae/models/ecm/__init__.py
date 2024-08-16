@@ -76,10 +76,9 @@ class EquivalentCircuitModel(CellModel):
             tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
                             for RC in asoh.rc_elements])[:, :, 0].T  # Shape: batch_size, num_rc
             exp_factor = np.exp(-delta_t / tau)
-            iRC_kp1 *= exp_factor
-            iRC_kp1 += (1 - exp_factor) * \
-                       (current_kp1 - (current_slope * tau))
-            iRC_kp1 += current_slope * delta_t
+            iRC_kp1 = iRC_kp1 * exp_factor
+            iRC_kp1 = iRC_kp1 + ((1 - exp_factor) * (current_kp1 - (current_slope * tau)))
+            iRC_kp1 = iRC_kp1 + (current_slope * delta_t)
 
         # Update hysteresis
         hyst_kp1 = transient_state.hyst.copy()
