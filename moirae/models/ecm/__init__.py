@@ -97,7 +97,7 @@ class EquivalentCircuitModel(CellModel):
         # We need to figure out if the current changes sign during this process
 
         if current_k * current_kp1 >= 0 or self.current_behavior == 'constant':
-            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst.copy(),
+            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                     M=M,
                                                     kappa=kappa,
                                                     dt=delta_t,
@@ -107,7 +107,7 @@ class EquivalentCircuitModel(CellModel):
         else:
             # solving for time until current == 0
             phi = -current_k / current_slope
-            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst.copy(),
+            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                  M=M,
                                                  kappa=kappa,
                                                  dt=phi,
@@ -151,7 +151,7 @@ class EquivalentCircuitModel(CellModel):
 
         # Check series capacitance
         if transient_state.q0 is not None:
-            Vt = Vt + transient_state.q0.copy() / asoh.c0.get_value(soc=transient_state.soc.copy())
+            Vt = Vt + transient_state.q0 / asoh.c0.get_value(soc=transient_state.soc.copy())
 
         # Check RC elements
         if transient_state.i_rc.shape[-1] > 0:
