@@ -61,6 +61,8 @@ class SOCInterpolatedHealth(HealthVariable):
             y = self.base_values[:, 0]
             if soc_batch_size > 0 and batch_size == 1:
                 return np.repeat(y, soc.size, axis=0).reshape(input_dims)
+            elif soc_batch_size == 1 and batch_size > 1:
+                return y.reshape((batch_size,) + input_dims)
             return y.reshape(input_dims)
 
         # Run the interpolator, but the results mean something different
@@ -132,5 +134,5 @@ def hysteresis_solver_const_sign(
         exp_factor = -exp_factor
     exp_factor = np.exp(exp_factor)
     h_dt = exp_factor * h0
-    h_dt += (1 - exp_factor) * M
+    h_dt = h_dt + ((1 - exp_factor) * M)
     return h_dt
