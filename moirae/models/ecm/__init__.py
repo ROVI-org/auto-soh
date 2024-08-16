@@ -145,12 +145,13 @@ class EquivalentCircuitModel(CellModel):
         Vt = asoh.ocv(soc=transient_state.soc, temp=new_inputs.temperature)
 
         # Add I*R drop ('DCIR')
-        Vt += new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
-                                                     temp=new_inputs.temperature)
+        IR_drop = new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
+                                                         temp=new_inputs.temperature)
+        Vt = Vt + IR_drop
 
         # Check series capacitance
         if transient_state.q0 is not None:
-            Vt += transient_state.q0.copy() / asoh.c0.get_value(soc=transient_state.soc.copy())
+            Vt = Vt + transient_state.q0.copy() / asoh.c0.get_value(soc=transient_state.soc.copy())
 
         # Check RC elements
         if transient_state.i_rc.shape[-1] > 0:
@@ -160,9 +161,9 @@ class EquivalentCircuitModel(CellModel):
                  for rc in asoh.rc_elements]
             )  # Shape: (rc_rs, batch_dim, 1 resistance)
             V_drops = transient_state.i_rc * rc_rs[:, :, 0].T
-            Vt += np.sum(V_drops, axis=1, keepdims=True)
+            Vt = Vt + np.sum(V_drops, axis=1, keepdims=True)
 
         # Include hysteresis
-        Vt += transient_state.hyst
+        Vt = Vt + transient_state.hyst
 
         return ECMMeasurement(terminal_voltage=Vt)
