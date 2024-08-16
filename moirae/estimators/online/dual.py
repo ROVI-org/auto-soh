@@ -67,7 +67,7 @@ class DualEstimator(OnlineEstimator):
         asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
         # Convert
         estimated_transient = convert_numpy_to_model(transient_hidden.get_mean(), template=self.transients)
-        estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_hidden)
+        estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_hidden.get_mean())
         return estimated_transient, estimated_asoh
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
