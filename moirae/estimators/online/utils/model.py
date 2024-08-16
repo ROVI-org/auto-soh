@@ -45,9 +45,11 @@ def convert_numpy_to_model(filter_array: np.ndarray,
     """
     model_related_object = template.model_copy(deep=True)
     if isinstance(model_related_object, GeneralContainer):
-        return model_related_object.from_numpy(filter_array)
+        model_related_object.from_numpy(filter_array)
+        return model_related_object
     else:
-        return model_related_object.update_parameters(values=filter_array, names=names)
+        model_related_object.update_parameters(values=filter_array, names=names)
+        return model_related_object
 
 
 class BaseCellWrapper(ModelWrapper):
