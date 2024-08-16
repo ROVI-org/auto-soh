@@ -91,7 +91,7 @@ class DualEstimator(OnlineEstimator):
                                                                 measurements=refactored_measurements)
 
         # TODO (vventuri): how to we adequately combine the output predictions from both filters?
-        return transient_estimate.combine_with(asoh_estimate), output_pred_trans
+        return transient_estimate.combine_with((asoh_estimate,)), output_pred_trans
 
     @classmethod
     def initialize_unscented_kalman_filter(cls,
