@@ -149,7 +149,9 @@ def test_broadcasting(rint):
                                            asoh=asoh)
     volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=transient, asoh=asoh)
     assert new_trans.batch_size == 1
+    assert new_trans.to_numpy().shape[1] == 2
     assert volt.batch_size == 1
+    assert volt.to_numpy().shape[1] == 1
     # Trans: batched; ASOH: unbatched
     new_trans = ecm.update_transient_state(previous_inputs=input0,
                                            new_inputs=input1,
@@ -157,7 +159,9 @@ def test_broadcasting(rint):
                                            asoh=asoh)
     volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=trans_batch, asoh=asoh)
     assert new_trans.batch_size == batch_size
+    assert new_trans.to_numpy().shape[1] == 2
     assert volt.batch_size == batch_size
+    assert volt.to_numpy().shape[1] == 1
     # Trans: unbatched; ASOH: batched
     new_trans = ecm.update_transient_state(previous_inputs=input0,
                                            new_inputs=input1,
@@ -165,7 +169,9 @@ def test_broadcasting(rint):
                                            asoh=asoh_batch)
     volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=transient, asoh=asoh_batch)
     assert new_trans.batch_size == batch_size
+    assert new_trans.to_numpy().shape[1] == 2
     assert volt.batch_size == batch_size
+    assert volt.to_numpy().shape[1] == 1
     # Trans: batched; ASOH: batched
     new_trans = ecm.update_transient_state(previous_inputs=input0,
                                            new_inputs=input1,
@@ -173,4 +179,6 @@ def test_broadcasting(rint):
                                            asoh=asoh_batch)
     volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=trans_batch, asoh=asoh_batch)
     assert new_trans.batch_size == batch_size
+    assert new_trans.to_numpy().shape[1] == 2
     assert volt.batch_size == batch_size
+    assert volt.to_numpy().shape[1] == 1
