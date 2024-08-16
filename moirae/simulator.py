@@ -1,3 +1,5 @@
+"""Utility for running physics models for large numbers of steps"""
+
 import numpy as np
 import pandas as pd
 from typing import Tuple, List, Optional

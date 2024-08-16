@@ -12,6 +12,7 @@ which define the physics of a variety of storage systems.
    system-models
    simulator
    estimator
+   source/modules
 
 
 Why the name?

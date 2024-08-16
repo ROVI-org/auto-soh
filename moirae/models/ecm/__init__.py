@@ -35,17 +35,16 @@ class EquivalentCircuitModel(CellModel):
             transient_state: ECMTransientVector,
             asoh: ECMASOH
     ) -> ECMTransientVector:
-        """
-        Update transient state.
-        Remember how the hidden state is setup and meant to be updated assuming
-        constant current behavior:
-        soc_(k+1) = soc_k +
-            [coulombic_eff * delta_t * (I_k + (0.5 * I_slope * delta_t))/ Q_total]
-        q0_(k+1) = q0_k - delta_t * I_k
-        i_(j, k+1) = [exp(-delta_t/Tau_j,k) * i_j,k] +
-            + [(1 - exp(-delta_t/Tau_j,k) * (I_k - I_slope * Tau_j,k)]
-        hyst_(k+1) = [see code, it's messy]
-        """
+        # Update transient state.
+        # Remember how the hidden state is setup and meant to be updated assuming
+        # constant current behavior:
+        # soc_(k+1) = soc_k +
+        #     [coulombic_eff * delta_t * (I_k + (0.5 * I_slope * delta_t))/ Q_total]
+        # q0_(k+1) = q0_k - delta_t * I_k
+        # i_(j, k+1) = [exp(-delta_t/Tau_j,k) * i_j,k] +
+        #     + [(1 - exp(-delta_t/Tau_j,k) * (I_k - I_slope * Tau_j,k)]
+        # hyst_(k+1) = [see code, it's messy]
+
         # Get basic info
         delta_t = new_inputs.time - previous_inputs.time
         current_k = previous_inputs.current
@@ -98,7 +97,7 @@ class EquivalentCircuitModel(CellModel):
         # We need to figure out if the current changes sign during this process
 
         if current_k * current_kp1 >= 0 or self.current_behavior == 'constant':
-            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst.copy(),
+            hyst_kp1 = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                     M=M,
                                                     kappa=kappa,
                                                     dt=delta_t,
@@ -108,7 +107,7 @@ class EquivalentCircuitModel(CellModel):
         else:
             # solving for time until current == 0
             phi = -current_k / current_slope
-            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst.copy(),
+            h_mid = hysteresis_solver_const_sign(h0=transient_state.hyst,
                                                  M=M,
                                                  kappa=kappa,
                                                  dt=phi,
@@ -136,25 +135,23 @@ class EquivalentCircuitModel(CellModel):
             new_inputs: ECMInput,
             transient_state: ECMTransientVector,
             asoh: ECMASOH) -> ECMMeasurement:
-        """
-        Compute expected output (terminal voltage, etc.) of a the model.
-        Recall the calculation of terminal voltage:
-        V_T = OCV(SOC,T) +
-                + [current * R0(SOC,T)] +
-                + [q_i / C0(SOC)] +
-                + Sum[I_j * R_j(SOC,T)] +
-                + hyst(SOC,T)
-        """
+        # Recall the calculation of terminal voltage:
+        # V_T = OCV(SOC,T) +
+        #         + [current * R0(SOC,T)] +
+        #         + [q_i / C0(SOC)] +
+        #         + Sum[I_j * R_j(SOC,T)] +
+        #         + hyst(SOC,T)
         # Start with OCV
         Vt = asoh.ocv(soc=transient_state.soc, temp=new_inputs.temperature)
 
         # Add I*R drop ('DCIR')
-        Vt += new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
-                                                     temp=new_inputs.temperature)
+        IR_drop = new_inputs.current * asoh.r0.get_value(soc=transient_state.soc,
+                                                         temp=new_inputs.temperature)
+        Vt = Vt + IR_drop
 
         # Check series capacitance
         if transient_state.q0 is not None:
-            Vt += transient_state.q0.copy() / asoh.c0.get_value(soc=transient_state.soc.copy())
+            Vt = Vt + transient_state.q0 / asoh.c0.get_value(soc=transient_state.soc.copy())
 
         # Check RC elements
         if transient_state.i_rc.shape[-1] > 0:
@@ -164,9 +161,9 @@ class EquivalentCircuitModel(CellModel):
                  for rc in asoh.rc_elements]
             )  # Shape: (rc_rs, batch_dim, 1 resistance)
             V_drops = transient_state.i_rc * rc_rs[:, :, 0].T
-            Vt += np.sum(V_drops, axis=1, keepdims=True)
+            Vt = Vt + np.sum(V_drops, axis=1, keepdims=True)
 
         # Include hysteresis
-        Vt += transient_state.hyst
+        Vt = Vt + transient_state.hyst
 
         return ECMMeasurement(terminal_voltage=Vt)
