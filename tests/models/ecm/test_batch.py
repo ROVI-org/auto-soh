@@ -109,3 +109,68 @@ def test_numpy_operations(pngv):
     assert np.allclose(12 + np.arange(3), transient.hyst.copy().flatten()), \
         f'Wrong hyst update: {transient.hyst.copy()}'
     assert np.allclose(new_values, transient.to_numpy()), f'Wrong full update: {transient.to_numpy()}'
+
+
+def test_broadcasting(rint):
+
+    # Create a model
+    ecm = ECM()
+
+    # Create inputs
+    input0 = ECMInput(time=0, current=0)
+    input1 = ECMInput(time=0.1, current=2)
+
+    # Get transient and A-SOH
+    transient = ECMTransientVector.provide_template(has_C0=False, num_RC=0)
+    asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
+
+    # Make parts of the asoh updatable
+    asoh.mark_updatable(name='r0.base_values')
+    asoh.mark_updatable(name='h0.base_values')
+
+    # Create batched copies
+    trans_batch = transient.model_copy(deep=True)
+    asoh_batch = asoh.model_copy(deep=True)
+
+    # Batch of 5
+    batch_size = 5
+    trans_vals = np.zeros((batch_size, 2))
+    trans_vals[:, 0] = np.linspace(0, 1, batch_size)
+    trans_batch.from_numpy(trans_vals)
+    # Update each A-SOH element separately, as we want R0 to have a full interpolation
+    asoh_batch.h0.base_values = 0.01 * np.arange(batch_size).reshape((-1, 1))
+    asoh_batch.r0.base_values = 0.01 * np.arange(2 * batch_size).reshape((-1, 2))
+
+    # Now, mix and match the updates and make sure they go through
+    # Trans: unbatched; ASOH: unbatched
+    new_trans = ecm.update_transient_state(previous_inputs=input0,
+                                           new_inputs=input1,
+                                           transient_state=transient,
+                                           asoh=asoh)
+    volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=transient, asoh=asoh)
+    assert new_trans.batch_size == 1
+    assert volt.batch_size == 1
+    # Trans: batched; ASOH: unbatched
+    new_trans = ecm.update_transient_state(previous_inputs=input0,
+                                           new_inputs=input1,
+                                           transient_state=trans_batch,
+                                           asoh=asoh)
+    volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=trans_batch, asoh=asoh)
+    assert new_trans.batch_size == batch_size
+    assert volt.batch_size == batch_size
+    # Trans: unbatched; ASOH: batched
+    new_trans = ecm.update_transient_state(previous_inputs=input0,
+                                           new_inputs=input1,
+                                           transient_state=transient,
+                                           asoh=asoh_batch)
+    volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=transient, asoh=asoh_batch)
+    assert new_trans.batch_size == batch_size
+    assert volt.batch_size == batch_size
+    # Trans: batched; ASOH: batched
+    new_trans = ecm.update_transient_state(previous_inputs=input0,
+                                           new_inputs=input1,
+                                           transient_state=trans_batch,
+                                           asoh=asoh_batch)
+    volt = ecm.calculate_terminal_voltage(new_inputs=input1, transient_state=trans_batch, asoh=asoh_batch)
+    assert new_trans.batch_size == batch_size
+    assert volt.batch_size == batch_size
