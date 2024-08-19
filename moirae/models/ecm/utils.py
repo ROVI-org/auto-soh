@@ -62,7 +62,10 @@ class SOCInterpolatedHealth(HealthVariable):
             if soc_batch_size > 0 and batch_size == 1:
                 return np.repeat(y, soc.size, axis=0).reshape(input_dims)
             elif soc_batch_size == 1 and batch_size > 1:
-                return y.reshape((batch_size,) + input_dims)
+                if len(input_dims) > 0:
+                    return y.reshape((batch_size, 1))
+                else:
+                    return y.reshape((batch_size,))
             return y.reshape(input_dims)
 
         # Run the interpolator, but the results mean something different
@@ -93,12 +96,12 @@ def realistic_fake_ocv(
 
 
 def hysteresis_solver_const_sign(
-        h0: float,
-        M: float,
-        kappa: float,
-        dt: float,
-        i0: float,
-        alpha: float) -> float:
+        h0: Union[float, np.ndarray],
+        M: Union[float, np.ndarray],
+        kappa: Union[float, np.ndarray],
+        dt: Union[float, np.ndarray],
+        i0: Union[float, np.ndarray],
+        alpha: Union[float, np.ndarray]) -> float:
     """
     Helper function to solve for hysteresis at time dt given initial conditions,
     parameters, and current and current slope. Assumes current does not change
@@ -128,7 +131,7 @@ def hysteresis_solver_const_sign(
     """
     assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
     exp_factor = kappa * dt
-    exp_factor *= (i0 + (0.5 * alpha * dt))
+    exp_factor = exp_factor * (i0 + (0.5 * alpha * dt))
     # Now, flip the sign depending if current is positive in the interval
     if i0 > -(alpha * dt):  # this indicates (i0 + alpha * t) > 0
         exp_factor = -exp_factor
