@@ -74,7 +74,7 @@ Utilities (``moirae.estimators.online.utils``)
    :show-inheritance:
 
 Cell Model Wrappers (``moirae.estimators.online.utils.model``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.utils.model
    :members:

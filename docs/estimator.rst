@@ -14,42 +14,95 @@ Online Estimators
 
 The :class:`~moirae.estimators.online.OnlineEstimator` defines the interface for all online estimators.
 
-All estimators require...
+Building an Estimator
++++++++++++++++++++++
 
-1. A :class:`~moirae.models.base.CellModel` which describes how the system state is expected to change and
-   relate the current state to observable measurements.
-2. An initial estimate for the parameters of the system, which we refer to as the Advanced State of Health (ASOH).
-3. An initial estimate for the transient states of the system
-4. Identification of which parameters to treat as hidden state. Many implementations of estimators are composites
-   which rely on different estimators to adjust subsets of states separately.
+.. note::
 
-Different implementations may require other information, such as an initial guess for the
-probability distribution for the values of the states (transient or ASOH).
+    A :class:`~moirae.models.base.CellModel` and estimates for its health variables are prerequisites.
+    Consult `the model documentation <./system-models.html>`_ to make them.
+
+The online estimator is composed of one or more filters which estimate the values of different parts
+of the battery state in tandem.
+The framework in which the filters interact is defined by the choice of
+:class:`~moirae.estimators.online.OnlineEstimator`, which include:
+
+- :class:`~moirae.estimators.online.joint.JointEstimator` where all state variables treated with a single filter.
+
+Build an estimator by first constructing a :class:`~moirae.estimators.online.utils.model.BaseCellWrapper` that defines how
+to update or estimate the measurements of a system for each subset of variables being estimated.
+Each framework requires different wrappers.
+For example, the :class:`~moirae.estimators.online.joint.JointEstimator` requires
+the :class:`~moirae.estimators.online.utils.model.JointCellModelWrapper`.
+
+.. code-block:: python
+
+    cell_function = JointCellModelWrapper(
+      cell_model=ecm,
+      asoh=rint_asoh,
+      transients=rint_transient,
+      input_template=rint_inputs,
+      asoh_inputs=('r0.base_values',),
+    )
+
+
+Build the filters that will update the estimate of parameters next.
+Every type of filter requires the model wrapper and initial estimates for the values of parameters.
+The initial estimates for parameters and the inputs to the system are defined as
+`probability distributions <source/estimators.html#module-moirae.estimators.online.filters.distributions>`_,
+which are created from NumPy arrays of parameters.
+The `Unscented Kálmán Filter <https://en.wikipedia.org/wiki/Kalman_filter#Unscented_Kalman_filter>`_
+is a common choice:
+
+.. code-block:: python
+
+    ukf = UKF(
+      model=cell_function,
+      initial_hidden=MultivariateGaussian(
+        mean=np.array([0., 0., 0.05]),  # Three parameters: SOC, hysteresis, R0
+        covariance=np.diag([0.01, 0.01, 0.01])
+      ),
+      initial_controls=MultivariateGaussian(
+        mean=np.array([0., 1., 25.]),  # Three inputs: Time, Current, Temperature
+        covariance=np.diag([0.001, 0.001, 0.5])
+      )
+    )
+
+
+Assemble the filters together to form the estimator as the last step.
+
+.. code-block:: python
+
+    ukf_joint = JointEstimator(joint_filter=ukf)
+
+Estimators provide class methods that assemble common patterns of wrapper and filters in a single step.
+Read the documentation on each filter type (TBD) for further details.
+
+.. ::
+
+    Build a documentation page on available filters and estimators.
+
+
+Using an Estimator
+++++++++++++++++++
 
 Use the estimator by calling the ``step`` function to update the estimated state
 provided a new observation of the outputs of the system.
+
 The ``step`` function returns a probability distribution of the expected state
 and expected outputs.
 
 .. code-block:: python
 
-    # Create an online estimator
-    ukf_joint = JointUnscentedKalmanFilter(
-        model=ecm_model,
-        initial_asoh=asoh,
-        initial_transients=transient,
-        initial_inputs=inputs,
-    )
-
     # Generate inputs and expected outputs
     next_inputs = ECMInput(time=1., current=1.)
     expected_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0)
-    next_outputs = ecm_model.calculate_terminal_voltage(next_inputs, expected_transients, asoh)
+    next_outputs = ecm.calculate_terminal_voltage(next_inputs, expected_transients, rint_asoh)
 
     # Step the estimator
-    output_dist, state_dist = ukf_joint.step(
-        next_inputs,
-        next_outputs
+    state_dist, output_dist = ukf_joint.step(
+      next_inputs,
+      next_outputs
     )
 
 All estimators provide access to the state through the ``estimator.state`` attribute,
