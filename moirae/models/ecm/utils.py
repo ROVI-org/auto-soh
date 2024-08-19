@@ -62,7 +62,7 @@ class SOCInterpolatedHealth(HealthVariable):
             if soc_batch_size > 0 and batch_size == 1:
                 return np.repeat(y, soc.size, axis=0).reshape(input_dims)
             elif soc_batch_size == 1 and batch_size > 1:
-                if len(input_dims):
+                if len(input_dims) > 0:
                     return y.reshape((batch_size, 1))
                 else:
                     return y.reshape((batch_size,))
