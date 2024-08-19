@@ -11,7 +11,7 @@ which define the physics of a variety of storage systems.
 
    system-models
    simulator
-   estimator
+   estimators/index
    source/modules
 
 

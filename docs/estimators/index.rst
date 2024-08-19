@@ -9,6 +9,10 @@ Estimators come in several categories:
 - **Online Estimators** which update parameter estimates after each new observation.
 - **Offline Estimators** which generate a single parameter estimate using all observations.
 
+.. contents::
+   :local:
+   :depth: 2
+
 Online Estimators
 -----------------
 
