@@ -14,7 +14,8 @@ authors = [
 dependencies = [
     "battery-data-toolkit",
     "pydantic",
-    "numpy"
+    "numpy",
+    "tqdm"
 ]
 
 [tool.setuptools.packages.find]
