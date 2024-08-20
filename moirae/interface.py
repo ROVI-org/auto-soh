@@ -7,6 +7,7 @@ from math import isfinite
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from batdata.data import BatteryDataset
 
 from moirae.estimators.online import OnlineEstimator
@@ -42,7 +43,8 @@ def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inp
 
 def run_online_estimate(
         dataset: BatteryDataset,
-        estimator: OnlineEstimator
+        estimator: OnlineEstimator,
+        pbar: bool = False
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -51,6 +53,7 @@ def run_online_estimate(
         estimator: Technique used to estimate the state of health, which is built using
             a physics model which describes the cell and initial guesses for the battery
             transient and health states.
+        pbar: Whether to display a progress bar
     Returns:
         - Estimates of the parameters at all timesteps from the input dataset
         - Estimator after updating with the data in dataset
@@ -71,7 +74,9 @@ def run_online_estimate(
     output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
     # Iterate over all timesteps
-    for i, (_, row) in enumerate(dataset.raw_data.reset_index().iterrows()):  # .reset_index to iterate in sort order
+    for i, (_, row) in tqdm(
+            enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
+    ):  # .reset_index to iterate in sort order
         controls, measurements = _row_to_inputs(row)
         new_state, new_outputs = estimator.step(controls, measurements)
 
