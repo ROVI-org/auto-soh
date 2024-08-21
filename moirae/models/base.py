@@ -2,7 +2,7 @@
 the control signals applied to it, the outputs observable from it,
 and the mathematical models which links state, control, and outputs together."""
 from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Self
 from abc import abstractmethod
 import logging
 
@@ -523,6 +523,19 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         if end != values.shape[-1]:
             raise ValueError(f'Did not use all parameters. Provided {len(values)}, used {end}')
 
+    def make_copy(self, values: np.ndarray, names: Optional[Sequence[str]] = None) -> Self:
+        """
+        Helper method that returns a copy of the current object with values specified by numpy.ndarray
+
+        Args:
+            values: numpy array containing values to be used in copy
+            names: sequence of the names of attributes to be returned with the values passed. If ``None``, changes all
+                attributes it can
+        """
+        copy = self.model_copy(deep=True)
+        copy.update_parameters(values=values, names=names)
+        return copy
+
 
 class GeneralContainer(BaseModel,
                        arbitrary_types_allowed=True):
@@ -634,6 +647,17 @@ class GeneralContainer(BaseModel,
             new_field_values = values[:, begin_index:end_index]
             setattr(self, field_name, new_field_values)
             begin_index = end_index
+
+    def make_copy(self, values: np.ndarray) -> Self:
+        """
+        Helper method that returns a copy of the current object with values specified by numpy.ndarray
+
+        Args:
+            values: numpy array containing values to be used in copy
+        """
+        copy = self.model_copy(deep=True)
+        copy.from_numpy(values)
+        return copy
 
 
 class InputQuantities(GeneralContainer):

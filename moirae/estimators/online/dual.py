@@ -5,7 +5,7 @@ from typing_extensions import Self, NotRequired
 import numpy as np
 
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
-from .utils.model import CellModelWrapper, DegradationModelWrapper, convert_vals_model_to_filter, convert_numpy_to_model
+from .utils.model import CellModelWrapper, DegradationModelWrapper, convert_vals_model_to_filter
 from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
@@ -73,7 +73,7 @@ class DualEstimator(OnlineEstimator):
         transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
         asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
         # Convert
-        estimated_transient = convert_numpy_to_model(transient_hidden.get_mean(), template=self.transients)
+        estimated_transient = self.transients.make_copy(values=transient_hidden.get_mean())
         estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_hidden.get_mean())
         return estimated_transient, estimated_asoh
 
