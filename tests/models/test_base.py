@@ -359,3 +359,23 @@ def test_json(example_hv):
     ):
         assert name_a == name_b
         assert np.allclose(value_a, value_b)
+
+
+def test_make_copy():
+
+    class MyContainer(GeneralContainer):
+        x: ScalarParameter
+        y: ListParameter
+
+    class MyHealth(HealthVariable):
+        a: ScalarParameter
+        b: ListParameter
+
+    base_container = MyContainer(x=0., y=1.)
+    base_health = MyHealth(a=2., b=np.array([3, 4, 5]))
+    base_health.mark_updatable(name='a')
+
+    new_container = base_container.make_copy(values=np.array([10., 11]))
+    assert np.allclose(new_container.to_numpy(), [10, 11])
+    new_health = base_health.make_copy(values=np.arange(10).reshape((10, 1)))
+    assert np.allclose(new_health.get_parameters(), np.arange(10).reshape((10, 1)))

@@ -1,9 +1,11 @@
 """Classes defining different multivariate probability distributions"""
 from abc import abstractmethod
 from warnings import warn
+from typing import Iterable
 from typing_extensions import Self
 
 import numpy as np
+from scipy.linalg import block_diag
 from pydantic import Field, field_validator, computed_field, model_validator, BaseModel
 
 
@@ -32,6 +34,15 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         """
         raise NotImplementedError('Please implement in child class!')
 
+    @abstractmethod
+    def combine_with(self, random_dists: Iterable[Self]) -> Self:
+        """
+        Provides an easy way to combine several multivariate independent random variables of the same distribution type
+        (delta, gaussian, etc.), but not necessarily of the same dimensions or from the same PDFs. It must not change
+        self!
+        """
+        raise NotImplementedError('Please implement in child class!')
+
 
 class DeltaDistribution(MultivariateRandomDistribution):
     """A distribution with only one allowed value"""
@@ -42,7 +53,14 @@ class DeltaDistribution(MultivariateRandomDistribution):
         return self.mean.copy()
 
     def get_covariance(self) -> np.ndarray:
-        return np.zeros_like(self.mean)
+        size = self.get_mean().shape[0]
+        return np.zeros((size, size))
+
+    def combine_with(self, random_dists: Iterable[Self]) -> Self:
+        combined_mean = [self.get_mean(),]
+        combined_mean += [delta.get_mean() for delta in random_dists]
+        combined_mean = np.concatenate(combined_mean, axis=None)
+        return DeltaDistribution(mean=combined_mean)
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
@@ -95,3 +113,12 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
 
     def get_covariance(self) -> np.ndarray:
         return self.covariance.copy()
+
+    def combine_with(self, random_dists: Iterable[Self]) -> Self:
+        combined_mean = [self.get_mean(),]
+        combined_mean += [gaussian.get_mean() for gaussian in random_dists]
+        combined_cov = [self.get_covariance(),]
+        combined_cov += [gaussian.get_covariance() for gaussian in random_dists]
+        combined_mean = np.concatenate(combined_mean, axis=None)
+        combined_cov = block_diag(*combined_cov)
+        return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)

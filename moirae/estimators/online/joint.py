@@ -32,7 +32,7 @@ class JointEstimator(OnlineEstimator):
             cell_model=model_interface.cell_model,
             initial_asoh=model_interface.asoh,
             initial_transients=model_interface.transients,
-            initial_inputs=model_interface.input_template,
+            initial_inputs=model_interface.inputs,
             updatable_asoh=model_interface.asoh_inputs
         )
         self.filter = joint_filter
@@ -107,7 +107,7 @@ class JointEstimator(OnlineEstimator):
         joint_model = JointCellModelWrapper(cell_model=cell_model,
                                             asoh=initial_asoh,
                                             transients=initial_transients,
-                                            input_template=initial_inputs)
+                                            inputs=initial_inputs)
 
         # Prepare objects to be given to UKF
         # Joint hidden state
