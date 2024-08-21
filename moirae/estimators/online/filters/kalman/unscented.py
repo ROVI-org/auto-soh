@@ -1,5 +1,6 @@
 """ Definition of Unscented Kálmán Filter (UKF)"""
-from typing import Union, Literal, Optional, Tuple, Dict
+from typing import Union, Literal, Optional, Tuple, Dict, TypedDict
+from typing_extensions import NotRequired, Self
 from functools import cached_property
 
 import numpy as np
@@ -50,6 +51,25 @@ def compute_unscented_covariance(cov_weights: np.ndarray,
     return cov
 
 
+class UKFTuningParameters(TypedDict):
+    """
+    Auxiliary class to help provide tuning parameters to
+    ~:class:`~moirae.estimators.online.filters.kalman.UnscentedKalmanFilter`
+
+    Args:
+        alpha_param: alpha parameter to UKF
+        beta_param: beta parameter to UKF
+        kappa_param: kappa parameter to UKF
+    """
+    alpha_param: NotRequired[float]
+    beta_param: NotRequired[float]
+    kappa_param: NotRequired[Union[float, Literal['automatic']]]
+
+    @classmethod
+    def defaults(cls) -> Self:
+        return {'alpha_param': 1., 'kappa_param': 0., 'beta_param': 2.}
+
+
 class UnscentedKalmanFilter(BaseFilter):
     """
     Class that defines the functionality of the Unscented Kalman Filter
@@ -58,15 +78,13 @@ class UnscentedKalmanFilter(BaseFilter):
         model: model describing the system
         initial_hidden: initial hidden state of the system
         initial_controls: initial control on the system
-        alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the
-                    spread of the sigma points; lower values keep sigma
-                    points closer to the mean, alpha=1 effectively brings
-                    the KF closer to Central Difference KF (default = 1.)
-        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values
-                     of kappa >=0 for positive semidefiniteness. (default = 0.)
-        beta_param: tuning parameter beta >=0 used to incorporate knowledge
-                        of prior distribution; for Gaussian use beta = 2
-                        (default = 2.)
+        alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the spread of the sigma points; lower values
+            keep sigma points closer to the mean, alpha=1 effectively brings the KF closer to Central Difference KF
+            (default = 1.)
+        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values of kappa >=0 for positive semidefiniteness.
+            (default = 0.)
+        beta_param: tuning parameter beta >=0 used to incorporate knowledge of prior distribution; for Gaussian use
+            beta = 2 (default = 2.)
         covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
     """

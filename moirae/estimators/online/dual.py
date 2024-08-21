@@ -1,6 +1,6 @@
 """ Framework for dual estimation of transient vector and A-SOH"""
-from typing import Union, Tuple, Optional, TypedDict, Literal
-from typing_extensions import Self
+from typing import Tuple, Optional, TypedDict
+from typing_extensions import Self, NotRequired
 
 import numpy as np
 
@@ -10,17 +10,24 @@ from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
 from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
+from .filters.kalman.unscented import UKFTuningParameters
 
 
-class individual_UKF_tuning_inputs(TypedDict):
-    alpha_param: Optional[float]
-    beta_param: Optional[float]
-    kappa_param: Optional[Union[float, Literal['automatic']]]
+class DualUKFTuningParameters(TypedDict):
+    """
+    Auxiliary class to help provide tuning parameters to each filter in the dual estimation framework defined by
+    ~:class:`~moirae.estimators.online.dual.DualEstimator`
 
+    Args:
+        transient: tuning parameters for the transient filter
+        asoh: tuning parameters for the A-SOH filter
+    """
+    transient: NotRequired[UKFTuningParameters]
+    asoh: NotRequired[UKFTuningParameters]
 
-class dual_ukf_tuning_inputs(TypedDict):
-    transient: Optional[individual_UKF_tuning_inputs]
-    asoh: Optional[individual_UKF_tuning_inputs]
+    @classmethod
+    def defaults(cls) -> Self:
+        return {'transient': UKFTuningParameters.defaults(), 'asoh': UKFTuningParameters.defaults()}
 
 
 class DualEstimator(OnlineEstimator):
@@ -94,19 +101,21 @@ class DualEstimator(OnlineEstimator):
         return transient_estimate.combine_with((asoh_estimate,)), output_pred_trans
 
     @classmethod
-    def initialize_unscented_kalman_filter(cls,
-                                           cell_model: CellModel,
-                                           # TODO (vventuri): add degrataion_model as an option here
-                                           initial_asoh: HealthVariable,
-                                           initial_transients: GeneralContainer,
-                                           initial_inputs: InputQuantities,
-                                           covariance_transient: Optional[np.ndarray] = None,
-                                           covariance_asoh: Optional[np.ndarray] = None,
-                                           inputs_uncertainty: Optional[np.ndarray] = None,
-                                           transient_covariance_process_noise: Optional[np.ndarray] = None,
-                                           asoh_covariance_process_noise: Optional[np.ndarray] = None,
-                                           covariance_sensor_noise: Optional[np.ndarray] = None,
-                                           filter_args: Optional[dual_ukf_tuning_inputs] = None) -> Self:
+    def initialize_unscented_kalman_filter(
+        cls,
+        cell_model: CellModel,
+        # TODO (vventuri): add degrataion_model as an option here
+        initial_asoh: HealthVariable,
+        initial_transients: GeneralContainer,
+        initial_inputs: InputQuantities,
+        covariance_transient: np.ndarray,
+        covariance_asoh: np.ndarray,
+        inputs_uncertainty: Optional[np.ndarray] = None,
+        transient_covariance_process_noise: Optional[np.ndarray] = None,
+        asoh_covariance_process_noise: Optional[np.ndarray] = None,
+        covariance_sensor_noise: Optional[np.ndarray] = None,
+        filter_args: Optional[DualUKFTuningParameters] = DualUKFTuningParameters.defaults()
+    ) -> Self:
         """
         Function to help the user initialize a UKF-based dual estimation without needing to define each filter and
         model wrapper individually.
@@ -154,12 +163,14 @@ class DualEstimator(OnlineEstimator):
                            initial_hidden=transients_hidden,
                            initial_controls=initial_controls,
                            covariance_process_noise=transient_covariance_process_noise,
-                           covariance_sensor_noise=covariance_sensor_noise)
+                           covariance_sensor_noise=covariance_sensor_noise,
+                           **filter_args.get('transient', UKFTuningParameters.defaults()))
         asoh_filter = UKF(model=asoh_wrapper,
                           initial_hidden=asoh_hidden,
                           initial_controls=initial_controls,
                           covariance_process_noise=asoh_covariance_process_noise,
-                          covariance_sensor_noise=covariance_sensor_noise)
+                          covariance_sensor_noise=covariance_sensor_noise,
+                          **filter_args.get('asoh', UKFTuningParameters.defaults()))
 
         if filter_args is not None:
             if 'transient' in filter_args.keys():
