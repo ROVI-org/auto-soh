@@ -5,7 +5,8 @@ from typing_extensions import Self, NotRequired
 import numpy as np
 
 from moirae.models.base import InputQuantities, OutputQuantities, GeneralContainer, HealthVariable, CellModel
-from .utils.model import CellModelWrapper, DegradationModelWrapper, convert_vals_model_to_filter
+from .model.cell import convert_vals_model_to_filter
+from .model.cell import CellModelWrapper, DegradationModelWrapper
 from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian

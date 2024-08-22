@@ -1,6 +1,6 @@
 import numpy as np
 
-from moirae.estimators.online.utils.model import CellModelWrapper, DegradationModelWrapper
+from moirae.estimators.online.model.cell import CellModelWrapper, DegradationModelWrapper
 
 
 def test_dual_wrapper(simple_rint):

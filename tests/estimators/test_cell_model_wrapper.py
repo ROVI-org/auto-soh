@@ -2,7 +2,7 @@
 from pytest import raises
 import numpy as np
 
-from moirae.estimators.online.utils.model import JointCellModelWrapper
+from moirae.estimators.online.model.cell import JointCellModelWrapper
 
 
 def test_update_hidden_only(simple_rint):

@@ -9,7 +9,8 @@ from scipy.linalg import block_diag
 from moirae.estimators.online.filters.distributions import (MultivariateRandomDistribution,
                                                             MultivariateGaussian,
                                                             DeltaDistribution)
-from moirae.estimators.online.filters.base import ModelWrapper, BaseFilter
+from moirae.estimators.online.filters.base import BaseFilter
+from ...model import ModelWrapper
 from .utils import ensure_positive_semi_definite, calculate_gain_matrix
 
 

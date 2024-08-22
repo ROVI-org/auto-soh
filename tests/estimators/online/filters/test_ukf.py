@@ -2,7 +2,7 @@ import numpy as np
 from pytest import fixture
 
 from moirae.estimators.online.filters.distributions import (MultivariateGaussian, DeltaDistribution)
-from moirae.estimators.online.filters.base import ModelWrapper
+from moirae.estimators.online.model import ModelWrapper
 from moirae.estimators.online.filters.kalman.unscented import UnscentedKalmanFilter as UKF
 from moirae.estimators.online.filters.kalman.unscented import compute_unscented_covariance
 
