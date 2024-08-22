@@ -6,9 +6,9 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator, computed_field
 
 
-class BaseTransform(BaseModel, arbitrary_types_allowed=True):
+class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
     """
-    Base class used to transform between :class:`~moirae.models.base.CellModel` and
+    Base class used to convert between :class:`~moirae.models.base.CellModel` and
     :class:`~moirae.estimators.online.filters.base.BaseFilter` coordinate systems.
 
     Specifically, it is given to the
@@ -77,7 +77,7 @@ class BaseTransform(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
 
-class LinearTransformation(BaseTransform):
+class LinearConversionOperator(ConversionOperator):
     """
     Class that implements a linear function as a transformation (strictly speaking, this is not a linear transformation,
     but just a linear function).
