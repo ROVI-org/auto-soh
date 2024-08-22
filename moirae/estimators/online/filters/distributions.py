@@ -8,7 +8,7 @@ import numpy as np
 from scipy.linalg import block_diag
 from pydantic import Field, field_validator, computed_field, model_validator, BaseModel
 
-from .transformations import ConversionOperator
+from .conversions import ConversionOperator
 
 
 class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
@@ -46,7 +46,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Please implement in child class!')
 
     @abstractmethod
-    def transform(self, transform_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
         """
         Uses the methods available in the :class:`~moirae.estimators.online.filters.transformations.BaseTransform` to
         transform the underlying distribution and return a copy of the transformed
@@ -100,8 +100,8 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         combined_mean = np.concatenate(combined_mean, axis=None)
         return DeltaDistribution(mean=combined_mean)
 
-    def transform(self, transform_operator: ConversionOperator) -> Self:
-        transformed_mean = transform_operator.transform_points(points=self.get_mean())
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
+        transformed_mean = conversion_operator.transform_points(points=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
 
 
@@ -170,7 +170,7 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         combined_cov = block_diag(*combined_cov)
         return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)
 
-    def transform(self, transform_operator: ConversionOperator) -> Self:
-        transformed_mean = transform_operator.transform_points(self.get_mean())
-        transformed_cov = transform_operator.transform_covariance(self.get_covariance())
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
+        transformed_mean = conversion_operator.transform_points(self.get_mean())
+        transformed_cov = conversion_operator.transform_covariance(self.get_covariance())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
