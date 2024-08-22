@@ -58,8 +58,6 @@ class TransformedModel(ModelWrapper):
         """
         raise NotImplementedError()
 
-
-
     def update_hidden_states(self,
                              hidden_states: np.ndarray,
                              previous_controls: np.ndarray,
