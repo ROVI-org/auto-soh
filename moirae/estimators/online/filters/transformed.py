@@ -9,7 +9,8 @@ from moirae.estimators.online.model.transformed import TransformedModel
 
 
 class TransformedFilter(BaseFilter):
-    """Utility to rectify outputs from filters which different coordinate system than the underlying model.
+    """Utility to rectify outputs from filters which operate on 
+    different coordinate system than the underlying model.
 
     A partner to the :class:`~moirae.estimators.online.model.transformed.TransformedModel`.
     Supply a filter configured to work in a coordinate system of choice and a wrapped
