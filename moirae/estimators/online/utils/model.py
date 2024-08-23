@@ -249,8 +249,9 @@ class JointCellModelWrapper(BaseCellWrapper):
                  asoh: HealthVariable,
                  transients: GeneralContainer,
                  inputs: InputQuantities,
-                 asoh_inputs: Optional[Tuple[str]] = None):
-        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
+                 asoh_inputs: Optional[Tuple[str]] = None,
+                 converters: Optional[ModelWrapperConverters] = ModelWrapperConverters.defaults()) -> None:
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
         # Store the information about the identity of variables in the transient state
         if asoh_inputs is None:
@@ -274,10 +275,17 @@ class JointCellModelWrapper(BaseCellWrapper):
             A hidden state vector ready for use in a filter
         """
 
-        return np.concatenate([
-            transients.to_numpy(),
-            asoh.get_parameters(self.asoh_inputs)
-        ], axis=1)
+        # Get raw values
+        trans_raw = transients.to_numpy()
+        asoh_raw = asoh.get_parameters(names=self.asoh_inputs)
+
+        # Concatenate
+        joint_raw = np.concatenate([trans_raw, asoh_raw], axis=1)
+
+        # Convert to filter
+        joint = self._convert_to_hidden_samples(model_hidden_samples=joint_raw)
+
+        return joint
 
     def create_cell_model_inputs(self, hidden_states: np.ndarray) -> Tuple[HealthVariable, GeneralContainer]:
         """Convert the hidden states into the forms used by CellModel
@@ -289,11 +297,14 @@ class JointCellModelWrapper(BaseCellWrapper):
             - Transients state from the hidden states
         """
 
+        # Get raw values
+        joint_raw = self._convert_from_hidden_samples(filter_hidden_samples=hidden_states)
+
         # Update any parameters for the transient state
-        my_transients = self.transients.make_copy(values=hidden_states[:, :self.num_transients])
+        my_transients = self.transients.make_copy(values=joint_raw[:, :self.num_transients])
 
         # Update the ASOH accordingly
-        my_asoh = self.asoh.make_copy(values=hidden_states[:, self.num_transients:], names=self.asoh_inputs)
+        my_asoh = self.asoh.make_copy(values=joint_raw[:, self.num_transients:], names=self.asoh_inputs)
         return my_asoh, my_transients
 
     def update_hidden_states(self,
@@ -301,29 +312,36 @@ class JointCellModelWrapper(BaseCellWrapper):
                              previous_controls: np.ndarray,
                              new_controls: np.ndarray) -> np.ndarray:
         # Transmute the controls and hidden state into the form required for the CellModel
-        previous_inputs = self.inputs.make_copy(values=previous_controls)
-        new_inputs = self.inputs.make_copy(values=new_controls)
+        previous_inputs = self.inputs.make_copy(
+            values=self._convert_from_control_samples(filter_control_samples=previous_controls))
+        new_inputs = self.inputs.make_copy(
+            values=self._convert_from_control_samples(filter_control_samples=new_controls))
 
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
 
         # Produce an updated estimate for the transient states, hold the ASOH parameters constant
-        output = hidden_states.copy()
+        output = self._convert_from_hidden_samples(filter_hidden_samples=hidden_states)
         new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
                                                                 new_inputs=new_inputs,
                                                                 transient_state=my_transients,
                                                                 asoh=my_asoh)
+
+        # Convert this back to filter lingo
         output[:, :self.num_transients] = new_transients.to_numpy()
+        output = self._convert_to_hidden_samples(model_hidden_samples=output)
         return output
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
                             controls: np.ndarray) -> np.ndarray:
         # First, transform the controls into ECM inputs
-        inputs = self.inputs.make_copy(values=controls)
+        inputs = self.inputs.make_copy(values=self._convert_from_control_samples(filter_control_samples=controls))
 
         # Now, iterate through hidden states to compute terminal voltage
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
         outputs = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
                                                              transient_state=my_transients,
                                                              asoh=my_asoh)
-        return outputs.to_numpy()
+        # Convert to filter lingo
+        outputs = self._convert_to_output_samples(model_output_samples=outputs.to_numpy())
+        return outputs
