@@ -116,6 +116,7 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
             raise ValueError(f'Additive factor must be at most 2D, but, instead, is has shape {shape}!')
         if len(shape) == 1:
             return np.diag(multi)
+        return multi
 
     @computed_field
     @property
