@@ -93,7 +93,7 @@ def test_names(simple_rint):
     )
     assert ukf_joint.state_names == ('soc', 'hyst', 'r0.base_values')
     assert ukf_joint.output_names == ('terminal_voltage',)
-    assert ukf_joint.control_names == ('time', 'current', 'temperature')
+    assert ukf_joint.control_names == ('time', 'current')
 
 
 def test_joint_ecm() -> None:

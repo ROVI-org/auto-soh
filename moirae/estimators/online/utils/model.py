@@ -12,8 +12,9 @@ def convert_vals_model_to_filter(
         model_quantities: GeneralContainer,
         uncertainty_matrix: Optional[np.ndarray] = None) -> Union[DeltaDistribution, MultivariateGaussian]:
     """
-    Function that converts model-related quantities (but not HealthVariable!) to filter-related quantities.
-    If uncertainty is provided, assumes a Multivariate Gaussian. Otherwise, assumes Delta Distribution
+    Function that converts :class:`~moirae.model.base.GeneralContainer` object to filter-related quantities.
+    If uncertainty is provided, assumes a :class:`~moirae.estimators.online.filters.distributions.MultivariateGaussian`.
+    Otherwise, assumes :class:`~moirae.estimators.online.filters.distributions.DeltaDistribution`.
 
     Args:
         model_quantities: model-related object to be converted into filter-related object
@@ -23,17 +24,15 @@ def convert_vals_model_to_filter(
         a corresponding MultivariateRandomDistribution (either Gaussian or Delta)
     """
     if uncertainty_matrix is None:
-        return DeltaDistribution(mean=model_quantities.to_numpy()[0, :])
-    return MultivariateGaussian(mean=model_quantities.to_numpy()[0, :], covariance=uncertainty_matrix)
+        return DeltaDistribution(mean=model_quantities.to_numpy().flatten())
+    return MultivariateGaussian(mean=model_quantities.to_numpy().flatten(), covariance=uncertainty_matrix)
 
-
-# TODO (wardlt): Implement the "ASOHOnly" interface needed by the Dual Estimator by making it such that
-#  the `predict_output` function first estimates how the transients will update for each set of ASOH,
-#  then uses the updated transient states and ASOH to determine the outptus
 
 class BaseCellWrapper(ModelWrapper):
-    """Link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
-    the filter implementations."""
+    """
+    Base link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
+    the filter implementations.
+    """
 
     cell_model: CellModel
     """Cell model underpinning the update functions"""
@@ -46,7 +45,7 @@ class BaseCellWrapper(ModelWrapper):
                  cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
-                 input_template: InputQuantities):
+                 inputs: InputQuantities):
 
         # Store the ASOH and transient state, making sure they are not batched
         if asoh.batch_size > 1:
@@ -57,16 +56,151 @@ class BaseCellWrapper(ModelWrapper):
         self.transients = transients
         self.cell_model = cell_model
         self.asoh = asoh
-        self.input_template = input_template
+        self.inputs = inputs
 
         # Capture the shape of the outputs
-        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(self.input_template,
-                                                                                 self.transients,
-                                                                                 self.asoh).to_numpy().shape[1]
+        self._num_output_dimensions = self.cell_model.calculate_terminal_voltage(new_inputs=self.inputs,
+                                                                                 transient_state=self.transients,
+                                                                                 asoh=self.asoh).to_numpy().shape[1]
 
     @property
     def num_output_dimensions(self) -> int:
         return self._num_output_dimensions
+
+
+class CellModelWrapper(BaseCellWrapper):
+    """
+    This particular wrapper does not touch the A-SOH, but only uses it for predictions.
+    """
+    def __init__(self,
+                 cell_model: CellModel,
+                 asoh: HealthVariable,
+                 transients: GeneralContainer,
+                 inputs: InputQuantities) -> None:
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
+
+        self.num_transients = transients.to_numpy().shape[1]
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        return self.num_transients
+
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
+        # Convert objects
+        transients = self.transients.make_copy(values=hidden_states)
+        previous_inputs = self.inputs.make_copy(values=previous_controls)
+        new_inputs = self.inputs.make_copy(values=new_controls)
+
+        # Update transients
+        new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
+                                                                new_inputs=new_inputs,
+                                                                transient_state=transients,
+                                                                asoh=self.asoh)
+
+        return new_transients.to_numpy()
+
+    def predict_measurement(self, hidden_states: np.ndarray, controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes a numpy representation of the transient state and of the controls, and predicts measurements
+        from it
+        """
+        # Convert objects
+        transients = self.transients.make_copy(values=hidden_states)
+        inputs = self.inputs.make_copy(values=controls)
+
+        # Get output
+        measurements = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
+                                                                  transient_state=transients,
+                                                                  asoh=self.asoh)
+
+        return measurements.to_numpy()
+
+
+class DegradationModelWrapper(BaseCellWrapper):
+    """
+    Link between A-SOH degradation models and the numpy-only interface of the
+    :class:`~moirae.estimators.online.filters.base.BaseFilter`. If provides the model wrapper need for dual estimation
+    frameworks
+    """
+
+    asoh_inputs: Tuple[str]
+    """Names of the parameters from the ASOH which are used as inputs to the model"""
+
+    def __init__(self,
+                 cell_model: CellModel,
+                 # TODO (vventuri): allow for passing an A-SOH degradation model!
+                 asoh: HealthVariable,
+                 transients: GeneralContainer,
+                 inputs: InputQuantities,
+                 asoh_inputs: Optional[Tuple[str]] = None) -> None:
+
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
+
+        # Store the information about the identity of variables in the transient state
+        if asoh_inputs is None:
+            asoh_inputs = asoh.updatable_names
+        self.asoh_inputs = asoh_inputs
+        self.num_transients = transients.to_numpy().shape[1]
+        self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
+        # Storing "previous inputs" just in case a call to `predict_measurement` is made prematurely
+        self._previous_inputs = inputs.model_copy(deep=True)
+
+    @property
+    def num_hidden_dimensions(self) -> int:
+        return self.num_asoh
+
+    def _convert_hidden_to_asoh(self, hidden_states: np.ndarray) -> HealthVariable:
+        """
+        Helper function to take hidden states and convert them to A-SOH object to be given to degradation model
+        """
+        asoh = self.asoh.make_copy(values=hidden_states, names=self.asoh_inputs)
+        return asoh
+
+    def update_hidden_states(self,
+                             hidden_states: np.ndarray,
+                             previous_controls: np.ndarray,
+                             new_controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes a numpy representation of the A-SOH and degrades it using the degradation model and the
+        previous and new controls. If the degradation model needs information for further in the past, it is responsible
+        for keeping track of that. The degration model will also be provided the current estimate of the transient
+        vector.
+        """
+        # Remember that, during this step, we should also store the previous controls so that the transient vector can
+        # be propagated through the hidden states in the predict measurement step
+        previous_inputs = self.inputs.make_copy(values=previous_controls)
+        self._previous_inputs = previous_inputs
+
+        return hidden_states.copy()
+
+    def predict_measurement(self,
+                            hidden_states: np.ndarray,
+                            controls: np.ndarray) -> np.ndarray:
+        """
+        Function that takes the numpy-representation of the estimated of A-SOH and computes predictions of the
+        measurement. Recall that, for that, we first need to propagate the transients through the A-SOH estimates
+        """
+        # First, transform the controls into ECM inputs
+        inputs = self.inputs.model_copy(deep=True)
+        inputs.from_numpy(controls)
+
+        # Do the same for the A-SOH
+        asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
+
+        # Now, propagate the transients through the A-SOH
+        propagated_transients = self.cell_model.update_transient_state(previous_inputs=self._previous_inputs,
+                                                                       new_inputs=inputs,
+                                                                       transient_state=self.transients,
+                                                                       asoh=asoh)
+
+        # Finally, compute outputs
+        outputs = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
+                                                             transient_state=propagated_transients,
+                                                             asoh=asoh)
+        return outputs.to_numpy()
 
 
 class JointCellModelWrapper(BaseCellWrapper):
@@ -83,7 +217,7 @@ class JointCellModelWrapper(BaseCellWrapper):
         cell_model: Model which defines the physics of the system being modeled
         asoh: Values for all state of health parameters of the model
         transients: Current values of the transient state of the system
-        input_template: Example input values for the model
+        inputs: Example input values for the model
         asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
     """
 
@@ -94,9 +228,9 @@ class JointCellModelWrapper(BaseCellWrapper):
                  cell_model: CellModel,
                  asoh: HealthVariable,
                  transients: GeneralContainer,
-                 input_template: InputQuantities,
+                 inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None):
-        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, input_template=input_template)
+        super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs)
 
         # Store the information about the identity of variables in the transient state
         if asoh_inputs is None:
@@ -136,12 +270,10 @@ class JointCellModelWrapper(BaseCellWrapper):
         """
 
         # Update any parameters for the transient state
-        my_transients = self.transients.model_copy(deep=True)
-        my_transients.from_numpy(hidden_states[:, :self.num_transients])
+        my_transients = self.transients.make_copy(values=hidden_states[:, :self.num_transients])
 
         # Update the ASOH accordingly
-        my_asoh = self.asoh.model_copy(deep=True)
-        my_asoh.update_parameters(hidden_states[:, self.num_transients:], self.asoh_inputs)
+        my_asoh = self.asoh.make_copy(values=hidden_states[:, self.num_transients:], names=self.asoh_inputs)
         return my_asoh, my_transients
 
     def update_hidden_states(self,
@@ -149,16 +281,15 @@ class JointCellModelWrapper(BaseCellWrapper):
                              previous_controls: np.ndarray,
                              new_controls: np.ndarray) -> np.ndarray:
         # Transmute the controls and hidden state into the form required for the CellModel
-        previous_inputs = self.input_template.model_copy(deep=True)
-        previous_inputs.from_numpy(previous_controls)
-        new_inputs = self.input_template.model_copy(deep=True)
-        new_inputs.from_numpy(new_controls)
+        previous_inputs = self.inputs.make_copy(values=previous_controls)
+        new_inputs = self.inputs.make_copy(values=new_controls)
 
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
 
         # Produce an updated estimate for the transient states, hold the ASOH parameters constant
         output = hidden_states.copy()
-        new_transients = self.cell_model.update_transient_state(previous_inputs, new_inputs=new_inputs,
+        new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
+                                                                new_inputs=new_inputs,
                                                                 transient_state=my_transients,
                                                                 asoh=my_asoh)
         output[:, :self.num_transients] = new_transients.to_numpy()
@@ -168,8 +299,7 @@ class JointCellModelWrapper(BaseCellWrapper):
                             hidden_states: np.ndarray,
                             controls: np.ndarray) -> np.ndarray:
         # First, transform the controls into ECM inputs
-        inputs = self.input_template.model_copy(deep=True)
-        inputs.from_numpy(controls)
+        inputs = self.inputs.make_copy(values=controls)
 
         # Now, iterate through hidden states to compute terminal voltage
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)

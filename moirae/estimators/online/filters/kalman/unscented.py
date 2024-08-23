@@ -1,5 +1,7 @@
 """ Definition of Unscented Kálmán Filter (UKF)"""
-from typing import Union, Literal, Optional, Tuple, Dict
+from typing import Union, Literal, Optional, Tuple, Dict, TypedDict
+from typing_extensions import NotRequired, Self
+from functools import cached_property
 
 import numpy as np
 from scipy.linalg import block_diag
@@ -49,6 +51,25 @@ def compute_unscented_covariance(cov_weights: np.ndarray,
     return cov
 
 
+class UKFTuningParameters(TypedDict):
+    """
+    Auxiliary class to help provide tuning parameters to
+    ~:class:`~moirae.estimators.online.filters.kalman.UnscentedKalmanFilter`
+
+    Args:
+        alpha_param: alpha parameter to UKF
+        beta_param: beta parameter to UKF
+        kappa_param: kappa parameter to UKF
+    """
+    alpha_param: NotRequired[float]
+    beta_param: NotRequired[float]
+    kappa_param: NotRequired[Union[float, Literal['automatic']]]
+
+    @classmethod
+    def defaults(cls) -> Self:
+        return {'alpha_param': 1., 'kappa_param': 0., 'beta_param': 2.}
+
+
 class UnscentedKalmanFilter(BaseFilter):
     """
     Class that defines the functionality of the Unscented Kalman Filter
@@ -57,15 +78,13 @@ class UnscentedKalmanFilter(BaseFilter):
         model: model describing the system
         initial_hidden: initial hidden state of the system
         initial_controls: initial control on the system
-        alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the
-                    spread of the sigma points; lower values keep sigma
-                    points closer to the mean, alpha=1 effectively brings
-                    the KF closer to Central Difference KF (default = 1.)
-        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values
-                     of kappa >=0 for positive semidefiniteness. (default = 0.)
-        beta_param: tuning parameter beta >=0 used to incorporate knowledge
-                        of prior distribution; for Gaussian use beta = 2
-                        (default = 2.)
+        alpha_param: tuning parameter 0.001 <= alpha <= 1 used to control the spread of the sigma points; lower values
+            keep sigma points closer to the mean, alpha=1 effectively brings the KF closer to Central Difference KF
+            (default = 1.)
+        kappa_param: tuning parameter  kappa >= 3 - aug_len; choose values of kappa >=0 for positive semidefiniteness.
+            (default = 0.)
+        beta_param: tuning parameter beta >=0 used to incorporate knowledge of prior distribution; for Gaussian use
+            beta = 2 (default = 2.)
         covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
     """
@@ -73,11 +92,11 @@ class UnscentedKalmanFilter(BaseFilter):
                  model: ModelWrapper,
                  initial_hidden: MultivariateGaussian,
                  initial_controls: MultivariateRandomDistribution,
+                 covariance_process_noise: Optional[np.ndarray] = None,
+                 covariance_sensor_noise: Optional[np.ndarray] = None,
                  alpha_param: float = 1.,
                  kappa_param: Union[float, Literal['automatic']] = 0.,
-                 beta_param: float = 2.,
-                 covariance_process_noise: Optional[np.ndarray] = None,
-                 covariance_sensor_noise: Optional[np.ndarray] = None):
+                 beta_param: float = 2.):
         # Store main parameters
         super().__init__(model=model, initial_hidden=initial_hidden, initial_controls=initial_controls)
 
@@ -101,9 +120,6 @@ class UnscentedKalmanFilter(BaseFilter):
             assert self._aug_len + kappa_param > 0, \
                 'Kappa parameter (%f) must be > - Augmented_length L (%d)!' % (kappa_param, self._aug_len)
             self.kappa_param = kappa_param
-        self.gamma_param = alpha_param * np.sqrt(self._aug_len + kappa_param)
-        self.lambda_param = (alpha_param * alpha_param *
-                             (self._aug_len + kappa_param)) - self._aug_len
 
         # Taking care of covariances
         if covariance_process_noise is None:  # assume std = 1.0e-8
@@ -123,14 +139,26 @@ class UnscentedKalmanFilter(BaseFilter):
         self.cov_w = covariance_process_noise.copy()
         self.cov_v = covariance_sensor_noise.copy()
 
-        # Finally, we can set the weights for the mean and covariance updates
+    @cached_property
+    def gamma_param(self) -> float:
+        return self.alpha_param * np.sqrt(self._aug_len + self.kappa_param)
+
+    @cached_property
+    def lambda_param(self) -> float:
+        return (self.alpha_param * self.alpha_param * (self._aug_len + self.kappa_param)) - self._aug_len
+
+    @cached_property
+    def mean_weights(self) -> np.ndarray:
         mean_weights = 0.5 * np.ones((2 * self._aug_len + 1))
         mean_weights[0] = self.lambda_param
-        mean_weights /= (alpha_param * alpha_param * (self._aug_len + kappa_param))
-        self.mean_weights = mean_weights.copy()
-        cov_weights = mean_weights.copy()
-        cov_weights[0] += 1 - (alpha_param * alpha_param) + beta_param
-        self.cov_weights = cov_weights.copy()
+        mean_weights /= (self.alpha_param * self.alpha_param * (self._aug_len + self.kappa_param))
+        return mean_weights
+
+    @cached_property
+    def cov_weights(self) -> np.ndarray:
+        cov_weights = self.mean_weights.copy()
+        cov_weights[0] += 1 - (self.alpha_param * self.alpha_param) + self.beta_param
+        return cov_weights
 
     def step(self,
              new_controls: MultivariateRandomDistribution,

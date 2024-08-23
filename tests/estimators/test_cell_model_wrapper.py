@@ -12,7 +12,7 @@ def test_update_hidden_only(simple_rint):
         cell_model=ecm,
         asoh=rint_asoh,
         transients=rint_transient,
-        input_template=rint_inputs,
+        inputs=rint_inputs,
         asoh_inputs=tuple(),
     )
     assert cell_function.num_output_dimensions == 1
@@ -53,7 +53,7 @@ def test_update_batched_inputs(simple_rint):
             cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
-            input_template=rint_inputs,
+            inputs=rint_inputs,
             asoh_inputs=('q_t.base_values',),
         )
 
@@ -63,6 +63,6 @@ def test_update_batched_inputs(simple_rint):
             cell_model=ecm,
             asoh=rint_asoh,
             transients=rint_transient,
-            input_template=rint_inputs,
+            inputs=rint_inputs,
             asoh_inputs=('q_t.base_values',),
         )
