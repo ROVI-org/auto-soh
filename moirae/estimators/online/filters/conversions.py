@@ -20,17 +20,17 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
     """
 
     @abstractmethod
-    def transform_samples(self, points: np.ndarray) -> np.ndarray:
+    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
         """
         Transforms a set of individual points, considered to be independent samples of the same
         :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.
 
         Args:
-            points: np.ndarray of points to be transformed. Its shape must be (num_points, num_coordinates) or
+            samples: np.ndarray of samples to be transformed. Its shape must be (num_samples, num_coordinates) or
                 (num_coordinates,)
 
         Returns:
-            transformed_points: np.ndarray of the transformed points
+            transformed_samples: np.ndarray of the transformed points
         """
         raise NotImplementedError('Implement in child class!')
 
@@ -49,16 +49,16 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
     @abstractmethod
-    def inverse_transform_samples(self, transformed_points: np.ndarray) -> np.ndarray:
+    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
         """
         Performs the inverse tranformation of that given by
         :meth:`~moirae.estimators.online.filters.transformations.BaseTransform.transform_points`.
 
         Args:
-            transformed_points: np.ndarray of points to be inverse transformed
+            transformed_samples: np.ndarray of points to be inverse transformed
 
         Returns:
-            points: np.ndarray corresponding to re-converted points
+            samples: np.ndarray corresponding to re-converted points
         """
         raise NotImplementedError('Implement in child class!')
 
@@ -138,11 +138,11 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
         #   ``np.matmul(multi, np.linalg.pinv(multi))`` can be very far from identity!!
         return np.linalg.pinv(self.multiplicative_array)
 
-    def transform_samples(self, points: np.ndarray) -> np.ndarray:
+    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
         if self._len_multi_shape == 0:
-            return (self.multiplicative_array * points) + self.additive_array
-        transformed_points = np.matmul(points, self.multiplicative_array) + self.additive_array
-        return transformed_points
+            return (self.multiplicative_array * samples) + self.additive_array
+        transformed_samples = np.matmul(samples, self.multiplicative_array) + self.additive_array
+        return transformed_samples
 
     def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
         if self._len_multi_shape == 0:
@@ -151,12 +151,12 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
                                            self.multiplicative_array)
         return transformed_covariance
 
-    def inverse_transform_samples(self, transformed_points: np.ndarray) -> np.ndarray:
-        points = transformed_points - self.additive_array
+    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
+        samples = transformed_samples - self.additive_array
         if self._len_multi_shape == 0:
-            return points * self.inv_multi
-        points = np.matmul(points, self.inv_multi)
-        return points
+            return samples * self.inv_multi
+        samples = np.matmul(samples, self.inv_multi)
+        return samples
 
     def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
         if self._len_multi_shape:
