@@ -129,22 +129,23 @@ class LinearConversionOperator(ConversionOperator):
         # case of a square matrix): the pseudo-inverse is a right-inverse; for a matrix of shape ``(D,d)``, it outputs
         # an array of shape ``(d,D)``
         # NOTE: in case of dimensionality reduction (``multi.shape = (D,d)`` with ``D>d``),
-        #   ``np.dot(multi, np.linalg.pinv(multi))`` can be very far from identity!!
+        #   ``np.matmul(multi, np.linalg.pinv(multi))`` can be very far from identity!!
         return np.linalg.pinv(self.multiplicative_array)
 
     def transform_points(self, points: np.ndarray) -> np.ndarray:
-        transformed_points = np.dot(points, self.multiplicative_array) + self.additive_array
+        transformed_points = np.matmul(points, self.multiplicative_array) + self.additive_array
         return transformed_points
 
     def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
-        transformed_covariance = np.dot(np.dot(self.multiplicative_array.T, covariance), self.multiplicative_array)
+        transformed_covariance = np.matmul(np.matmul(self.multiplicative_array.T, covariance),
+                                           self.multiplicative_array)
         return transformed_covariance
 
     def inverse_transform_points(self, transformed_points: np.ndarray) -> np.ndarray:
         points = transformed_points - self.additive_array
-        points = np.dot(points, self.inv_multi)
+        points = np.matmul(points, self.inv_multi)
         return points
 
     def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
-        covariance = np.dot(np.dot(self.inv_multi.T, transformed_covariance), self.inv_multi)
+        covariance = np.matmul(np.matmul(self.inv_multi.T, transformed_covariance), self.inv_multi)
         return covariance
