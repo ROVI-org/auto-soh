@@ -80,7 +80,7 @@ class ModelWrapper():
         Args:
             hidden_samples: samples of hidden state to be converted
         """
-        return self._hidden_conversion.inverse_transform_samples(samples=model_hidden_samples)
+        return self._hidden_conversion.inverse_transform_samples(transformed_samples=model_hidden_samples)
 
     def _convert_to_control_samples(self, model_control_samples: np.ndarray) -> np.ndarray:
         """
@@ -89,7 +89,7 @@ class ModelWrapper():
         Args:
             control_samples: samples of hidden state to be converted
         """
-        return self._control_conversion.inverse_transform_samples(samples=model_control_samples)
+        return self._control_conversion.inverse_transform_samples(transformed_samples=model_control_samples)
 
     def _convert_to_output_samples(self, model_output_samples: np.ndarray) -> np.ndarray:
         """
@@ -98,7 +98,7 @@ class ModelWrapper():
         Args:
             output_samples: samples of hidden state to be converted
         """
-        return self._output_conversion.inverse_transform_samples(samples=model_output_samples)
+        return self._output_conversion.inverse_transform_samples(transformed_samples=model_output_samples)
 
     @property
     @abstractmethod
