@@ -1,6 +1,6 @@
 """ Collection of base coordinate transformations"""
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, Literal
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, computed_field
@@ -20,7 +20,7 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
     """
 
     @abstractmethod
-    def transform_points(self, points: np.ndarray) -> np.ndarray:
+    def transform_samples(self, points: np.ndarray) -> np.ndarray:
         """
         Transforms a set of individual points, considered to be independent samples of the same
         :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.
@@ -49,7 +49,7 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
     @abstractmethod
-    def inverse_transform_points(self, transformed_points: np.ndarray) -> np.ndarray:
+    def inverse_transform_samples(self, transformed_points: np.ndarray) -> np.ndarray:
         """
         Performs the inverse tranformation of that given by
         :meth:`~moirae.estimators.online.filters.transformations.BaseTransform.transform_points`.
@@ -77,7 +77,7 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
 
-class LinearConversionOperator(ConversionOperator):
+class LinearConversionOperator(ConversionOperator, validate_assignment=True):
     """
     Class that implements a linear function as a transformation (strictly speaking, this is not a linear transformation,
     but just a linear function).
@@ -89,7 +89,8 @@ class LinearConversionOperator(ConversionOperator):
         multiplicative_array: np.ndarray corresponding to multiplicative factors in the linear function
         additive_array: np.ndarray corresponding to additive (bias) factors in the linear function
     """
-    multiplicative_array: np.ndarray = Field(description='Multiplicative factors of linear function')
+    multiplicative_array: np.ndarray = Field(description='Multiplicative factors of linear function',
+                                             default=np.array(1.))
     additive_array: Optional[np.ndarray] = Field(description='Additive (bias) factors of linear function',
                                                  default=np.array([0.]))
 
@@ -118,11 +119,16 @@ class LinearConversionOperator(ConversionOperator):
 
     @computed_field
     @property
+    def _len_multi_shape(self) -> Literal[0, 2]:
+        return len(self.multiplicative_array.shape)
+
+    @computed_field
+    @property
     def inv_multi(self) -> np.ndarray:
         """
         Stores the inverse of the multiplicative array, which is needed for the inverse operations
         """
-        if len(self.multiplicative_array.shape) == 0:
+        if self._len_multi_shape == 0:
             return 1 / self.multiplicative_array
         # There is a possibility the transformation is a dimensionality reduction, and the multiplicative array is not
         # a square matrix. Therefore, we will use the pseudo-inverse of the matrix (which is equal to the inverse in the
@@ -132,20 +138,28 @@ class LinearConversionOperator(ConversionOperator):
         #   ``np.matmul(multi, np.linalg.pinv(multi))`` can be very far from identity!!
         return np.linalg.pinv(self.multiplicative_array)
 
-    def transform_points(self, points: np.ndarray) -> np.ndarray:
+    def transform_samples(self, points: np.ndarray) -> np.ndarray:
+        if self._len_multi_shape == 0:
+            return (self.multiplicative_array * points) + self.additive_array
         transformed_points = np.matmul(points, self.multiplicative_array) + self.additive_array
         return transformed_points
 
     def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+        if self._len_multi_shape == 0:
+            return self.multiplicative_array * self.multiplicative_array * covariance
         transformed_covariance = np.matmul(np.matmul(self.multiplicative_array.T, covariance),
                                            self.multiplicative_array)
         return transformed_covariance
 
-    def inverse_transform_points(self, transformed_points: np.ndarray) -> np.ndarray:
+    def inverse_transform_samples(self, transformed_points: np.ndarray) -> np.ndarray:
         points = transformed_points - self.additive_array
+        if self._len_multi_shape == 0:
+            return points * self.inv_multi
         points = np.matmul(points, self.inv_multi)
         return points
 
     def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+        if self._len_multi_shape:
+            return self.inv_multi * self.inv_multi * transformed_covariance
         covariance = np.matmul(np.matmul(self.inv_multi.T, transformed_covariance), self.inv_multi)
         return covariance
