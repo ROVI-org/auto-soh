@@ -11,6 +11,8 @@ from moirae.estimators.online import OnlineEstimator
 from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
 from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
+from .filters.kalman.unscented import UKFTuningParameters
+from .filters.conversions import LinearConversionOperator, IdentityConversionOperator
 
 
 class JointEstimator(OnlineEstimator):
@@ -44,7 +46,8 @@ class JointEstimator(OnlineEstimator):
 
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
         joint_state = self.state
-        estimated_asoh, estimated_transient = self.joint_model.create_cell_model_inputs(hidden_states=joint_state)
+        estimated_asoh, estimated_transient = self.joint_model.create_cell_model_inputs(
+            hidden_states=np.atleast_2d(joint_state.get_mean()))
         return estimated_transient, estimated_asoh
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
@@ -56,24 +59,29 @@ class JointEstimator(OnlineEstimator):
         joint_estimate, output_predicted = self.filter.step(new_controls=refactored_inputs,
                                                             measurements=refactored_measurements)
 
-        return joint_estimate, output_predicted
+        return (joint_estimate.convert(conversion_operator=self.joint_model._hidden_conversion),
+                output_predicted.convert(conversion_operator=self.joint_model._output_conversion))
 
     @classmethod
-    def initialize_unscented_kalman_filter(cls,
-                                           cell_model: CellModel,
-                                           # TODO (vventuri): add degrataion_model as an option here
-                                           initial_asoh: HealthVariable,
-                                           initial_transients: GeneralContainer,
-                                           initial_inputs: InputQuantities,
-                                           covariance_joint: Optional[np.ndarray] = None,
-                                           covariance_transient: Optional[np.ndarray] = None,
-                                           covariance_asoh: Optional[np.ndarray] = None,
-                                           inputs_uncertainty: Optional[np.ndarray] = None,
-                                           joint_covariance_process_noise: Optional[np.ndarray] = None,
-                                           transient_covariance_process_noise: Optional[np.ndarray] = None,
-                                           asoh_covariance_process_noise: Optional[np.ndarray] = None,
-                                           covariance_sensor_noise: Optional[np.ndarray] = None,
-                                           **filter_args) -> Self:
+    def initialize_unscented_kalman_filter(
+        cls,
+        cell_model: CellModel,
+        # TODO (vventuri): add degrataion_model as an option here
+        initial_asoh: HealthVariable,
+        initial_transients: GeneralContainer,
+        initial_inputs: InputQuantities,
+        covariance_joint: Optional[np.ndarray] = None,
+        covariance_transient: Optional[np.ndarray] = None,
+        covariance_asoh: Optional[np.ndarray] = None,
+        inputs_uncertainty: Optional[np.ndarray] = None,
+        joint_covariance_process_noise: Optional[np.ndarray] = None,
+        transient_covariance_process_noise: Optional[np.ndarray] = None,
+        asoh_covariance_process_noise: Optional[np.ndarray] = None,
+        covariance_sensor_noise: Optional[np.ndarray] = None,
+        normalize_asoh: Optional[bool] = False,
+        filter_args: Optional[UKFTuningParameters] = UKFTuningParameters.defaults()
+    ) -> Self:
+
         """
         Function to help the user initialize a UKF-based joint estimation without needing to define the filter and
         model wrapper.
@@ -100,14 +108,27 @@ class JointEstimator(OnlineEstimator):
                 was not provided
             covariance_sensor_noise: sensor noise for outputs; if denoising is applied, must match the proper
                 dimensionality
-            **filter_args: additional keywords to be given the the UKF; can include alpha_param, beta_param, and
-                kappa_param
+            normalize_asoh: determines whether A-SOH parameters should be normalized in the filter
+            filter_args: additional dictionary of keywords to be given the the UKF; can include alpha_param, beta_param,
+                and kappa_param
         """
-        # Start by assembling the joint model wrapper
+        # Start by checking if A-SOH needs to be normalized, in which case, create conversion operator
+        asoh_normalizer = IdentityConversionOperator()
+        if normalize_asoh:
+            asoh_values = initial_asoh.get_parameters()
+            # Check parameters that are 0 and leave them un-normalized
+            asoh_values = np.where(asoh_values == 0, 1., asoh_values)
+            # Now, get dimension of transients
+            num_transients = initial_transients.to_numpy().shape[1]
+            normalizer_vector = np.hstack((np.ones(num_transients), asoh_values.flatten()))
+            asoh_normalizer = LinearConversionOperator(multiplicative_array=normalizer_vector)
+
+        # Assemble the joint model wrapper
         joint_model = JointCellModelWrapper(cell_model=cell_model,
                                             asoh=initial_asoh,
                                             transients=initial_transients,
-                                            inputs=initial_inputs)
+                                            inputs=initial_inputs,
+                                            converters={'hidden_conversion_operator': asoh_normalizer})
 
         # Prepare objects to be given to UKF
         # Joint hidden state
@@ -116,16 +137,24 @@ class JointEstimator(OnlineEstimator):
             joint_hidden_covariance = block_diag(covariance_transient, covariance_asoh)
         else:
             joint_hidden_covariance = covariance_joint
+        # Convert covariance!
+        joint_hidden_covariance = asoh_normalizer.inverse_transform_covariance(
+            transformed_covariance=joint_hidden_covariance)
         joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean[0, :], covariance=joint_hidden_covariance)
         # Initial controls
-        initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs,
-                                                        uncertainty_matrix=inputs_uncertainty)
+        initial_controls = convert_vals_model_to_filter(
+            model_quantities=joint_model._convert_to_control_samples(model_control_samples=initial_inputs),
+            uncertainty_matrix=joint_model._control_conversion.inverse_transform_covariance(
+                transformed_covariance=inputs_uncertainty))
 
         # Process noise
         if joint_covariance_process_noise is None:
             if (transient_covariance_process_noise is not None) and (asoh_covariance_process_noise is not None):
                 joint_covariance_process_noise = block_diag(transient_covariance_process_noise,
                                                             asoh_covariance_process_noise)
+        # Convert process noise covariance!
+        joint_covariance_process_noise = asoh_normalizer.inverse_transform_covariance(
+            transformed_covariance=joint_covariance_process_noise)
 
         # Initialize filter
         ukf = UKF(model=joint_model,
