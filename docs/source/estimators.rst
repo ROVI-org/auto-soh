@@ -21,6 +21,11 @@ Available frameworks for joint estimation include
    :undoc-members:
    :show-inheritance:
 
+.. autoclass:: moirae.estimators.online.dual.DualEstimator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Filters (``moirae.estimators.filters``)
 +++++++++++++++++++++++++++++++++++++++
 

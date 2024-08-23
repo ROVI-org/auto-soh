@@ -22,8 +22,8 @@ Online Estimators
     :width: 75 %
 
 The :class:`~moirae.estimators.online.OnlineEstimator` defines the interface for all online estimators.
-The **Estimator** is the interface operates using at least one **Filter**, which each rely on a model to estimate
-how parameters evolve with time based on prior expectations and a physics **Model**.
+The **Estimator** operates using at least one **Filter**, which each rely on a **Model** to estimate
+how parameters evolve with time.
 
 Building an Estimator
 +++++++++++++++++++++
@@ -36,9 +36,8 @@ Building an Estimator
 The online estimator is composed of one or more filters which estimate the values of different parts
 of the battery state in tandem.
 The framework in which the filters interact is defined by the choice of
-:class:`~moirae.estimators.online.OnlineEstimator`, which include:
-
-- :class:`~moirae.estimators.online.joint.JointEstimator` where all state variables treated with a single filter.
+:class:`~moirae.estimators.online.OnlineEstimator`, which includes the
+:class:`~moirae.estimators.online.joint.JointEstimator`.
 
 Build an estimator by first constructing a :class:`~moirae.estimators.online.utils.model.BaseCellWrapper` that defines how
 to update or estimate the measurements of a system for each subset of variables being estimated.
@@ -89,9 +88,11 @@ Assemble the filters together to form the estimator as the last step.
 Estimators provide class methods that assemble common patterns of wrapper and filters in a single step.
 Read the documentation on each filter type (TBD) for further details.
 
-.. ::
+.. toctree::
+    :maxdepth: 2
 
-    Build a documentation page on available filters and estimators.
+    online/joint
+    online/dual
 
 
 Using an Estimator
