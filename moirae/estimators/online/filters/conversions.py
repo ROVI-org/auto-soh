@@ -81,16 +81,24 @@ class IdentityConversionOperator(ConversionOperator):
     """
     Class that implements simple identity operation, that is, it does not change the inputs.
     """
-    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
+    def transform_samples(self, samples: Optional[np.ndarray]) -> np.ndarray:
+        if samples is None:
+            return
         return samples.copy()
 
-    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+    def transform_covariance(self, covariance: Optional[np.ndarray]) -> np.ndarray:
+        if covariance is None:
+            return
         return covariance.copy()
 
-    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
+    def inverse_transform_samples(self, transformed_samples: Optional[np.ndarray]) -> np.ndarray:
+        if transformed_samples is None:
+            return
         return transformed_samples.copy()
 
-    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+    def inverse_transform_covariance(self, transformed_covariance: Optional[np.ndarray]) -> np.ndarray:
+        if transformed_covariance is None:
+            return
         return transformed_covariance.copy()
 
 
