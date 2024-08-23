@@ -172,12 +172,4 @@ class DualEstimator(OnlineEstimator):
                           covariance_sensor_noise=covariance_sensor_noise,
                           **filter_args.get('asoh', UKFTuningParameters.defaults()))
 
-        if filter_args is not None:
-            if 'transient' in filter_args.keys():
-                for tuning_param, value in filter_args['transient'].items():
-                    setattr(trans_filter, tuning_param, value)
-            if 'asoh' in filter_args.keys():
-                for tuning_param, value in filter_args['asoh'].items():
-                    setattr(trans_filter, tuning_param, value)
-
         return DualEstimator(transient_filter=trans_filter, asoh_filter=asoh_filter)
