@@ -64,7 +64,7 @@ class ModelWrapper():
         """
         return self._control_conversion.transform_samples(samples=filter_control_samples)
 
-    def _convert_from_ouput_samples(self, filter_output_samples: np.ndarray) -> np.ndarray:
+    def _convert_from_output_samples(self, filter_output_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of output samples from filter to model language.
 
@@ -91,7 +91,7 @@ class ModelWrapper():
         """
         return self._control_conversion.inverse_transform_samples(samples=model_control_samples)
 
-    def _convert_to_ouput_samples(self, model_output_samples: np.ndarray) -> np.ndarray:
+    def _convert_to_output_samples(self, model_output_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array  output samples from model to filter language.
 
