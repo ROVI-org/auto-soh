@@ -1,9 +1,34 @@
 import numpy as np
 
-from moirae.estimators.online.filters.conversions import LinearConversionOperator
+from moirae.estimators.online.filters.conversions import IdentityConversionOperator, LinearConversionOperator
 
 
-def test_conversions():
+def test_identity_operator():
+    # Setup samples and covariance
+    single_sample = np.array([0, 1, 2])  # single sample from 3D space (flattened)
+    multiple_samples = np.arange(15).reshape((5, 3))  # 5 samples from 3D space
+    covariance = np.diag([1, 2, 3])
+
+    # Conversion
+    convertor = IdentityConversionOperator()
+    # transform
+    transform_single_sample = convertor.transform_samples(samples=single_sample)
+    transform_multi_samples = convertor.transform_samples(samples=multiple_samples)
+    transform_cov = convertor.transform_covariance(covariance=covariance)
+    # invert
+    reconverted_single_sample = convertor.inverse_transform_samples(transformed_samples=transform_single_sample)
+    reconverted_multi_samples = convertor.inverse_transform_samples(transformed_samples=transform_multi_samples)
+    reconverted_cov = convertor.inverse_transform_covariance(transform_cov)
+    # Checks
+    assert np.allclose(single_sample, transform_single_sample)
+    assert np.allclose(multiple_samples, transform_multi_samples)
+    assert np.allclose(covariance, transform_cov)
+    assert np.allclose(single_sample, reconverted_single_sample)
+    assert np.allclose(multiple_samples, reconverted_multi_samples)
+    assert np.allclose(covariance, reconverted_cov)
+
+
+def test_linear_conversions():
     # Setup samples and covariance
     single_sample = np.array([0, 1, 2])  # single sample from 3D space (flattened)
     multiple_samples = np.arange(15).reshape((5, 3))  # 5 samples from 3D space
