@@ -77,6 +77,23 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
 
+class IdentityConversionOperator(ConversionOperator):
+    """
+    Class that implements simple identity operation, that is, it does not change the inputs.
+    """
+    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
+        return samples.copy()
+
+    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+        return covariance.copy()
+
+    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
+        return transformed_samples.copy()
+
+    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+        return transformed_covariance.copy()
+
+
 class LinearConversionOperator(ConversionOperator, validate_assignment=True):
     """
     Class that implements a linear function as a transformation (strictly speaking, this is not a linear transformation,
