@@ -1,10 +1,24 @@
 """ Base definitions for all filters """
 from abc import abstractmethod
-from typing import Tuple
+from typing import Tuple, Optional, TypedDict
+from typing_extensions import NotRequired, Self
 
 import numpy as np
 
 from .distributions import MultivariateRandomDistribution
+from .conversions import ConversionOperator, IdentityConversionOperator
+
+
+class ModelWrapperConverters(TypedDict):
+    hidden_conversion_operator: NotRequired[ConversionOperator]
+    control_conversion_operator: NotRequired[ConversionOperator]
+    output_conversion_operator: NotRequired[ConversionOperator]
+
+    @classmethod
+    def defaults(cls) -> Self:
+        return {'hidden_conversion_operator': IdentityConversionOperator(),
+                'control_conversion_operator': IdentityConversionOperator(),
+                'output_conversion_operator': IdentityConversionOperator()}
 
 
 class ModelWrapper():
@@ -15,7 +29,22 @@ class ModelWrapper():
     dimension is the batch dimension. The batch dimension must be 1 or, if not,
     the same value as any other non-unity batch sizes for the purpose
     of `NumPy broadcasting <https://numpy.org/doc/stable/user/basics.broadcasting.html>`_.
+
+    Args:
+        hidden_conversion_operator: operator that determines how the filter hidden states must be converted to be given
+            to the model
+        control_conversion_operator: operator that determines how filter controls must be converted to be given to the
+            model
+        output_conversion_operator: operator that determines how model outputs must be converted to be given to the
+            filter
     """
+    def __init__(self,
+                 hidden_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator(),
+                 control_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator(),
+                 output_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator()) -> None:
+        self._hidden_conversion = hidden_conversion_operator.model_copy(deep=True)
+        self._control_conversion = control_conversion_operator.model_copy(deep=True)
+        self._output_conversion = output_conversion_operator.model_copy(deep=True)
 
     @property
     @abstractmethod
