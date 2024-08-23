@@ -16,7 +16,14 @@ Estimators come in several categories:
 Online Estimators
 -----------------
 
+.. image:: ../_static/explain-filter.svg
+    :alt: Estimators receive data from a battery dataset then pass inputs and outputs to Filters, which rely on Models to estimate state changes and measurements
+    :align: center
+    :width: 75 %
+
 The :class:`~moirae.estimators.online.OnlineEstimator` defines the interface for all online estimators.
+The **Estimator** is the interface operates using at least one **Filter**, which each rely on a model to estimate
+how parameters evolve with time based on prior expectations and a physics **Model**.
 
 Building an Estimator
 +++++++++++++++++++++
