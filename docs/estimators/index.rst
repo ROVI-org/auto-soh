@@ -86,7 +86,7 @@ Assemble the filters together to form the estimator as the last step.
     ukf_joint = JointEstimator(joint_filter=ukf)
 
 Estimators provide class methods that assemble common patterns of wrapper and filters in a single step.
-Read the documentation on each filter type (TBD) for further details.
+Read the documentation on each filter type for further details.
 
 .. toctree::
     :maxdepth: 2
