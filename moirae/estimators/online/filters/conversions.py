@@ -159,7 +159,7 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
         return samples
 
     def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
-        if self._len_multi_shape:
+        if self._len_multi_shape == 0:
             return self.inv_multi * self.inv_multi * transformed_covariance
         covariance = np.matmul(np.matmul(self.inv_multi.T, transformed_covariance), self.inv_multi)
         return covariance
