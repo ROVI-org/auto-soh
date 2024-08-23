@@ -46,59 +46,59 @@ class ModelWrapper():
         self._control_conversion = control_conversion_operator.model_copy(deep=True)
         self._output_conversion = output_conversion_operator.model_copy(deep=True)
 
-    def _convert_from_hidden_samples(self, hidden_samples: np.ndarray) -> np.ndarray:
+    def _convert_from_hidden_samples(self, filter_hidden_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of hidden samples from filter to model language.
 
         Args:
             hidden_samples: samples of hidden state to be converted
         """
-        return self._hidden_conversion.transform_samples(samples=hidden_samples)
+        return self._hidden_conversion.transform_samples(samples=filter_hidden_samples)
 
-    def _convert_from_control_samples(self, control_samples: np.ndarray) -> np.ndarray:
+    def _convert_from_control_samples(self, filter_control_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of control samples from filter to model language.
 
         Args:
             control_samples: samples of hidden state to be converted
         """
-        return self._control_conversion.transform_samples(samples=control_samples)
+        return self._control_conversion.transform_samples(samples=filter_control_samples)
 
-    def _convert_from_ouput_samples(self, output_samples: np.ndarray) -> np.ndarray:
+    def _convert_from_ouput_samples(self, filter_output_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of output samples from filter to model language.
 
         Args:
             output_samples: samples of hidden state to be converted
         """
-        return self._output_conversion.transform_samples(samples=output_samples)
+        return self._output_conversion.transform_samples(samples=filter_output_samples)
 
-    def _convert_to_hidden_samples(self, hidden_samples: np.ndarray) -> np.ndarray:
+    def _convert_to_hidden_samples(self, model_hidden_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of hidden samples from model to filter language.
 
         Args:
             hidden_samples: samples of hidden state to be converted
         """
-        return self._hidden_conversion.inverse_transform_samples(samples=hidden_samples)
+        return self._hidden_conversion.inverse_transform_samples(samples=model_hidden_samples)
 
-    def _convert_to_control_samples(self, control_samples: np.ndarray) -> np.ndarray:
+    def _convert_to_control_samples(self, model_control_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array of control samples from model to filter language.
 
         Args:
             control_samples: samples of hidden state to be converted
         """
-        return self._control_conversion.inverse_transform_samples(samples=control_samples)
+        return self._control_conversion.inverse_transform_samples(samples=model_control_samples)
 
-    def _convert_to_ouput_samples(self, output_samples: np.ndarray) -> np.ndarray:
+    def _convert_to_ouput_samples(self, model_output_samples: np.ndarray) -> np.ndarray:
         """
         Auxiliary function to convert array  output samples from model to filter language.
 
         Args:
             output_samples: samples of hidden state to be converted
         """
-        return self._output_conversion.inverse_transform_samples(samples=output_samples)
+        return self._output_conversion.inverse_transform_samples(samples=model_output_samples)
 
     @property
     @abstractmethod
