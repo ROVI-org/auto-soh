@@ -101,7 +101,7 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         return DeltaDistribution(mean=combined_mean)
 
     def convert(self, conversion_operator: ConversionOperator) -> Self:
-        transformed_mean = conversion_operator.transform_points(points=self.get_mean())
+        transformed_mean = conversion_operator.transform_samples(points=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
 
 
@@ -171,6 +171,6 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)
 
     def convert(self, conversion_operator: ConversionOperator) -> Self:
-        transformed_mean = conversion_operator.transform_points(self.get_mean())
+        transformed_mean = conversion_operator.transform_samples(self.get_mean())
         transformed_cov = conversion_operator.transform_covariance(self.get_covariance())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
