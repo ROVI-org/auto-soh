@@ -65,20 +65,41 @@ class DualEstimator(OnlineEstimator):
         self.cell_wrapper = cell_wrapper
         self.asoh_wrapper = asoh_wrapper
 
+    def _get_converted_states(self) -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
+        """
+        Helper function to convert values in transient and A-SOH from filter representations
+
+        Returns:
+            transient_converted: representation of the transient
+                :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution` in
+                model-coordinates
+            asoh_converted: representation of the A-SOH
+                :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution` in
+                model-coordinates
+        """
+        # We need to get the hidden states on both filters
+        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
+        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
+
+        # We need to transform them accordingly
+        transient_converted = transient_hidden.convert(conversion_operator=self.trans_filter.model.hidden_conversion)
+        asoh_converted = asoh_hidden.convert(conversion_operator=self.asoh_filter.model.hidden_conversion)
+
+        return transient_converted, asoh_converted
+
     @property
     def state(self) -> MultivariateRandomDistribution:
-        # We need to get the hidden states on both filters
-        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
-        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
-        return transient_hidden.combine_with(asoh_hidden)
+        # Get converted states
+        transient_converted, asoh_converted = self._get_converted_states()
+        return transient_converted.combine_with(asoh_converted)
 
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
-        # We need to get the hidden states on both filters
-        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
-        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
-        # Convert
-        estimated_transient = self.transients.make_copy(values=transient_hidden.get_mean())
-        estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_hidden.get_mean())
+        # Get converted states
+        transient_converted, asoh_converted = self._get_converted_states()
+
+        # Translate to model object
+        estimated_transient = self.transients.make_copy(values=transient_converted.get_mean())
+        estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_converted.get_mean())
         return estimated_transient, estimated_asoh
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
