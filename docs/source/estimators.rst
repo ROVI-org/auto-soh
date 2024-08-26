@@ -21,6 +21,11 @@ Available frameworks for joint estimation include
    :undoc-members:
    :show-inheritance:
 
+.. autoclass:: moirae.estimators.online.dual.DualEstimator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Filters (``moirae.estimators.filters``)
 +++++++++++++++++++++++++++++++++++++++
 
@@ -74,7 +79,7 @@ Utilities (``moirae.estimators.online.utils``)
    :show-inheritance:
 
 Cell Model Wrappers (``moirae.estimators.online.utils.model``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.utils.model
    :members:
