@@ -46,7 +46,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Please implement in child class!')
 
     @abstractmethod
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
         """
         Uses the methods available in the :class:`~moirae.estimators.online.filters.transformations.BaseTransform` to
         transform the underlying distribution and return a copy of the transformed
@@ -54,6 +54,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
 
         Args:
             transform_operator: operator to perform necessary transformations
+            inverse: whether to use the inverse operations available instead of the usual "forward" ones
 
         Returns:
             transformed_dist: transformed distribution
@@ -100,7 +101,10 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         combined_mean = np.concatenate(combined_mean, axis=None)
         return DeltaDistribution(mean=combined_mean)
 
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
+        if inverse:
+            transformed_mean = conversion_operator.inverse_transform_samples(transformed_samples=self.get_mean())
+            return DeltaDistribution(mean=transformed_mean)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
 
@@ -170,7 +174,12 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         combined_cov = block_diag(*combined_cov)
         return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)
 
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
+        if inverse:
+            transformed_mean = conversion_operator.inverse_transform_samples(transformed_samples=self.get_mean())
+            transformed_cov = conversion_operator.inverse_transform_covariance(
+                transformed_covariance=self.get_covariance())
+            return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
