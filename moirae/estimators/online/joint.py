@@ -57,10 +57,10 @@ class JointEstimator(OnlineEstimator):
         refactored_measurements = convert_vals_model_to_filter(measurements)
 
         # Remember to transform them prior to steping the filter!
-        transformed_inputs = refactored_inputs.convert(conversion_operator=self.filter.model.control_conversion,
+        transformed_inputs = refactored_inputs.convert(conversion_operator=self.joint_model.control_conversion,
                                                        inverse=True)
         transformed_measurements = refactored_measurements.convert(
-            conversion_operator=self.filter.model.output_conversion,
+            conversion_operator=self.joint_model.output_conversion,
             inverse=True)
 
         joint_estimate, output_predicted = self.filter.step(new_controls=transformed_inputs,
