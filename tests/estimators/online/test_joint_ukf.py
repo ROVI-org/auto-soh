@@ -266,3 +266,176 @@ def test_joint_ecm() -> None:
         assert vt_sigs[i - 1] >= gaussian_metrics[i] / 100, \
             'Real Vt value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
             (i, 100 * qt_sigs[i - 1], gaussian_metrics[i])
+
+
+def test_joint_ecm_with_normalization() -> None:
+    # Initialize RNG
+    rng = np.random.default_rng(seed=31415926535897932384626433832)
+
+    # Initialize A-SOH and make Qt and R0 updatable
+    asoh_rint = ECMASOH.provide_template(has_C0=False, num_RC=0)
+    asoh_rint.mark_updatable(name='q_t.base_values')
+    asoh_rint.mark_updatable(name='r0.base_values')
+
+    # Initialize transient state and simulator
+    transient0_rint = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=1.0)
+    rint_sim = Simulator(
+        model=ECM(),
+        asoh=asoh_rint,
+        initial_input=ECMInput(),
+        transient_state=transient0_rint,
+        keep_history=True
+    )
+
+    # Set up covariances for estimator
+    # Start with the A-SOH
+    cov_asoh_rint = [6.25e-04]  # Qt: +/- 0.05 Amp-hour
+    cov_asoh_rint += [2.5e-05]  # R0: +/- 10 mOhm
+    cov_asoh_rint = np.diag(cov_asoh_rint)
+
+    # Now, the transient
+    cov_tran_rint = [1. / 12]  # SOC
+    cov_tran_rint += [4 * (asoh_rint.h0.base_values.item()) ** 2 / 12]  # hyst
+    cov_tran_rint = np.diag(cov_tran_rint)
+
+    # Generate perturbed values
+    tran_rint_perturb = rng.multivariate_normal(mean=transient0_rint.to_numpy()[0, :], cov=cov_tran_rint)
+    asoh_rint_perturb = rng.multivariate_normal(mean=asoh_rint.get_parameters()[0, :], cov=cov_asoh_rint)
+    # Make sure the initial SOC is not too off-base
+    while tran_rint_perturb[0] > 1.05:
+        tran_rint_perturb[0] = rng.normal(loc=1.0, scale=cov_tran_rint[0, 0])
+
+    # Finally, prepare the objects for the joint estimation
+    asoh_rint_off = asoh_rint.model_copy(deep=True)
+    transient0_rint_off = transient0_rint.model_copy(deep=True)
+    asoh_rint_off.update_parameters(asoh_rint_perturb)
+    transient0_rint_off.from_numpy(tran_rint_perturb)
+
+    # Create joint estimator by setting very small noise terms for the A-SOH parameters
+    voltage_err = 1.0e-03  # mV voltage error
+    noise_sensor = ((voltage_err / 2) ** 2) * np.eye(1)
+    noise_asoh = 1.0e-10 * np.eye(len(asoh_rint_perturb))
+    noise_asoh[0, 0] = 6.25e-04  # Qt value is 10 Amp-hour, so +/- 0.05 Amp-hour is reasonable
+    noise_tran = 1.0e-08 * np.eye(2)
+    rint_joint_ukf = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=ECM(),
+        initial_asoh=asoh_rint_off,
+        initial_transients=transient0_rint_off,
+        initial_inputs=rint_sim.previous_input.model_copy(deep=True),
+        covariance_joint=block_diag(cov_tran_rint, cov_asoh_rint),
+        # TODO (wardlt): Consider keeping ASOH and transients as separate kwargs
+        joint_covariance_process_noise=block_diag(noise_tran, noise_asoh),
+        covariance_sensor_noise=noise_sensor,
+        normalize_asoh=True
+    )
+
+    # Co-simulate
+    # Total number of cycles to simulate
+    num_cycles = 10
+
+    # Let's also create a simple ways to store UKF predictions and estimates, as well as the inputs provided
+    noisy_voltage = []
+    controls = []
+    joint_ukf_predictions = {'joint_states': [], 'voltages': []}
+
+    # Specify the start time of the simulation
+    start_time = 0.0
+
+    for _ in range(num_cycles):
+        # Generate list of inputs and store them in the controls
+        protocol = cycle_protocol(rng, asoh=rint_sim.asoh, start_time=start_time)
+        controls += protocol
+
+        for new_input in protocol:
+            # Simulate (useful for also getting the real terminal voltage :) )
+            _, cell_response = rint_sim.step(new_inputs=new_input)
+            # Add noise to give to the UKF and store it
+            vt = cell_response.terminal_voltage + rng.normal(loc=0.0, scale=voltage_err / 2)
+            noisy_voltage += [vt]
+            # Step the joint estimator
+            measurement = ECMMeasurement(terminal_voltage=vt)
+            est_hidden, pred_measure = rint_joint_ukf.step(
+                inputs=new_input,
+                measurements=measurement
+            )
+            # Save to the dictionary
+            joint_ukf_predictions['joint_states'] += [est_hidden.model_copy(deep=True)]
+            joint_ukf_predictions['voltages'] += [pred_measure.model_copy(deep=True)]
+
+        # Update the start time of the next cycle
+        start_time = protocol[-1].time.item() + 1.0e-03
+
+    # Collect results for validation
+    # Get real values
+    real_soc = np.array([transient.soc.item() for transient in rint_sim.transient_history])
+    real_hyst = np.array([transient.hyst.item() for transient in rint_sim.transient_history])
+
+    # Estimate values and their corresponding uncertainty
+    estimated_soc = np.array([estimate.mean[0] for estimate in joint_ukf_predictions['joint_states']])
+    estimated_hyst = np.array([estimate.mean[1] for estimate in joint_ukf_predictions['joint_states']])
+    estimated_Qt = np.array([estimate.mean[2] for estimate in joint_ukf_predictions['joint_states']])
+    estimated_R0 = np.array([estimate.mean[3] for estimate in joint_ukf_predictions['joint_states']])
+    estimated_soc_std = np.sqrt(np.array([estimate.covariance[0, 0]
+                                          for estimate in joint_ukf_predictions['joint_states']]))
+    estimated_hyst_std = np.sqrt(np.array([estimate.covariance[1, 1]
+                                           for estimate in joint_ukf_predictions['joint_states']]))
+    estimated_Qt_std = np.sqrt(np.array([estimate.covariance[2, 2]
+                                         for estimate in joint_ukf_predictions['joint_states']]))
+    estimated_R0_std = np.sqrt(np.array([estimate.covariance[3, 3]
+                                         for estimate in joint_ukf_predictions['joint_states']]))
+    predicted_Vt = np.array([prediction.mean[0] for prediction in joint_ukf_predictions['voltages']])
+    predicted_Vt_std = np.sqrt(np.array([prediction.covariance[0, 0]
+                                         for prediction in joint_ukf_predictions['voltages']]))
+
+    # Check statistics
+    # Number of iterations to consider
+    num_iterations = 5 * 3600  # ~5 hours
+
+    # Predictions
+    soc_sigs = []
+    hyst_sigs = []
+    qt_sigs = []
+    r0_sigs = []
+    vt_sigs = []
+    for i in range(1, 4):
+        soc_sigs.append(np.sum(
+            np.isclose(real_soc[-num_iterations:],
+                       estimated_soc[-num_iterations:],
+                       atol=(i * estimated_soc_std[-num_iterations:]))) / num_iterations)
+        hyst_sigs.append(np.sum(
+            np.isclose(real_hyst[-num_iterations:],
+                       estimated_hyst[-num_iterations:],
+                       atol=(i * estimated_hyst_std[-num_iterations:]))) / num_iterations)
+        qt_sigs.append(np.sum(
+            np.isclose(asoh_rint.q_t.base_values,
+                       estimated_Qt[-num_iterations:],
+                       atol=(i * estimated_Qt_std[-num_iterations:]))) / num_iterations)
+        r0_sigs.append(np.sum(
+            np.isclose(asoh_rint.r0.base_values,
+                       estimated_R0[-num_iterations:],
+                       atol=(i * estimated_R0_std[-num_iterations:]))) / num_iterations)
+        vt_sigs.append(np.sum(
+            np.isclose(noisy_voltage[-num_iterations:],
+                       predicted_Vt[-num_iterations:],
+                       atol=(i * predicted_Vt_std[-num_iterations:]))) / num_iterations)
+
+    # Metrics
+    gaussian_metrics = {1: 68., 2: 95., 3: 98.}
+
+    # Check values within 2 and 3 srd
+    for i in [2, 3]:
+        assert soc_sigs[i - 1] >= gaussian_metrics[i] / 100, \
+            'Real SOC value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
+            (i, 100 * soc_sigs[i - 1], gaussian_metrics[i])
+        assert hyst_sigs[i - 1] >= gaussian_metrics[i] / 100, \
+            'Real hysteresis value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
+            (i, 100 * hyst_sigs[i - 1], gaussian_metrics[i])
+        assert qt_sigs[i - 1] >= gaussian_metrics[i] / 100, \
+            'Real Qt value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
+            (i, 100 * qt_sigs[i - 1], gaussian_metrics[i])
+        assert r0_sigs[i - 1] >= gaussian_metrics[i] / 100, \
+            'Real R0 value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
+            (i, 100 * r0_sigs[i - 1], gaussian_metrics[i])
+        assert vt_sigs[i - 1] >= gaussian_metrics[i] / 100, \
+            'Real Vt value is within %d std of prediction only %2.2f%% of the time, rather than %2.0f%%!' % \
+            (i, 100 * qt_sigs[i - 1], gaussian_metrics[i])

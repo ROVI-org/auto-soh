@@ -8,10 +8,12 @@ import numpy as np
 from scipy.linalg import block_diag
 from pydantic import Field, field_validator, computed_field, model_validator, BaseModel
 
+from .conversions import ConversionOperator
+
 
 class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     """
-    Base class to help represent a multivariate random variable
+    Base class to help represent a multivariate random variable.
     """
 
     @computed_field
@@ -43,11 +45,47 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         """
         raise NotImplementedError('Please implement in child class!')
 
+    @abstractmethod
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
+        """
+        Uses the methods available in the :class:`~moirae.estimators.online.filters.transformations.BaseTransform` to
+        transform the underlying distribution and return a copy of the transformed
+        :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`
 
-class DeltaDistribution(MultivariateRandomDistribution):
-    """A distribution with only one allowed value"""
+        Args:
+            transform_operator: operator to perform necessary transformations
+
+        Returns:
+            transformed_dist: transformed distribution
+        """
+        raise NotImplementedError('Please implement in child class!')
+
+
+class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True):
+    """
+    A distribution with only one set of allowed values
+
+    Args:
+        mean: a 1D array containing allowed values; can be passed as flattened array or array with shapes (1, dim) or
+            (dim, 1)
+    """
 
     mean: np.ndarray = Field(default=None, description='Mean of the distribution.')
+
+    @field_validator('mean', mode='after')
+    @classmethod
+    def mean_1d(cls, mu: np.ndarray) -> np.ndarray:
+        """ Making sure the mean is a vector """
+        mean_shape = mu.shape
+        if not mean_shape:
+            raise ValueError('Mean must be Sized and have a non-empty shape!')
+        if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
+            raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
+        elif len(mean_shape) == 2:
+            msg = 'Provided mean has shape (%d, %d), please flatten to (%d,)' % \
+                  (mean_shape + (max(mean_shape),))
+            raise ValueError(msg)
+        return mu.flatten()
 
     def get_mean(self) -> np.ndarray:
         return self.mean.copy()
@@ -62,10 +100,19 @@ class DeltaDistribution(MultivariateRandomDistribution):
         combined_mean = np.concatenate(combined_mean, axis=None)
         return DeltaDistribution(mean=combined_mean)
 
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
+        transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
+        return DeltaDistribution(mean=transformed_mean)
+
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
     """
-    Class to describe a multivariate Gaussian distribution
+    Class to describe a multivariate Gaussian distribution.
+
+    Args:
+        mean: a 1D array containing allowed values; can be passed as flattened array or array with shapes (1, dim) or
+            (dim, 1)
+        covariance: a 2D array of shape (dim, dim) describing the covariance of the distribution
     """
     mean: np.ndarray = Field(default=np.array([0]),
                              description='Mean of the multivariate Gaussian distribution',
@@ -122,3 +169,8 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         combined_mean = np.concatenate(combined_mean, axis=None)
         combined_cov = block_diag(*combined_cov)
         return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)
+
+    def convert(self, conversion_operator: ConversionOperator) -> Self:
+        transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
+        transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance())
+        return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
