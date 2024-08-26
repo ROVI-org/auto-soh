@@ -193,8 +193,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         self._previous_inputs = previous_inputs
 
         # Convert to A-SOH object (and, in the future, pass through degradation model)
-        asoh = self.asoh.make_copy(values=self.output_conversion.transform_samples(samples=hidden_states),
-                                   names=self.asoh_inputs)
+        asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
         # TODO (vventuri): degrade asoh with model
 
         return asoh.get_parameters(names=self.asoh_inputs)
