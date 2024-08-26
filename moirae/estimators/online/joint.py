@@ -78,8 +78,8 @@ class JointEstimator(OnlineEstimator):
         transient_covariance_process_noise: Optional[np.ndarray] = None,
         asoh_covariance_process_noise: Optional[np.ndarray] = None,
         covariance_sensor_noise: Optional[np.ndarray] = None,
-        normalize_asoh: Optional[bool] = False,
-        filter_args: Optional[UKFTuningParameters] = UKFTuningParameters.defaults()
+        normalize_asoh: bool = False,
+        filter_args: UKFTuningParameters = UKFTuningParameters.defaults()
     ) -> Self:
 
         """
