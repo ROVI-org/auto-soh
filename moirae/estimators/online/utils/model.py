@@ -96,11 +96,11 @@ class CellModelWrapper(BaseCellWrapper):
                              new_controls: np.ndarray) -> np.ndarray:
         # Convert objects
         transients = self.transients.make_copy(
-            values=self._convert_from_hidden_samples(filter_hidden_samples=hidden_states))
+            values=self.hidden_conversion.transform_samples(samples=hidden_states))
         previous_inputs = self.inputs.make_copy(
-            values=self._convert_from_control_samples(filter_control_samples=previous_controls))
+            values=self.control_conversion.transform_samples(samples=previous_controls))
         new_inputs = self.inputs.make_copy(
-            values=self._convert_from_control_samples(filter_control_samples=new_controls))
+            values=self.control_conversion.transform_samples(samples=new_controls))
 
         # Update transients
         new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
@@ -109,7 +109,7 @@ class CellModelWrapper(BaseCellWrapper):
                                                                 asoh=self.asoh)
 
         # Convert back to filter language
-        new_transients = self._convert_to_hidden_samples(model_hidden_samples=new_transients.to_numpy())
+        new_transients = self.hidden_conversion.inverse_transform_samples(transformed_samples=new_transients.to_numpy())
 
         return new_transients
 
@@ -120,8 +120,8 @@ class CellModelWrapper(BaseCellWrapper):
         """
         # Convert objects
         transients = self.transients.make_copy(
-            values=self._convert_from_hidden_samples(filter_hidden_samples=hidden_states))
-        inputs = self.inputs.make_copy(values=self._convert_from_control_samples(filter_control_samples=controls))
+            values=self.hidden_conversion.transform_samples(samples=hidden_states))
+        inputs = self.inputs.make_copy(values=self.control_conversion.transform_samples(samples=controls))
 
         # Get output
         measurements = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
@@ -129,7 +129,7 @@ class CellModelWrapper(BaseCellWrapper):
                                                                   asoh=self.asoh)
 
         # Convert back to filter lingo
-        measurements = self._convert_to_output_samples(model_output_samples=measurements.to_numpy())
+        measurements = self.output_conversion.inverse_transform_samples(transformed_samples=measurements.to_numpy())
 
         return measurements
 
@@ -172,7 +172,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         """
         Helper function to take hidden states and convert them to A-SOH object to be given to degradation model
         """
-        asoh = self.asoh.make_copy(values=self._convert_from_hidden_samples(filter_hidden_samples=hidden_states),
+        asoh = self.asoh.make_copy(values=self.hidden_conversion.transform_samples(samples=hidden_states),
                                    names=self.asoh_inputs)
         return asoh
 
@@ -189,7 +189,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         # Remember that, during this step, we should also store the previous controls so that the transient vector can
         # be propagated through the hidden states in the predict measurement step
         previous_inputs = self.inputs.make_copy(
-            values=self._convert_from_control_samples(filter_control_samples=previous_controls))
+            values=self.control_conversion.transform_samples(samples=previous_controls))
         self._previous_inputs = previous_inputs
 
         return hidden_states.copy()
@@ -202,7 +202,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         measurement. Recall that, for that, we first need to propagate the transients through the A-SOH estimates
         """
         # First, transform the controls into ECM inputs
-        inputs = self.inputs.make_copy(values=self._convert_from_control_samples(filter_control_samples=controls))
+        inputs = self.inputs.make_copy(values=self.control_conversion.transform_samples(samples=controls))
 
         # Do the same for the A-SOH
         asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
@@ -219,7 +219,7 @@ class DegradationModelWrapper(BaseCellWrapper):
                                                              asoh=asoh)
 
         # Convert outpus to filter lingo
-        outputs = self._convert_to_output_samples(model_output_samples=outputs.to_numpy())
+        outputs = self.output_conversion.inverse_transform_samples(transformed_samples=outputs.to_numpy())
         return outputs
 
 
@@ -283,7 +283,7 @@ class JointCellModelWrapper(BaseCellWrapper):
         joint_raw = np.concatenate([trans_raw, asoh_raw], axis=1)
 
         # Convert to filter
-        joint = self._convert_to_hidden_samples(model_hidden_samples=joint_raw)
+        joint = self.hidden_conversion.inverse_transform_samples(transformed_samples=joint_raw)
 
         return joint
 
@@ -298,7 +298,7 @@ class JointCellModelWrapper(BaseCellWrapper):
         """
 
         # Get raw values
-        joint_raw = self._convert_from_hidden_samples(filter_hidden_samples=hidden_states)
+        joint_raw = self.hidden_conversion.transform_samples(samples=hidden_states)
 
         # Update any parameters for the transient state
         my_transients = self.transients.make_copy(values=joint_raw[:, :self.num_transients])
@@ -313,14 +313,14 @@ class JointCellModelWrapper(BaseCellWrapper):
                              new_controls: np.ndarray) -> np.ndarray:
         # Transmute the controls and hidden state into the form required for the CellModel
         previous_inputs = self.inputs.make_copy(
-            values=self._convert_from_control_samples(filter_control_samples=previous_controls))
+            values=self.control_conversion.transform_samples(samples=previous_controls))
         new_inputs = self.inputs.make_copy(
-            values=self._convert_from_control_samples(filter_control_samples=new_controls))
+            values=self.control_conversion.transform_samples(samples=new_controls))
 
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
 
         # Produce an updated estimate for the transient states, hold the ASOH parameters constant
-        output = self._convert_from_hidden_samples(filter_hidden_samples=hidden_states)
+        output = self.hidden_conversion.transform_samples(samples=hidden_states).copy()
         new_transients = self.cell_model.update_transient_state(previous_inputs=previous_inputs,
                                                                 new_inputs=new_inputs,
                                                                 transient_state=my_transients,
@@ -328,14 +328,14 @@ class JointCellModelWrapper(BaseCellWrapper):
 
         # Convert this back to filter lingo
         output[:, :self.num_transients] = new_transients.to_numpy()
-        output = self._convert_to_hidden_samples(model_hidden_samples=output)
+        output = self.hidden_conversion.inverse_transform_samples(transformed_samples=output)
         return output
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
                             controls: np.ndarray) -> np.ndarray:
         # First, transform the controls into ECM inputs
-        inputs = self.inputs.make_copy(values=self._convert_from_control_samples(filter_control_samples=controls))
+        inputs = self.inputs.make_copy(values=self.control_conversion.transform_samples(samples=controls))
 
         # Now, iterate through hidden states to compute terminal voltage
         my_asoh, my_transients = self.create_cell_model_inputs(hidden_states)
@@ -343,5 +343,5 @@ class JointCellModelWrapper(BaseCellWrapper):
                                                              transient_state=my_transients,
                                                              asoh=my_asoh)
         # Convert to filter lingo
-        outputs = self._convert_to_output_samples(model_output_samples=outputs.to_numpy())
+        outputs = self.output_conversion.inverse_transform_samples(transformed_samples=outputs.to_numpy())
         return outputs

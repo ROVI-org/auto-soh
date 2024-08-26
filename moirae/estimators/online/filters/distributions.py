@@ -82,9 +82,9 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
             raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
         elif len(mean_shape) == 2:
-            msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
+            msg = 'Provided mean has shape (%d, %d), please flatten to (%d,)' % \
                   (mean_shape + (max(mean_shape),))
-            warn(msg)
+            raise ValueError(msg)
         return mu.flatten()
 
     def get_mean(self) -> np.ndarray:

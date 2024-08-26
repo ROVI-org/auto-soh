@@ -59,8 +59,8 @@ class JointEstimator(OnlineEstimator):
         joint_estimate, output_predicted = self.filter.step(new_controls=refactored_inputs,
                                                             measurements=refactored_measurements)
 
-        return (joint_estimate.convert(conversion_operator=self.joint_model._hidden_conversion),
-                output_predicted.convert(conversion_operator=self.joint_model._output_conversion))
+        return (joint_estimate.convert(conversion_operator=self.joint_model.hidden_conversion),
+                output_predicted.convert(conversion_operator=self.joint_model.output_conversion))
 
     @classmethod
     def initialize_unscented_kalman_filter(
@@ -143,8 +143,9 @@ class JointEstimator(OnlineEstimator):
         joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean[0, :], covariance=joint_hidden_covariance)
         # Initial controls
         initial_controls = convert_vals_model_to_filter(
-            model_quantities=joint_model._convert_to_control_samples(model_control_samples=initial_inputs),
-            uncertainty_matrix=joint_model._control_conversion.inverse_transform_covariance(
+            model_quantities=joint_model.control_conversion.inverse_transform_samples(
+                transformed_samples=initial_inputs),
+            uncertainty_matrix=joint_model.control_conversion.inverse_transform_covariance(
                 transformed_covariance=inputs_uncertainty))
 
         # Process noise

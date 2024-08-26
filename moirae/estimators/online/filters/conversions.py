@@ -1,5 +1,6 @@
 """ Collection of base coordinate transformations"""
 from abc import abstractmethod
+from functools import cached_property
 from typing import Optional, Literal
 
 import numpy as np
@@ -81,28 +82,20 @@ class IdentityConversionOperator(ConversionOperator):
     """
     Class that implements simple identity operation, that is, it does not change the inputs.
     """
-    def transform_samples(self, samples: Optional[np.ndarray]) -> np.ndarray:
-        if samples is None:
-            return
-        return samples.copy()
+    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
+        return samples
 
-    def transform_covariance(self, covariance: Optional[np.ndarray]) -> np.ndarray:
-        if covariance is None:
-            return
-        return covariance.copy()
+    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+        return covariance
 
-    def inverse_transform_samples(self, transformed_samples: Optional[np.ndarray]) -> np.ndarray:
-        if transformed_samples is None:
-            return
-        return transformed_samples.copy()
+    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
+        return transformed_samples
 
-    def inverse_transform_covariance(self, transformed_covariance: Optional[np.ndarray]) -> np.ndarray:
-        if transformed_covariance is None:
-            return
-        return transformed_covariance.copy()
+    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+        return transformed_covariance
 
 
-class LinearConversionOperator(ConversionOperator, validate_assignment=True):
+class LinearConversionOperator(ConversionOperator):
     """
     Class that implements a linear function as a transformation (strictly speaking, this is not a linear transformation,
     but just a linear function).
@@ -112,11 +105,11 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
 
     Args:
         multiplicative_array: np.ndarray corresponding to multiplicative factors in the linear function
-        additive_array: np.ndarray corresponding to additive (bias) factors in the linear function
+        additive_array: np.ndarray corresponding to additive factors in the linear function
     """
     multiplicative_array: np.ndarray = Field(description='Multiplicative factors of linear function',
                                              default=np.array(1.))
-    additive_array: Optional[np.ndarray] = Field(description='Additive (bias) factors of linear function',
+    additive_array: Optional[np.ndarray] = Field(description='Additive factors of linear function',
                                                  default=np.array([0.]))
 
     @field_validator('additive_array', mode='after')
@@ -148,8 +141,7 @@ class LinearConversionOperator(ConversionOperator, validate_assignment=True):
     def _len_multi_shape(self) -> Literal[0, 2]:
         return len(self.multiplicative_array.shape)
 
-    @computed_field
-    @property
+    @cached_property
     def inv_multi(self) -> np.ndarray:
         """
         Stores the inverse of the multiplicative array, which is needed for the inverse operations

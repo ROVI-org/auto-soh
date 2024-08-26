@@ -1,6 +1,6 @@
 """ Base definitions for all filters """
 from abc import abstractmethod
-from typing import Tuple, Optional, TypedDict
+from typing import Tuple, TypedDict
 from typing_extensions import NotRequired, Self
 
 import numpy as np
@@ -39,66 +39,12 @@ class ModelWrapper():
             filter
     """
     def __init__(self,
-                 hidden_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator(),
-                 control_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator(),
-                 output_conversion_operator: Optional[ConversionOperator] = IdentityConversionOperator()) -> None:
-        self._hidden_conversion = hidden_conversion_operator.model_copy(deep=True)
-        self._control_conversion = control_conversion_operator.model_copy(deep=True)
-        self._output_conversion = output_conversion_operator.model_copy(deep=True)
-
-    def _convert_from_hidden_samples(self, filter_hidden_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array of hidden samples from filter to model language.
-
-        Args:
-            hidden_samples: samples of hidden state to be converted
-        """
-        return self._hidden_conversion.transform_samples(samples=filter_hidden_samples)
-
-    def _convert_from_control_samples(self, filter_control_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array of control samples from filter to model language.
-
-        Args:
-            control_samples: samples of hidden state to be converted
-        """
-        return self._control_conversion.transform_samples(samples=filter_control_samples)
-
-    def _convert_from_output_samples(self, filter_output_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array of output samples from filter to model language.
-
-        Args:
-            output_samples: samples of hidden state to be converted
-        """
-        return self._output_conversion.transform_samples(samples=filter_output_samples)
-
-    def _convert_to_hidden_samples(self, model_hidden_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array of hidden samples from model to filter language.
-
-        Args:
-            hidden_samples: samples of hidden state to be converted
-        """
-        return self._hidden_conversion.inverse_transform_samples(transformed_samples=model_hidden_samples)
-
-    def _convert_to_control_samples(self, model_control_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array of control samples from model to filter language.
-
-        Args:
-            control_samples: samples of hidden state to be converted
-        """
-        return self._control_conversion.inverse_transform_samples(transformed_samples=model_control_samples)
-
-    def _convert_to_output_samples(self, model_output_samples: np.ndarray) -> np.ndarray:
-        """
-        Auxiliary function to convert array  output samples from model to filter language.
-
-        Args:
-            output_samples: samples of hidden state to be converted
-        """
-        return self._output_conversion.inverse_transform_samples(transformed_samples=model_output_samples)
+                 hidden_conversion_operator: ConversionOperator = IdentityConversionOperator(),
+                 control_conversion_operator: ConversionOperator = IdentityConversionOperator(),
+                 output_conversion_operator: ConversionOperator = IdentityConversionOperator()) -> None:
+        self.hidden_conversion = hidden_conversion_operator.model_copy(deep=True)
+        self.control_conversion = control_conversion_operator.model_copy(deep=True)
+        self.output_conversion = output_conversion_operator.model_copy(deep=True)
 
     @property
     @abstractmethod

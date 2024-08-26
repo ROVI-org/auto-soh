@@ -228,7 +228,7 @@ def test_lorenz_full_ukf(lorenz_model):
         noisy_values['measurements'] += [m.copy()]
 
         # Assemble measurement
-        measure = DeltaDistribution(mean=m)
+        measure = DeltaDistribution(mean=m.flatten())
         ukf_hid, ukf_pred = ukf_chaos.step(new_controls=u, measurements=measure)
         ukf_values['state'].append(ukf_hid)
         ukf_values['measurements'].append(ukf_pred)
