@@ -36,6 +36,10 @@ class DualEstimator(OnlineEstimator):
     avoids numerical errors related to the magnitude differences between values pertaining to transient quantities and
     to the A-SOH parameters. However, correlations between these two types of quantities are partially lost, and the
     framework is more involved.
+
+    Args:
+        transient_filter: base filter to estimate transient vector
+        asoh_filter: base filter to estimate A-SOH parameters
     """
 
     def __init__(self, transient_filter: BaseFilter, asoh_filter: BaseFilter) -> None:
