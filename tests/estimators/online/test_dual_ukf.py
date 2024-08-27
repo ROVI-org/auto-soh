@@ -1,4 +1,7 @@
+from typing import List, Tuple
+
 import numpy as np
+from pytest import fixture
 
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
@@ -20,6 +23,64 @@ def cycle(start_time=0):
     return final_time, inputs
 
 
+def get_protocol(num_cycles: int) -> List:
+    """
+    Defines cycling protocol for tests
+    """
+    # Create inputs for the cell
+    protocol = []
+
+    start_time = 1
+    for _ in range(num_cycles):
+        end_time, new_inputs = cycle(start_time=start_time)
+        protocol += new_inputs
+        start_time = end_time + 1
+
+    return protocol
+
+
+@fixture
+def real_initialization() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
+    """
+    Provides real objects for simulation
+    """
+    # Create simplest possible Rint model, with no hysteresis, and only R0
+    real_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=0.1)
+    real_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0, R0=1., H0=0.)
+    # Prepare simulator
+    simulator = Simulator(model=ECM(),
+                          asoh=real_asoh,
+                          transient_state=real_transients,
+                          initial_input=ECMInput(),
+                          keep_history=True)
+
+    return real_transients, real_asoh, simulator
+
+
+@fixture
+def initial_guesses() -> Tuple[ECMTransientVector, ECMASOH]:
+    """
+    Provides initial guesses for dual estimation
+    """
+    # Create initial guesses
+    guess_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0)
+    guess_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0, R0=2., H0=0.)
+    guess_asoh.mark_updatable(name='r0.base_values')
+    return guess_transients, guess_asoh
+
+
+@fixture
+def initial_uncertainties() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Provides covariance matrices for initial transient guess, initial A-SOH guess, and transient covariance process
+    noise
+    """
+    cov_transient = np.diag([1/12, 1.0e-06])  # 4 * (guess_asoh.h0.base_values.item() ** 2) / 12])
+    cov_asoh = np.atleast_2d(0.1)
+    cov_trans_process = np.diag([1.0e-08, 1.0e-16])
+    return cov_transient, cov_asoh, cov_trans_process
+
+
 def test_names(simple_rint):
     rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
@@ -36,37 +97,18 @@ def test_names(simple_rint):
     assert ukf_dual.control_names == ('time', 'current')
 
 
-def test_simplest_rint():
-    # Create simplest possible Rint model, with no hysteresis, and only R0
-    real_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=0.1)
-    real_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0, R0=1., H0=0.)
-    # Prepare simulator
-    simulator = Simulator(model=ECM(),
-                          asoh=real_asoh,
-                          transient_state=real_transients,
-                          initial_input=ECMInput(),
-                          keep_history=True)
+def test_simplest_rint(real_initialization, initial_guesses, initial_uncertainties):
+    # Get protocol
+    protocol = get_protocol(num_cycles=4)
 
-    # Create initial guesses
-    guess_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0)
-    guess_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0, R0=2., H0=0.)
-    guess_asoh.mark_updatable(name='r0.base_values')
+    # Collect real values
+    real_transients, real_asoh, simulator = real_initialization
 
-    # Create inputs for the cell
-    protocol = []
-
-    # Num cycles
-    num_cycles = 4
-    start_time = 1
-    for _ in range(num_cycles):
-        end_time, new_inputs = cycle(start_time=start_time)
-        protocol += new_inputs
-        start_time = end_time + 1
+    # Get initial guesses
+    guess_transients, guess_asoh = initial_guesses
 
     # Prepare the dual estimation
-    cov_transient = np.diag([1/12, 1.0e-06])  # 4 * (guess_asoh.h0.base_values.item() ** 2) / 12])
-    cov_asoh = np.atleast_2d(0.1)
-    cov_trans_process = np.diag([1.0e-08, 1.0e-16])
+    cov_transient, cov_asoh, cov_trans_process = initial_uncertainties
 
     dual_ukf = DualEstimator.initialize_unscented_kalman_filter(
         cell_model=ECM(),
@@ -77,6 +119,81 @@ def test_simplest_rint():
         covariance_transient=cov_transient,
         covariance_sensor_noise=np.atleast_2d(1.0e-06),
         transient_covariance_process_noise=cov_trans_process)
+
+    # Prepare dictionary to store results
+    dual_results = {'estimates': [], 'predictions': []}
+    # Co-simulate
+    for new_input in protocol:
+        _, cell_response = simulator.step(new_inputs=new_input)
+        est_hid, pred_out = dual_ukf.step(inputs=new_input, measurements=cell_response)
+        dual_results['estimates'] += [est_hid]
+        dual_results['predictions'] += [pred_out]
+
+    # Prepare variables for plotting
+    timestamps = np.array([inputs.time.item() for inputs in protocol]) / 3600.
+    real_soc = np.array([transient.soc.item() for transient in simulator.transient_history[1:]])
+    real_hyst = np.array([transient.hyst.item() for transient in simulator.transient_history[1:]])
+    real_volts = np.array([measurement.terminal_voltage.item()
+                           for measurement in simulator.measurement_history[1:]])
+    real_r0 = np.ones(len(timestamps))
+
+    est_soc = np.array([est.get_mean()[0] for est in dual_results['estimates']])
+    est_hyst = np.array([est.get_mean()[1] for est in dual_results['estimates']])
+    est_r0 = np.array([est.get_mean()[2] for est in dual_results['estimates']])
+    est_soc_err = np.array([2 * np.sqrt(est.get_covariance()[0, 0]) for est in dual_results['estimates']])
+    est_hyst_err = np.array([2 * np.sqrt(est.get_covariance()[1, 1]) for est in dual_results['estimates']])
+    est_r0_err = np.array([2 * np.sqrt(est.get_covariance()[2, 2]) for est in dual_results['estimates']])
+    pred_volts = np.array([prediction.get_mean()[0] for prediction in dual_results['predictions']])
+    pred_volts_err = np.array([2 * np.sqrt(prediction.get_covariance()[0, 0])
+                               for prediction in dual_results['predictions']])
+
+    # Check stats
+    # consider the last 3 hours of simulation
+    last_pts = 2 * 3600
+    volt_capt = np.isclose(real_volts[-last_pts:],
+                           pred_volts[-last_pts:],
+                           atol=pred_volts_err[-last_pts:]).sum()/last_pts
+    soc_capt = np.isclose(real_soc[-last_pts:],
+                          est_soc[-last_pts:],
+                          atol=est_soc_err[-last_pts:]).sum()/last_pts
+    hyst_capt = np.isclose(real_hyst[-last_pts:],
+                           est_hyst[-last_pts:],
+                           atol=est_hyst_err[-last_pts:]).sum()/last_pts
+    r0_capt = np.isclose(real_r0[-last_pts:],
+                         est_r0[-last_pts:],
+                         atol=est_r0_err[-last_pts:]).sum()/last_pts
+
+    assert volt_capt >= 0.95, f'Percentage of voltage within error: {volt_capt}'
+    assert soc_capt >= 0.95, f'Percentage of SOC within error: {soc_capt}'
+    # Hysteresis only converges fully closer to 10 cycles... :(
+    assert hyst_capt >= 0.0, 'Now that makes no sense!'
+    # assert hyst_capt >= 0.95, f'Percentage of hysteresis within error: {hyst_capt}'
+    assert r0_capt >= 0.95, f'Percentage of R0 within error: {r0_capt}'
+
+
+def test_simplest_rint_normalization(real_initialization, initial_guesses, initial_uncertainties):
+    # Get protocol for 5 cycles (normalization requires a bit more cycles to converge for some reason)
+    protocol = get_protocol(num_cycles=5)
+
+    # Collect real values
+    real_transients, real_asoh, simulator = real_initialization
+
+    # Get initial guesses
+    guess_transients, guess_asoh = initial_guesses
+
+    # Prepare the dual estimation
+    cov_transient, cov_asoh, cov_trans_process = initial_uncertainties
+
+    dual_ukf = DualEstimator.initialize_unscented_kalman_filter(
+        cell_model=ECM(),
+        initial_asoh=guess_asoh,
+        initial_transients=guess_transients,
+        initial_inputs=simulator.previous_input,
+        covariance_asoh=cov_asoh,
+        covariance_transient=cov_transient,
+        covariance_sensor_noise=np.atleast_2d(1.0e-06),
+        transient_covariance_process_noise=cov_trans_process,
+        normalize_asoh=True)
 
     # Prepare dictionary to store results
     dual_results = {'estimates': [], 'predictions': []}
