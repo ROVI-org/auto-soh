@@ -83,10 +83,8 @@ class DualEstimator(OnlineEstimator):
         asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
 
         # We need to transform them accordingly
-        transient_converted = transient_hidden.convert(conversion_operator=self.trans_filter.model.hidden_conversion)
-        asoh_converted = asoh_hidden.convert(conversion_operator=self.asoh_filter.model.hidden_conversion)
-
-        return transient_converted, asoh_converted
+        return transient_hidden.convert(conversion_operator=self.trans_filter.model.hidden_conversion), \
+            asoh_hidden.convert(conversion_operator=self.asoh_filter.model.hidden_conversion)
 
     @property
     def state(self) -> MultivariateRandomDistribution:
