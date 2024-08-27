@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 from pytest import fixture
+from pytest import mark
 
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
@@ -9,6 +10,10 @@ from moirae.models.ecm.ins_outs import ECMInput
 from moirae.models.ecm.transient import ECMTransientVector
 from moirae.simulator import Simulator
 from moirae.estimators.online.dual import DualEstimator
+from moirae.estimators.online.utils.model import CellModelWrapper, DegradationModelWrapper
+from moirae.estimators.online.filters.conversions import LinearConversionOperator
+from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
+from moirae.estimators.online.filters.kalman.unscented import UnscentedKalmanFilter as UKF
 
 
 def cycle(start_time=0):
@@ -37,6 +42,15 @@ def get_protocol(num_cycles: int) -> List:
         start_time = end_time + 1
 
     return protocol
+
+
+@fixture
+def swapper_operator() -> LinearConversionOperator:
+    """
+    Simple linear conversion operator that operates on 2D MvRDs and swaps the first and second coordinate
+    """
+    multi_array = np.array([[0., 1.], [1., 0.]])
+    return LinearConversionOperator(multiplicative_array=multi_array)
 
 
 @fixture
@@ -97,6 +111,71 @@ def test_names(simple_rint):
     assert ukf_dual.control_names == ('time', 'current')
 
 
+def test_swap(simple_rint, swapper_operator):
+    """
+    Tests that a single dual estimator step works the same if we simply swap the coordinates
+    """
+    # Prep basics
+    rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    simulator = Simulator(model=ECM(),
+                          asoh=rint_asoh,
+                          transient_state=rint_transient,
+                          initial_input=ecm_inputs,
+                          keep_history=True)
+
+    # Prepare wrappers
+    # Standard
+    cell_wrap = CellModelWrapper(cell_model=ECM(), asoh=rint_asoh, transients=rint_transient, inputs=ecm_inputs)
+    deg_wrap = DegradationModelWrapper(cell_model=ECM(), asoh=rint_asoh, transients=rint_transient, inputs=ecm_inputs)
+    # Swap
+    swap_cell_wrap = CellModelWrapper(cell_model=ECM(), asoh=rint_asoh, transients=rint_transient, inputs=ecm_inputs,
+                                      converters={'hidden_conversion_operator': swapper_operator})
+    deg_wrap2 = DegradationModelWrapper(cell_model=ECM(), asoh=rint_asoh, transients=rint_transient, inputs=ecm_inputs)
+
+    # Create filters
+    # Prep
+    initial_controls = DeltaDistribution(mean=ecm_inputs.to_numpy().flatten())
+    transient_hidden = MultivariateGaussian(mean=rint_transient.to_numpy().flatten(), covariance=0.1 * np.eye(2))
+    transient_proc_cov = 0.01 * np.eye(2)
+    asoh_hidden = MultivariateGaussian(mean=rint_asoh.get_parameters().flatten(), covariance=np.array([[0.1]]))
+    # Standard
+    cell_ukf = UKF(model=cell_wrap,
+                   initial_hidden=transient_hidden,
+                   initial_controls=initial_controls,
+                   covariance_process_noise=transient_proc_cov)
+    asoh_ukf = UKF(model=deg_wrap,
+                   initial_hidden=asoh_hidden,
+                   initial_controls=initial_controls)
+    # Swap
+    swap_ukf = UKF(model=swap_cell_wrap,
+                   initial_hidden=transient_hidden.convert(conversion_operator=swapper_operator, inverse=True),
+                   initial_controls=initial_controls,
+                   covariance_process_noise=swapper_operator.inverse_transform_covariance(transient_proc_cov))
+    asoh_ukf2 = UKF(model=deg_wrap2,
+                    initial_hidden=asoh_hidden,
+                    initial_controls=initial_controls)
+
+    # Assemble dual estimators
+    stnd_dual = DualEstimator(transient_filter=cell_ukf, asoh_filter=asoh_ukf)
+    swap_dual = DualEstimator(transient_filter=swap_ukf, asoh_filter=asoh_ukf2)
+
+    # Step
+    new_input = ECMInput(time=1., current=1.)
+    new_trans, new_volts = simulator.step(new_inputs=new_input)
+    stnd_state, stnd_pred = stnd_dual.step(inputs=new_input, measurements=new_volts)
+    swap_state, swap_pred = swap_dual.step(inputs=new_input, measurements=new_volts)
+    assert np.allclose(stnd_state.get_mean(), swap_state.get_mean()), \
+        f'Stnd: {stnd_state.get_mean()}; Swap: {swap_state.get_mean()}'
+    assert np.allclose(stnd_state.get_covariance(), swap_state.get_covariance()), \
+        f'Stnd: {stnd_state.get_covariance()}; Swap: {swap_state.get_covariance()}'
+    assert np.allclose(stnd_pred.get_mean(), swap_pred.get_mean()), \
+        f'Stnd: {stnd_pred.get_mean()}; Swap: {swap_pred.get_mean()}'
+    assert np.allclose(stnd_pred.get_covariance(), swap_pred.get_covariance()), \
+        f'Stnd: {stnd_pred.get_covariance()}; Swap: {swap_pred.get_covariance()}'
+
+
+@mark.slow
 def test_simplest_rint(real_initialization, initial_guesses, initial_uncertainties):
     # Get protocol
     protocol = get_protocol(num_cycles=4)
@@ -171,6 +250,7 @@ def test_simplest_rint(real_initialization, initial_guesses, initial_uncertainti
     assert r0_capt >= 0.95, f'Percentage of R0 within error: {r0_capt}'
 
 
+@mark.slow
 def test_simplest_rint_normalization(real_initialization, initial_guesses, initial_uncertainties):
     # Get protocol for 5 cycles (normalization requires a bit more cycles to converge for some reason)
     protocol = get_protocol(num_cycles=5)
