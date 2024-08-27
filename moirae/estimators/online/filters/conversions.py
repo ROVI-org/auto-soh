@@ -181,3 +181,81 @@ class LinearConversionOperator(ConversionOperator):
             return self.inv_multi * self.inv_multi * transformed_covariance
         covariance = np.matmul(np.matmul(self.inv_multi.T, transformed_covariance), self.inv_multi)
         return covariance
+
+
+class FirstOrderTaylorConversionOperator(ConversionOperator):
+    """
+    Base class that specifies the necessary machinery to perform non-linear conversions assuming a first order Taylor
+    expansion around a pivot point is sufficient to propagate uncertainties (through covariances).
+
+    Assumes the transformation can be expressed as :math:`f = f_0 + J (x-p)`, where :math:`f_0` represents the value of
+    the transformation at the pivot point :math:`p`, and :math:`J` is the Jacobian matrix at the pivot. Based on this,
+    the covariance of the transformed vector :math:`f` can be simply expressed as
+    :math:`{\\Sigma}_f = J {\\Sigma}_X J^T`, exactly like that in the
+    :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`
+    """
+    @abstractmethod
+    def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
+        """
+        Method to calculate the Jacobian matrix of the transformation at specified pivot point
+
+        Args:
+            pivot: point to be used as the pivot of the Taylor expansion
+
+        Returns:
+            jacobian: Jacobian matrix
+        """
+        raise NotImplementedError('Implement in child class!')
+
+    @abstractmethod
+    def get_inverse_jacobian(self, transformed_pivot: np.ndarray) -> np.ndarray:
+        """
+        Method to compute the Jacobian matrix of the inverse transformation.
+
+        Args:
+            transformed_pivot: point to be used as the transformed pivot
+
+        Returns:
+            inverse_jacobian: Jacobian matrix of the reverse transformation
+        """
+        raise NotImplementedError('Implement in child function!')
+
+    def transform_covariance(self, covariance: np.ndarray, pivot: np.ndarray) -> np.ndarray:
+        jacobian = self.get_jacobian(pivot=pivot)
+        # Invoke machinery from linear transform
+        linear = LinearConversionOperator(multiplicative_array=jacobian)
+        return linear.transform_covariance(covariance=covariance)
+
+    def inverse_transform_covariance(self,
+                                     transformed_covariance: np.ndarray,
+                                     transformed_pivot: np.ndarray) -> np.ndarray:
+        inv_jacobian = self.get_inverse_jacobian(transformed_pivot=transformed_pivot)
+        # Invoke machinery from linear transform
+        linear = LinearConversionOperator(multiplicative_array=inv_jacobian)
+        return linear.transform_covariance(covariance=transformed_covariance)
+
+
+class AbsoluteValueConversionOperator(FirstOrderTaylorConversionOperator):
+    """
+    Class that performs an absolute value transformation to the samples.
+
+    This is particularly relevant in cases where the estimators used treat values as unbounded, but the underlying
+    models (such as an equivalent circuit) only accept positive parameters.
+    """
+    def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
+        # The derivatives are equal to 1 where the pivot value is postive, and -1 otherwise
+        diagonal = np.where(pivot >= 0, 1., -1.)
+        return np.diag(diagonal)
+
+    def get_inverse_jacobian(self, transformed_pivot: np.ndarray) -> np.ndarray:
+        # This transformation is not invertible, so, to simplify, we will assume the conversion came from the positive
+        # quadrant (that is, where all values are positive, of the original and transformed pivot)
+        return np.eye(transformed_pivot.size)
+
+    def transform_samples(self, samples: np.ndarray) -> np.ndarray:
+        tranformed_samples = np.where(samples >= 0, samples, -samples)
+        return tranformed_samples
+
+    def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
+        # Once again, assume transformation goes positive quadrant <=> positive quadrant
+        return transformed_samples.copy()
