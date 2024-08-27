@@ -196,7 +196,8 @@ class DegradationModelWrapper(BaseCellWrapper):
         asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
         # TODO (vventuri): degrade asoh with model
 
-        return asoh.get_parameters(names=self.asoh_inputs)
+        return self.hidden_conversion.inverse_transform_samples(
+            transformed_samples=asoh.get_parameters(names=self.asoh_inputs))
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
