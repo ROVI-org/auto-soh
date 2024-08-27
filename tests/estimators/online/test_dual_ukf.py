@@ -111,6 +111,37 @@ def test_names(simple_rint):
     assert ukf_dual.control_names == ('time', 'current')
 
 
+def test_dual_ukf_init_norm():
+    """
+    Tests to make sure the dual UKF initialization with normalization is correct
+    """
+    # Make a more complicated A-SOH
+    transient = ECMTransientVector.provide_template(has_C0=False, num_RC=2)
+    asoh = ECMASOH.provide_template(has_C0=False, num_RC=2)
+    asoh.mark_updatable(name='q_t.base_values')
+    asoh.mark_updatable(name='r0.base_values')
+    asoh.mark_updatable(name='rc_elements.0.r.base_values')
+    asoh.mark_updatable(name='rc_elements.0.c.base_values')
+    asoh.mark_updatable(name='rc_elements.1.r.base_values')
+    asoh.mark_updatable(name='rc_elements.1.c.base_values')
+    assert asoh.get_parameters().size == 6
+
+    dual_ukf = DualEstimator.initialize_unscented_kalman_filter(
+        cell_model=ECM(),
+        initial_asoh=asoh,
+        initial_transients=transient,
+        initial_inputs=ECMInput(),
+        covariance_transient=0.01 * np.eye(4),
+        covariance_asoh=0.02 * np.eye(6),
+        normalize_asoh=True)
+
+    assert np.allclose(dual_ukf.trans_filter.hidden.get_mean(), transient.to_numpy().flatten())
+    assert np.allclose(dual_ukf.trans_filter.hidden.get_covariance(), 0.01 * np.eye(4))
+    assert np.allclose(dual_ukf.asoh_filter.hidden.get_mean(), np.ones(6))
+    assert np.allclose(dual_ukf.asoh_filter.hidden.get_covariance(),
+                       np.diag(0.02 / (asoh.get_parameters().flatten() ** 2)))
+
+
 def test_swap(simple_rint, swapper_operator):
     """
     Tests that a single dual estimator step works the same if we simply swap the coordinates
