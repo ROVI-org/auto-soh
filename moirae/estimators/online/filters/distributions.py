@@ -1,6 +1,5 @@
 """Classes defining different multivariate probability distributions"""
 from abc import abstractmethod
-from warnings import warn
 from typing import Iterable
 from typing_extensions import Self
 
@@ -46,7 +45,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Please implement in child class!')
 
     @abstractmethod
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
         """
         Uses the methods available in the :class:`~moirae.estimators.online.filters.transformations.BaseTransform` to
         transform the underlying distribution and return a copy of the transformed
@@ -54,6 +53,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
 
         Args:
             transform_operator: operator to perform necessary transformations
+            inverse: whether to use the inverse operations available instead of the usual "forward" ones
 
         Returns:
             transformed_dist: transformed distribution
@@ -100,7 +100,10 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         combined_mean = np.concatenate(combined_mean, axis=None)
         return DeltaDistribution(mean=combined_mean)
 
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
+        if inverse:
+            transformed_mean = conversion_operator.inverse_transform_samples(transformed_samples=self.get_mean())
+            return DeltaDistribution(mean=transformed_mean)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
 
@@ -131,9 +134,9 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
             raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
         elif len(mean_shape) == 2:
-            msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
+            msg = 'Provided mean has shape (%d, %d), please flatten to (%d,)' % \
                   (mean_shape + (max(mean_shape),))
-            warn(msg)
+            raise ValueError(msg)
         return mu.flatten()
 
     @field_validator('covariance', mode='after')
@@ -170,7 +173,12 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         combined_cov = block_diag(*combined_cov)
         return MultivariateGaussian(mean=combined_mean, covariance=combined_cov)
 
-    def convert(self, conversion_operator: ConversionOperator) -> Self:
+    def convert(self, conversion_operator: ConversionOperator, inverse: bool = False) -> Self:
+        if inverse:
+            transformed_mean = conversion_operator.inverse_transform_samples(transformed_samples=self.get_mean())
+            transformed_cov = conversion_operator.inverse_transform_covariance(
+                transformed_covariance=self.get_covariance())
+            return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)

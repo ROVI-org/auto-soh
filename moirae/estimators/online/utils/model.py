@@ -192,7 +192,12 @@ class DegradationModelWrapper(BaseCellWrapper):
             values=self.control_conversion.transform_samples(samples=previous_controls))
         self._previous_inputs = previous_inputs
 
-        return hidden_states.copy()
+        # Convert to A-SOH object (and, in the future, pass through degradation model)
+        asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
+        # TODO (vventuri): degrade asoh with model
+
+        return self.hidden_conversion.inverse_transform_samples(
+            transformed_samples=asoh.get_parameters(names=self.asoh_inputs))
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,

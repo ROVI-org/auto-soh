@@ -11,6 +11,7 @@ from .filters.base import BaseFilter
 from .filters.distributions import MultivariateRandomDistribution, MultivariateGaussian
 from .filters.kalman.unscented import UnscentedKalmanFilter as UKF
 from .filters.kalman.unscented import UKFTuningParameters
+from .filters.conversions import LinearConversionOperator, IdentityConversionOperator
 
 
 class DualUKFTuningParameters(TypedDict):
@@ -36,6 +37,10 @@ class DualEstimator(OnlineEstimator):
     avoids numerical errors related to the magnitude differences between values pertaining to transient quantities and
     to the A-SOH parameters. However, correlations between these two types of quantities are partially lost, and the
     framework is more involved.
+
+    Args:
+        transient_filter: base filter to estimate transient vector
+        asoh_filter: base filter to estimate A-SOH parameters
     """
 
     def __init__(self, transient_filter: BaseFilter, asoh_filter: BaseFilter) -> None:
@@ -61,20 +66,39 @@ class DualEstimator(OnlineEstimator):
         self.cell_wrapper = cell_wrapper
         self.asoh_wrapper = asoh_wrapper
 
+    def _get_converted_states(self) -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
+        """
+        Helper function to convert values in transient and A-SOH from filter representations
+
+        Returns:
+            transient_converted: representation of the transient
+                :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution` in
+                model-coordinates
+            asoh_converted: representation of the A-SOH
+                :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution` in
+                model-coordinates
+        """
+        # We need to get the hidden states on both filters
+        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
+        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
+
+        # We need to transform them accordingly
+        return transient_hidden.convert(conversion_operator=self.trans_filter.model.hidden_conversion), \
+            asoh_hidden.convert(conversion_operator=self.asoh_filter.model.hidden_conversion)
+
     @property
     def state(self) -> MultivariateRandomDistribution:
-        # We need to get the hidden states on both filters
-        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
-        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
-        return transient_hidden.combine_with(asoh_hidden)
+        # Get converted states
+        transient_converted, asoh_converted = self._get_converted_states()
+        return transient_converted.combine_with(asoh_converted)
 
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
-        # We need to get the hidden states on both filters
-        transient_hidden = self.trans_filter.hidden.model_copy(deep=True)
-        asoh_hidden = self.asoh_filter.hidden.model_copy(deep=True)
-        # Convert
-        estimated_transient = self.transients.make_copy(values=transient_hidden.get_mean())
-        estimated_asoh = self.asoh_wrapper._convert_hidden_to_asoh(hidden_states=asoh_hidden.get_mean())
+        # Get converted states
+        transient_converted, asoh_converted = self._get_converted_states()
+
+        # Translate to model object
+        estimated_transient = self.transients.make_copy(values=transient_converted.get_mean())
+        estimated_asoh = self.asoh.make_copy(values=asoh_converted.get_mean())
         return estimated_transient, estimated_asoh
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
@@ -92,10 +116,22 @@ class DualEstimator(OnlineEstimator):
         self.asoh_wrapper.transients = previous_trans_posterior.model_copy(deep=True)
 
         # Now, we can safely step each filter on its own
-        transient_estimate, output_pred_trans = self.trans_filter.step(new_controls=refactored_inputs,
-                                                                       measurements=refactored_measurements)
-        asoh_estimate, output_pred_asoh = self.asoh_filter.step(new_controls=refactored_inputs,
-                                                                measurements=refactored_measurements)
+        transient_estimate, output_pred_trans = self.trans_filter.step(
+            new_controls=refactored_inputs.convert(
+                conversion_operator=self.cell_wrapper.control_conversion, inverse=True),  # Convert to filter coordinate
+            measurements=refactored_measurements.convert(
+                conversion_operator=self.cell_wrapper.output_conversion, inverse=True))  # Convert to filter coordinates
+        asoh_estimate, output_pred_asoh = self.asoh_filter.step(
+            new_controls=refactored_inputs.convert(
+                conversion_operator=self.asoh_wrapper.control_conversion, inverse=True),  # Convert to filter coordinate
+            measurements=refactored_measurements.convert(
+                conversion_operator=self.asoh_wrapper.output_conversion, inverse=True))  # Convert to filter coordinates
+
+        # Convert estimates back to model-coordinates
+        transient_estimate = transient_estimate.convert(conversion_operator=self.cell_wrapper.hidden_conversion)
+        asoh_estimate = asoh_estimate.convert(conversion_operator=self.asoh_wrapper.hidden_conversion)
+        output_pred_trans = output_pred_trans.convert(conversion_operator=self.cell_wrapper.output_conversion)
+        output_pred_asoh = output_pred_asoh.convert(conversion_operator=self.asoh_wrapper.output_conversion)
 
         # TODO (vventuri): how to we adequately combine the output predictions from both filters?
         return transient_estimate.combine_with((asoh_estimate,)), output_pred_trans
@@ -104,7 +140,7 @@ class DualEstimator(OnlineEstimator):
     def initialize_unscented_kalman_filter(
         cls,
         cell_model: CellModel,
-        # TODO (vventuri): add degrataion_model as an option here
+        # TODO (vventuri): add degradation_model as an option here
         initial_asoh: HealthVariable,
         initial_transients: GeneralContainer,
         initial_inputs: InputQuantities,
@@ -114,6 +150,7 @@ class DualEstimator(OnlineEstimator):
         transient_covariance_process_noise: Optional[np.ndarray] = None,
         asoh_covariance_process_noise: Optional[np.ndarray] = None,
         covariance_sensor_noise: Optional[np.ndarray] = None,
+        normalize_asoh: bool = False,
         filter_args: Optional[DualUKFTuningParameters] = DualUKFTuningParameters.defaults()
     ) -> Self:
         """
@@ -138,9 +175,18 @@ class DualEstimator(OnlineEstimator):
                 was not provided
             covariance_sensor_noise: sensor noise for outputs; if denoising is applied, must match the proper
                 dimensionality
+            normalize_asoh: determines whether A-SOH parameters should be normalized in the filter
             filter_args: dictionary where keys must be either 'transient' or 'asoh', and values must be a dictionary in
                 which keys are keyword arguments for the UKFs (such as `alpha_param`)
         """
+        # Start by checking if A-SOH needs to be normalized, in which case, create conversion operator
+        asoh_normalizer = IdentityConversionOperator()
+        if normalize_asoh:
+            asoh_values = initial_asoh.get_parameters()
+            # Check parameters that are 0 and leave them un-normalized
+            asoh_values = np.where(asoh_values == 0, 1., asoh_values)
+            asoh_normalizer = LinearConversionOperator(multiplicative_array=asoh_values.flatten())
+
         # Assemble the wrappers
         cell_wrapper = CellModelWrapper(cell_model=cell_model,
                                         asoh=initial_asoh,
@@ -149,27 +195,51 @@ class DualEstimator(OnlineEstimator):
         asoh_wrapper = DegradationModelWrapper(cell_model=cell_model,
                                                asoh=initial_asoh,
                                                transients=initial_transients,
-                                               inputs=initial_inputs)
+                                               inputs=initial_inputs,
+                                               converters={'hidden_conversion_operator': asoh_normalizer})
 
-        # Prepare multivariate Gaussians
+        # Prepare raw multivariate Gaussians
         transients_hidden = convert_vals_model_to_filter(model_quantities=initial_transients,
                                                          uncertainty_matrix=covariance_transient)
         asoh_hidden = MultivariateGaussian(mean=initial_asoh.get_parameters().flatten(),
                                            covariance=covariance_asoh)
         initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs)
 
+        # Additional setup/conversions
+        trans_proc_noise = transient_covariance_process_noise
+        if trans_proc_noise is not None:
+            trans_proc_noise = cell_wrapper.hidden_conversion.inverse_transform_covariance(
+                transformed_covariance=trans_proc_noise)
+        asoh_proc_noise = asoh_covariance_process_noise
+        if asoh_proc_noise is not None:
+            asoh_proc_noise = asoh_wrapper.hidden_conversion.inverse_transform_covariance(
+                transformed_covariance=asoh_proc_noise)
+        trans_sensor_noise = covariance_sensor_noise
+        asoh_sensor_noise = covariance_sensor_noise
+        if covariance_sensor_noise is not None:
+            trans_sensor_noise = cell_wrapper.output_conversion.inverse_transform_covariance(
+                transformed_covariance=trans_sensor_noise)
+            asoh_sensor_noise = asoh_wrapper.output_conversion.inverse_transform_covariance(
+                transformed_covariance=asoh_sensor_noise)
+
         # Initialize filters
-        trans_filter = UKF(model=cell_wrapper,
-                           initial_hidden=transients_hidden,
-                           initial_controls=initial_controls,
-                           covariance_process_noise=transient_covariance_process_noise,
-                           covariance_sensor_noise=covariance_sensor_noise,
-                           **filter_args.get('transient', UKFTuningParameters.defaults()))
-        asoh_filter = UKF(model=asoh_wrapper,
-                          initial_hidden=asoh_hidden,
-                          initial_controls=initial_controls,
-                          covariance_process_noise=asoh_covariance_process_noise,
-                          covariance_sensor_noise=covariance_sensor_noise,
-                          **filter_args.get('asoh', UKFTuningParameters.defaults()))
+        trans_filter = UKF(
+            model=cell_wrapper,
+            initial_hidden=transients_hidden.convert(
+                conversion_operator=cell_wrapper.hidden_conversion, inverse=True),
+            initial_controls=initial_controls.convert(
+                conversion_operator=cell_wrapper.control_conversion, inverse=True),
+            covariance_process_noise=trans_proc_noise,
+            covariance_sensor_noise=trans_sensor_noise,
+            **filter_args.get('transient', UKFTuningParameters.defaults()))
+        asoh_filter = UKF(
+            model=asoh_wrapper,
+            initial_hidden=asoh_hidden.convert(
+                conversion_operator=asoh_wrapper.hidden_conversion, inverse=True),
+            initial_controls=initial_controls.convert(
+                conversion_operator=asoh_wrapper.control_conversion, inverse=True),
+            covariance_process_noise=asoh_proc_noise,
+            covariance_sensor_noise=asoh_sensor_noise,
+            **filter_args.get('asoh', UKFTuningParameters.defaults()))
 
         return DualEstimator(transient_filter=trans_filter, asoh_filter=asoh_filter)
