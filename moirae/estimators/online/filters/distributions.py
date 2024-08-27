@@ -1,6 +1,5 @@
 """Classes defining different multivariate probability distributions"""
 from abc import abstractmethod
-from warnings import warn
 from typing import Iterable
 from typing_extensions import Self
 
@@ -135,9 +134,9 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         if len(mean_shape) > 2 or (len(mean_shape) == 2 and 1 not in mean_shape):
             raise ValueError('Mean must be a 1D vector, but array provided has shape ' + str(mean_shape) + '!')
         elif len(mean_shape) == 2:
-            msg = 'Provided mean has shape (%d, %d), but it will be flattened to (%d,)' % \
+            msg = 'Provided mean has shape (%d, %d), please flatten to (%d,)' % \
                   (mean_shape + (max(mean_shape),))
-            warn(msg)
+            raise ValueError(msg)
         return mu.flatten()
 
     @field_validator('covariance', mode='after')
