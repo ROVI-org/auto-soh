@@ -1,6 +1,8 @@
 import numpy as np
 
-from moirae.estimators.online.filters.conversions import IdentityConversionOperator, LinearConversionOperator
+from moirae.estimators.online.filters.conversions import (IdentityConversionOperator,
+                                                          LinearConversionOperator,
+                                                          AbsoluteValueConversionOperator)
 
 
 def test_identity_operator():
@@ -186,3 +188,35 @@ def test_linear_conversions():
     assert np.allclose(single_sample, reconverted_single_sample)
     assert np.allclose(multiple_samples, reconverted_multi_samples)
     assert np.allclose(covariance, reconverted_cov)
+
+
+def test_absolute_val_conversion():
+    # Initialize convertor
+    convertor = AbsoluteValueConversionOperator()
+
+    # For now, let's assume it works in 3D
+    samples = np.hstack((-np.arange(1, 11).reshape((-1, 1)),
+                         -np.arange(20, 10, -1).reshape(-1, 1),
+                         np.zeros((10, 1)),
+                         np.arange(1, 11).reshape((-1, 1)),
+                         np.arange(20, 10, -1).reshape((-1, 1))))
+    mean = np.average(samples, axis=0)
+    covariance = np.matmul((samples - mean).T, samples - mean)
+
+    # convert samples
+    abs_samples = convertor.transform_samples(samples=samples)
+    assert np.allclose(abs_samples, abs(samples))
+    # revert samples, should not change them
+    invert_samples = convertor.inverse_transform_samples(transformed_samples=abs_samples)
+    assert np.allclose(invert_samples, abs_samples)
+    # convert covariance
+    transformed_covariance = convertor.transform_covariance(covariance=covariance,
+                                                            pivot=mean)
+    # Calculate covariance "by hand" from the transformed samples
+    abs_mean = np.average(abs_samples, axis=0)
+    calc_cov = np.matmul((abs_samples - abs_mean).T, (abs_samples - abs_mean))
+    assert np.allclose(transformed_covariance, calc_cov)
+    # revert covariance, should not change anything regardless of pivot used
+    revert_covariance = convertor.inverse_transform_covariance(transformed_covariance=transformed_covariance,
+                                                               transformed_pivot=abs_mean)
+    assert np.allclose(revert_covariance, transformed_covariance)
