@@ -73,7 +73,7 @@ class JointEstimator(OnlineEstimator):
     def initialize_unscented_kalman_filter(
         cls,
         cell_model: CellModel,
-        # TODO (vventuri): add degrataion_model as an option here
+        # TODO (vventuri): add degradation_model as an option here
         initial_asoh: HealthVariable,
         initial_transients: GeneralContainer,
         initial_inputs: InputQuantities,
@@ -146,14 +146,13 @@ class JointEstimator(OnlineEstimator):
             joint_hidden_covariance = covariance_joint
         # Convert covariance!
         joint_hidden_covariance = asoh_normalizer.inverse_transform_covariance(
-            transformed_covariance=joint_hidden_covariance)
+            transformed_covariance=joint_hidden_covariance,
+            transformed_pivot=joint_hidden_mean)
         joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean[0, :], covariance=joint_hidden_covariance)
         # Initial controls
-        initial_controls = convert_vals_model_to_filter(
-            model_quantities=joint_model.control_conversion.inverse_transform_samples(
-                transformed_samples=initial_inputs),
-            uncertainty_matrix=joint_model.control_conversion.inverse_transform_covariance(
-                transformed_covariance=inputs_uncertainty))
+        initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs,
+                                                        uncertainty_matrix=inputs_uncertainty)
+        initial_controls = initial_controls.convert(conversion_operator=joint_model.control_conversion, inverse=True)
 
         # Process noise
         if joint_covariance_process_noise is None:
