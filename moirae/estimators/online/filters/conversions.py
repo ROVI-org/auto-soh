@@ -36,13 +36,14 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
     @abstractmethod
-    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+    def transform_covariance(self, covariance: np.ndarray, pivot: np.ndarray) -> np.ndarray:
         """
         Transforms the covariance of a
         :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.
 
         Args:
             covariance: 2D np.ndarray corresponding to the covariance to be transformed
+            pivot: in cases where Taylor-expansion is employed, it should be performed around the specified pivot point
 
         Returns:
             transformed_covariance: transformed covariance matrix
@@ -64,13 +65,17 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Implement in child class!')
 
     @abstractmethod
-    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+    def inverse_transform_covariance(self,
+                                     transformed_covariance: np.ndarray,
+                                     transformed_pivot: np.ndarray) -> np.ndarray:
         """
         Performs the inverse tranformation of that given by
         :meth:`~moirae.estimators.online.filters.transformations.BaseTransform.transform_covariance`.
 
         Args:
             transformed_covariance: np.ndarray of transformed covariance to be converted back
+            transformed_pivot: in cases where Taylor-expansion is employed, it should be performed around this
+                transformed pivot point
 
         Returns:
             covariance: np.ndarray corresponding to re-converted covariance
@@ -85,13 +90,15 @@ class IdentityConversionOperator(ConversionOperator):
     def transform_samples(self, samples: np.ndarray) -> np.ndarray:
         return samples
 
-    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+    def transform_covariance(self, covariance: np.ndarray, pivot: Optional[np.ndarray] = None) -> np.ndarray:
         return covariance
 
     def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
         return transformed_samples
 
-    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+    def inverse_transform_covariance(self,
+                                     transformed_covariance: np.ndarray,
+                                     transformed_pivot: Optional[np.ndarray] = None) -> np.ndarray:
         return transformed_covariance
 
 
@@ -162,7 +169,7 @@ class LinearConversionOperator(ConversionOperator):
         transformed_samples = np.matmul(samples, self.multiplicative_array) + self.additive_array
         return transformed_samples
 
-    def transform_covariance(self, covariance: np.ndarray) -> np.ndarray:
+    def transform_covariance(self, covariance: np.ndarray, pivot: Optional[np.ndarray] = None) -> np.ndarray:
         if self._len_multi_shape == 0:
             return self.multiplicative_array * self.multiplicative_array * covariance
         transformed_covariance = np.matmul(np.matmul(self.multiplicative_array.T, covariance),
@@ -176,7 +183,9 @@ class LinearConversionOperator(ConversionOperator):
         samples = np.matmul(samples, self.inv_multi)
         return samples
 
-    def inverse_transform_covariance(self, transformed_covariance: np.ndarray) -> np.ndarray:
+    def inverse_transform_covariance(self,
+                                     transformed_covariance: np.ndarray,
+                                     transformed_pivot: Optional[np.ndarray] = None) -> np.ndarray:
         if self._len_multi_shape == 0:
             return self.inv_multi * self.inv_multi * transformed_covariance
         covariance = np.matmul(np.matmul(self.inv_multi.T, transformed_covariance), self.inv_multi)
@@ -240,7 +249,9 @@ class AbsoluteValueConversionOperator(FirstOrderTaylorConversionOperator):
     Class that performs an absolute value transformation to the samples.
 
     This is particularly relevant in cases where the estimators used treat values as unbounded, but the underlying
-    models (such as an equivalent circuit) only accept positive parameters.
+    models (such as an equivalent circuit) only accept positive parameters. Since the absolute value function is not
+    invertible, the following choice was made for its inverse operations: the inverted values always belong to the
+    positive quadrant of space, that is, they are always positive.
     """
     def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
         # The derivatives are equal to 1 where the pivot value is postive, and -1 otherwise
