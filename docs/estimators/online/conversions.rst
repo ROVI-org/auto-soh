@@ -15,18 +15,18 @@ that a :class:`~moirae.estimators.online.filters.base.BaseFilter` operates on a 
 Conversion to and from the model's coordinate system occurs when the filter invokes
 methods from the model.
 
-The :class:`~moirae.estimators.online.OnlineEstimator` uses the conversion operators to
-transpose states between different constituent filters (which may use different coordinate systems)
-and communicating the estimated state to users.
-One can change the coordinate system used by a filter independently from other filters
-and without affecting tools which use the estimator.
+The :class:`~moirae.estimators.online.OnlineEstimator` uses the conversion operators for two reasons:
 
-Achieving the above goals requires functions which convert single points and covariances between coordinate systems.
+1. Transposing states between different filters, which each may use different coordinate systems.
+2. Converting state to the model's coordinate system so that changes in conversions in filters
+   do not affect the output from the estimator.
+
+These operations require functions which convert single samples and covariances between coordinate systems.
 Change in covariances are estimated using a `first-order Taylor expansion <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`_,
 which provides an exact result for our most-common operator (linear).
 The :meth:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution.convert` method of
 a :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`
-employs point and covariance conversions to produce a new distribution in the desired coordinate system.
+employs sample and covariance conversions to produce a new distribution in the desired coordinate system.
 
 Selecting a Conversion Operator
 -------------------------------
@@ -43,6 +43,8 @@ Coordinate systems available for models may be problematic for many reasons, and
 
     operator = LinearConversionOperator(additive_array=mean, multiplicative_array=std)
 
-- *Strongly Correlated Variables* can be combined to form a lower-dimensional coordinate systems
-  with the :class:`~moirae.estimators.online.filters.conversions.LinearOperator`. (Example TBD)
-- *Variables with Defined Ranges* can be enforced by employing the (TBD).
+- *Variables with Defined Ranges* can be enforced by employing tools such as the
+  :class:`~moirae.estimators.online.filters.conversions.AbsoluteValueOperator` (*in progress*).
+
+- *Dimensionality Reduction* by combining coordinated variables
+  with the :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`. (Example TBD)
