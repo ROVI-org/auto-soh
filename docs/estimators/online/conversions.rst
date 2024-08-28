@@ -44,7 +44,7 @@ Coordinate systems available for models may be problematic for many reasons, and
     operator = LinearConversionOperator(additive_array=mean, multiplicative_array=std)
 
 - *Variables with Defined Ranges* can be enforced by employing tools such as the
-  :class:`~moirae.estimators.online.filters.conversions.AbsoluteValueOperator` (*in progress*).
+  :class:`~moirae.estimators.online.filters.conversions.AbsoluteValueConversionOperator` (*in progress*).
 
 - *Dimensionality Reduction* by combining coordinated variables
   with the :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`. (Example TBD)
