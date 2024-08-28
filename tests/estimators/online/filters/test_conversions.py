@@ -194,7 +194,7 @@ def test_absolute_val_conversion():
     # Initialize convertor
     convertor = AbsoluteValueConversionOperator()
 
-    # For now, let's assume it works in 3D
+    # For now, let's assume it works in 5D
     samples = np.hstack((-np.arange(1, 11).reshape((-1, 1)),
                          -np.arange(20, 10, -1).reshape(-1, 1),
                          np.zeros((10, 1)),
@@ -220,3 +220,56 @@ def test_absolute_val_conversion():
     revert_covariance = convertor.inverse_transform_covariance(transformed_covariance=transformed_covariance,
                                                                transformed_pivot=abs_mean)
     assert np.allclose(revert_covariance, transformed_covariance)
+
+    # check that this works with a flattened sample as well
+    conv_mean = convertor.transform_samples(samples=mean.flatten())
+    assert len(conv_mean.shape) == 1
+    assert np.allclose(conv_mean, abs(mean))
+    reconv_mean = convertor.inverse_transform_samples(transformed_samples=conv_mean.flatten())
+    assert np.allclose(reconv_mean, conv_mean)
+
+
+def test_abs_val_partial():
+    # Initialize convertor
+    indices = [1, 2, 4]
+    convertor = AbsoluteValueConversionOperator(indices=indices)
+    # Prepare a mask
+    mask = np.ones(5, dtype=bool)
+    mask[indices] = False
+
+    # For now, let's assume it works in 5D
+    samples = np.hstack((-np.arange(1, 11).reshape((-1, 1)),
+                         -np.arange(20, 10, -1).reshape(-1, 1),
+                         np.zeros((10, 1)),
+                         np.arange(1, 11).reshape((-1, 1)),
+                         np.arange(20, 10, -1).reshape((-1, 1))))
+    mean = np.average(samples, axis=0)
+    covariance = np.matmul((samples - mean).T, samples - mean)
+
+    # convert samples
+    abs_samples = convertor.transform_samples(samples=samples)
+    assert np.allclose(abs_samples[:, indices], abs(samples[:, indices]))
+    assert np.allclose(abs_samples[:, mask], samples[:, mask])
+    # revert samples, should not change them
+    invert_samples = convertor.inverse_transform_samples(transformed_samples=abs_samples)
+    assert np.allclose(invert_samples[:, indices], abs_samples[:, indices])
+    assert np.allclose(invert_samples[:, mask], samples[:, mask])
+    # convert covariance
+    transformed_covariance = convertor.transform_covariance(covariance=covariance,
+                                                            pivot=mean)
+    # Calculate covariance "by hand" from the transformed samples
+    abs_mean = np.average(abs_samples, axis=0)
+    calc_cov = np.matmul((abs_samples - abs_mean).T, (abs_samples - abs_mean))
+    assert np.allclose(transformed_covariance, calc_cov)
+    # revert covariance, should not change anything regardless of pivot used
+    revert_covariance = convertor.inverse_transform_covariance(transformed_covariance=transformed_covariance,
+                                                               transformed_pivot=abs_mean)
+    assert np.allclose(revert_covariance, transformed_covariance)
+    # check that this works with a flattened sample as well
+    conv_mean = convertor.transform_samples(samples=mean.flatten())
+    assert len(conv_mean.shape) == 1
+    assert np.allclose(conv_mean[indices], abs(mean[indices]))
+    assert np.allclose(conv_mean[mask], mean[mask])
+    reconv_mean = convertor.inverse_transform_samples(transformed_samples=conv_mean.flatten())
+    assert len(reconv_mean.shape) == 1
+    assert np.allclose(reconv_mean, conv_mean)

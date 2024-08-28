@@ -1,7 +1,7 @@
 """ Tools to convert between coordinate systems """
 from abc import abstractmethod
 from functools import cached_property
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, computed_field
@@ -244,20 +244,41 @@ class AbsoluteValueConversionOperator(FirstOrderTaylorConversionOperator):
     models (such as an equivalent circuit) only accept positive parameters. Since the absolute value function is not
     invertible, the following choice was made for its inverse operations: the inverted values always belong to the
     positive quadrant of space, that is, they are always positive.
+
+    Args:
+        indices: indices to which the absolute value transformation should be applied; if not provided, applies absolute
+            value to all values
     """
+    indices: Optional[List[int]] = Field(default=None, description='indices to apply transformation')
+
     def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
         # The derivatives are equal to 1 where the pivot value is postive, and -1 otherwise
-        diagonal = np.where(pivot >= 0, 1., -1.)
+        diagonal = np.ones(pivot.size)
+        if self.indices is None:
+            diagonal = np.where(pivot >= 0, 1., -1.)
+        else:
+            diagonal[self.indices] = np.where(pivot[self.indices] >= 0, 1., -1.)
         return np.diag(diagonal)
 
     def get_inverse_jacobian(self, transformed_pivot: np.ndarray) -> np.ndarray:
         # This transformation is not invertible, so, to simplify, we will assume the conversion came from the positive
-        # quadrant (that is, where all values are positive, of the original and transformed pivot)
+        # quadrant (that is, where all values, of the original and transformed pivot, are positive)
         return np.eye(transformed_pivot.size)
 
     def transform_samples(self, samples: np.ndarray) -> np.ndarray:
-        tranformed_samples = np.where(samples >= 0, samples, -samples)
-        return tranformed_samples
+        if self.indices is None:
+            transformed_samples = np.where(samples >= 0, samples, -samples)
+        else:
+            transformed_samples = samples.copy()
+            if len(samples.shape) == 1:
+                transformed_samples[self.indices] = np.where(samples[self.indices] >= 0,
+                                                             samples[self.indices],
+                                                             -samples[self.indices])
+            else:
+                transformed_samples[:, self.indices] = np.where(samples[:, self.indices] >= 0,
+                                                                samples[:, self.indices],
+                                                                -samples[:, self.indices])
+        return transformed_samples
 
     def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
         # Once again, assume transformation goes positive quadrant <=> positive quadrant
