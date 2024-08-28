@@ -60,12 +60,18 @@ _________
    :undoc-members:
    :show-inheritance:
 
-
-
 Multivariate Distributions (``moirae.estimators.filters.distributions``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.filters.distributions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Coordinate Conversion (``moirae.estimators.filters.conversions``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: moirae.estimators.online.filters.conversions
    :members:
    :undoc-members:
    :show-inheritance:

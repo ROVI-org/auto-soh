@@ -93,6 +93,7 @@ Read the documentation on each filter type for further details.
 
     online/joint
     online/dual
+    online/conversions
 
 
 Using an Estimator
