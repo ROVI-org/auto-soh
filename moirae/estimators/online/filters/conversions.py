@@ -1,4 +1,4 @@
-""" Collection of base coordinate transformations"""
+""" Tools to convert between coordinate systems """
 from abc import abstractmethod
 from functools import cached_property
 from typing import Optional, Literal
@@ -12,12 +12,10 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
     Base class used to convert between :class:`~moirae.models.base.CellModel` and
     :class:`~moirae.estimators.online.filters.base.BaseFilter` coordinate systems.
 
-    Specifically, it is given to the
-    :meth:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution.transform` method of
-    :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution` to tell it how it should be
-    transformed. It is used at the :class:`~moirae.estimators.online.filters.base.ModelWrapper` to help translate the
-    output from :class:`~moirae.estimators.online.filters.base.BaseFilter` to numerical values that are pertinent to
-    :class:`~moirae.models.base.CellModel`.
+    Each implementation provides the ability to convert both points and covariances,
+    as required to map :meth:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`
+    between the coordinate systems employed by :class:`~moirae.estimators.online.filters.base.BaseFilter`
+    and :class:`~moirae.models.base.CellModel`.
     """
 
     @abstractmethod
@@ -69,7 +67,7 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
                                      transformed_covariance: np.ndarray,
                                      transformed_pivot: np.ndarray) -> np.ndarray:
         """
-        Performs the inverse tranformation of that given by
+        Performs the inverse transformation of that given by
         :meth:`~moirae.estimators.online.filters.transformations.BaseTransform.transform_covariance`.
 
         Args:
@@ -104,11 +102,7 @@ class IdentityConversionOperator(ConversionOperator):
 
 class LinearConversionOperator(ConversionOperator):
     """
-    Class that implements a linear function as a transformation (strictly speaking, this is not a linear transformation,
-    but just a linear function).
-
-    Given an array of multiplicative factors ``multi`` and additive factors ``bias``, this function transforms points
-    ``x`` to ``y`` following ``y = (multi * x) + bias``
+    A linear transformation, :math:`y = (multi * x) + basis`
 
     Args:
         multiplicative_array: np.ndarray corresponding to multiplicative factors in the linear function
@@ -125,9 +119,8 @@ class LinearConversionOperator(ConversionOperator):
         """
         Ensures the additive array is a 1D vector, and not a matrix
         """
-        shape = bias.shape
-        if len(shape) > 1:
-            raise ValueError(f'Additive factor must be a vector or scalar, but, instead, is has shape {shape}!')
+        if bias.ndim > 1:
+            raise ValueError(f'Additive factor must be a vector or scalar, but, instead, is has shape {bias.ndim}!')
         return bias.flatten()
 
     @field_validator('multiplicative_array', mode='after')
@@ -136,17 +129,16 @@ class LinearConversionOperator(ConversionOperator):
         """
         Ensures the multiplicative array is stored as a 2D array (or as a shapeless object)
         """
-        shape = multi.shape
-        if len(shape) > 2:
-            raise ValueError(f'Additive factor must be at most 2D, but, instead, is has shape {shape}!')
-        if len(shape) == 1:
+        if multi.ndim > 2:
+            raise ValueError(f'Additive factor must be at most 2D, but, instead, is has shape {multi.ndim}!')
+        if multi.ndim == 1:
             return np.diag(multi)
         return multi
 
     @computed_field
     @property
     def _len_multi_shape(self) -> Literal[0, 2]:
-        return len(self.multiplicative_array.shape)
+        return self.multiplicative_array.ndim
 
     @cached_property
     def inv_multi(self) -> np.ndarray:
