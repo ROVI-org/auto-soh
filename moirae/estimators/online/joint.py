@@ -137,38 +137,99 @@ class JointEstimator(OnlineEstimator):
                                             inputs=initial_inputs,
                                             converters={'hidden_conversion_operator': asoh_normalizer})
 
-        # Prepare objects to be given to UKF
-        # Joint hidden state
-        joint_hidden_mean = joint_model.create_hidden_state(transients=initial_transients, asoh=initial_asoh)
+        return JointEstimator.initialize_ukf_from_wrapper(
+            joint_wrapper=joint_model,
+            covariance_joint=covariance_joint,
+            covariance_transient=covariance_transient,
+            covariance_asoh=covariance_asoh,
+            inputs_uncertainty=inputs_uncertainty,
+            joint_covariance_process_noise=joint_covariance_process_noise,
+            transient_covariance_process_noise=transient_covariance_process_noise,
+            asoh_covariance_process_noise=asoh_covariance_process_noise,
+            covariance_sensor_noise=covariance_sensor_noise,
+            filter_args=filter_args
+        )
+
+    @classmethod
+    def initialize_ukf_from_wrapper(
+        cls,
+        joint_wrapper: JointCellModelWrapper,
+        covariance_joint: Optional[np.ndarray] = None,
+        covariance_transient: Optional[np.ndarray] = None,
+        covariance_asoh: Optional[np.ndarray] = None,
+        inputs_uncertainty: Optional[np.ndarray] = None,
+        joint_covariance_process_noise: Optional[np.ndarray] = None,
+        transient_covariance_process_noise: Optional[np.ndarray] = None,
+        asoh_covariance_process_noise: Optional[np.ndarray] = None,
+        covariance_sensor_noise: Optional[np.ndarray] = None,
+        filter_args: UKFTuningParameters = UKFTuningParameters.defaults()
+    ) -> Self:
+        """
+        Function to help initialize joint estimation based on UKF from the joint (transient + A-SOH) wrapper, which
+        may have been prepared with its own custom
+        :class:`moirae.estimators.online.filters.conversions.ConversionOperator`
+
+        Args:
+            joint_wrapper: wrapper for the joint state
+            covariance_joint: specifies the raw (un-normalized) covariance of the joint state; it is the preferred
+                method of assembling the initial joint state
+            covariance_transient: specifies the raw (un-normalized) covariance of the transient state; it is not used if
+                covariance_joint was provided
+            covariance_asoh: specifies the raw (un-normalized) covariance of the A-SOH; it is not used if
+                covariance_joint was provided
+            inputs_uncertainty: uncertainty matrix of the inputs; if not provided, assumes inputs are exact
+            joint_covariance_process_noise: process noise covariance for the joint state, considering transient and
+                A-SOH noises
+            transient_covariance_process_noise: process noise for transient update; only used if
+                joint_covariance_process_noise was not provided
+            asoh_covariance_process_noise: process noise for A-SOH update; only used if joint_covariance_process_noise
+                was not provided
+            covariance_sensor_noise: sensor noise for outputs; if denoising is applied, must match the proper
+                dimensionality
+            filter_args: additional dictionary of keywords to be given the the UKF; can include alpha_param, beta_param,
+                and kappa_param
+        """
+        # Preparing covariances
         if covariance_joint is None:
             joint_hidden_covariance = block_diag(covariance_transient, covariance_asoh)
         else:
             joint_hidden_covariance = covariance_joint
-        # Convert covariance!
-        joint_hidden_covariance = asoh_normalizer.inverse_transform_covariance(
-            transformed_covariance=joint_hidden_covariance,
-            transformed_pivot=joint_hidden_mean)
-        joint_initial_hidden = MultivariateGaussian(mean=joint_hidden_mean[0, :], covariance=joint_hidden_covariance)
-        # Initial controls
-        initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs,
-                                                        uncertainty_matrix=inputs_uncertainty)
-        initial_controls = initial_controls.convert(conversion_operator=joint_model.control_conversion, inverse=True)
-
-        # Process noise
         if joint_covariance_process_noise is None:
             if (transient_covariance_process_noise is not None) and (asoh_covariance_process_noise is not None):
                 joint_covariance_process_noise = block_diag(transient_covariance_process_noise,
                                                             asoh_covariance_process_noise)
-        # Convert process noise covariance!
-        joint_covariance_process_noise = asoh_normalizer.inverse_transform_covariance(
-            transformed_covariance=joint_covariance_process_noise)
+        # Preparing controls
+        controls = convert_vals_model_to_filter(model_quantities=joint_wrapper.inputs,
+                                                uncertainty_matrix=inputs_uncertainty)
 
-        # Initialize filter
-        ukf = UKF(model=joint_model,
-                  initial_hidden=joint_initial_hidden,
-                  initial_controls=initial_controls,
-                  covariance_process_noise=joint_covariance_process_noise,
-                  covariance_sensor_noise=covariance_sensor_noise,
-                  **filter_args)
+        # Preparing joint state
+        transient_array = joint_wrapper.transients.to_numpy().flatten()
+        asoh_array = joint_wrapper.asoh.get_parameters(names=joint_wrapper.asoh_inputs).flatten()
+        joint_mean = np.hstack((transient_array, asoh_array)).flatten()
+        joint_state = MultivariateGaussian(mean=joint_mean, covariance=joint_hidden_covariance)
 
-        return JointEstimator(joint_filter=ukf)
+        # Convert everything to filter coordinate system
+        joint_state = joint_state.convert(conversion_operator=joint_wrapper.hidden_conversion, inverse=True)
+        controls = controls.convert(conversion_operator=joint_wrapper.control_conversion, inverse=True)
+        process_noise = None
+        if joint_covariance_process_noise is not None:
+            process_noise = joint_wrapper.hidden_conversion.inverse_transform_covariance(
+                transformed_covariance=joint_covariance_process_noise,
+                transformed_pivot=np.zeros(joint_covariance_process_noise.shape[0])
+            )
+        sensor_noise = None
+        if covariance_sensor_noise is not None:
+            sensor_noise = joint_wrapper.output_conversion.inverse_transform_covariance(
+                transformed_covariance=covariance_sensor_noise,
+                transformed_pivot=np.zeros(covariance_sensor_noise.shape[0])
+            )
+
+        # Create filter
+        filter = UKF(model=joint_wrapper,
+                     initial_hidden=joint_state,
+                     initial_controls=controls,
+                     covariance_process_noise=process_noise,
+                     covariance_sensor_noise=sensor_noise,
+                     **filter_args)
+
+        return JointEstimator(joint_filter=filter)
