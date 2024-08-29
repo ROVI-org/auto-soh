@@ -189,12 +189,12 @@ class FirstOrderTaylorConversionOperator(ConversionOperator):
     Base class that specifies the necessary machinery to perform non-linear conversions assuming a first order Taylor
     expansion around a pivot point is sufficient to propagate uncertainties (through covariances).
 
-    Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`
     Assumes the transformation can be expressed as :math:`f = f_0 + J (x-p)`, where :math:`f_0` represents the value of
     the transformation at the pivot point :math:`p`, and :math:`J` is the Jacobian matrix at the pivot. Based on this,
     the covariance of the transformed vector :math:`f` can be simply expressed as
     :math:`{\\Sigma}_f = J {\\Sigma}_X J^T`, exactly like that in the
     :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`
+    Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`
     """
     @abstractmethod
     def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
