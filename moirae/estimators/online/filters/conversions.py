@@ -41,7 +41,7 @@ class ConversionOperator(BaseModel, arbitrary_types_allowed=True):
 
         Args:
             covariance: 2D np.ndarray corresponding to the covariance to be transformed
-            pivot: in cases where Taylor-expansion is employed, it should be performed around the specified pivot point
+            pivot: central value around which covariance must be propagated (akin to first moment of distribution)
 
         Returns:
             transformed_covariance: transformed covariance matrix
@@ -189,6 +189,7 @@ class FirstOrderTaylorConversionOperator(ConversionOperator):
     Base class that specifies the necessary machinery to perform non-linear conversions assuming a first order Taylor
     expansion around a pivot point is sufficient to propagate uncertainties (through covariances).
 
+    Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`
     Assumes the transformation can be expressed as :math:`f = f_0 + J (x-p)`, where :math:`f_0` represents the value of
     the transformation at the pivot point :math:`p`, and :math:`J` is the Jacobian matrix at the pivot. Based on this,
     the covariance of the transformed vector :math:`f` can be simply expressed as
@@ -223,17 +224,13 @@ class FirstOrderTaylorConversionOperator(ConversionOperator):
 
     def transform_covariance(self, covariance: np.ndarray, pivot: np.ndarray) -> np.ndarray:
         jacobian = self.get_jacobian(pivot=pivot)
-        # Invoke machinery from linear transform
-        linear = LinearConversionOperator(multiplicative_array=jacobian)
-        return linear.transform_covariance(covariance=covariance)
+        return np.matmul(np.matmul(jacobian.T, covariance), jacobian)
 
     def inverse_transform_covariance(self,
                                      transformed_covariance: np.ndarray,
                                      transformed_pivot: np.ndarray) -> np.ndarray:
         inv_jacobian = self.get_inverse_jacobian(transformed_pivot=transformed_pivot)
-        # Invoke machinery from linear transform
-        linear = LinearConversionOperator(multiplicative_array=inv_jacobian)
-        return linear.transform_covariance(covariance=transformed_covariance)
+        return np.matmul(np.matmul(inv_jacobian.T, transformed_covariance), inv_jacobian)
 
 
 class AbsoluteValueConversionOperator(FirstOrderTaylorConversionOperator):
@@ -267,17 +264,13 @@ class AbsoluteValueConversionOperator(FirstOrderTaylorConversionOperator):
 
     def transform_samples(self, samples: np.ndarray) -> np.ndarray:
         if self.indices is None:
-            transformed_samples = np.where(samples >= 0, samples, -samples)
+            transformed_samples = np.abs(samples)
         else:
             transformed_samples = samples.copy()
-            if len(samples.shape) == 1:
-                transformed_samples[self.indices] = np.where(samples[self.indices] >= 0,
-                                                             samples[self.indices],
-                                                             -samples[self.indices])
+            if samples.ndim == 1:
+                transformed_samples[self.indices] = np.abs(samples[self.indices])
             else:
-                transformed_samples[:, self.indices] = np.where(samples[:, self.indices] >= 0,
-                                                                samples[:, self.indices],
-                                                                -samples[:, self.indices])
+                transformed_samples[:, self.indices] = np.abs(samples[:, self.indices])
         return transformed_samples
 
     def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
