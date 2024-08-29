@@ -198,52 +198,149 @@ class DualEstimator(OnlineEstimator):
                                                inputs=initial_inputs,
                                                converters={'hidden_conversion_operator': asoh_normalizer})
 
-        # Prepare raw multivariate Gaussians
-        transients_hidden = convert_vals_model_to_filter(model_quantities=initial_transients,
-                                                         uncertainty_matrix=covariance_transient)
-        asoh_hidden = MultivariateGaussian(mean=initial_asoh.get_parameters().flatten(),
-                                           covariance=covariance_asoh)
-        initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs)
+        return DualEstimator.initialize_ukf_from_wrappers(
+            transient_wrapper=cell_wrapper,
+            asoh_wrapper=asoh_wrapper,
+            covariance_transient=covariance_transient,
+            covariance_asoh=covariance_asoh,
+            inputs_uncertainty=inputs_uncertainty,
+            transient_covariance_process_noise=transient_covariance_process_noise,
+            asoh_covariance_process_noise=asoh_covariance_process_noise,
+            covariance_sensor_noise=covariance_sensor_noise,
+            filter_args=filter_args
+        )
 
-        # Additional setup/conversions
-        trans_proc_noise = transient_covariance_process_noise
-        if trans_proc_noise is not None:
-            trans_proc_noise = cell_wrapper.hidden_conversion.inverse_transform_covariance(
-                transformed_covariance=trans_proc_noise,
-                transformed_pivot=np.zeros(transients_hidden.num_dimensions))
-        asoh_proc_noise = asoh_covariance_process_noise
-        if asoh_proc_noise is not None:
-            asoh_proc_noise = asoh_wrapper.hidden_conversion.inverse_transform_covariance(
-                transformed_covariance=asoh_proc_noise,
-                transformed_pivot=np.zeros(asoh_hidden.num_dimensions))
-        trans_sensor_noise = covariance_sensor_noise
-        asoh_sensor_noise = covariance_sensor_noise
-        if covariance_sensor_noise is not None:
-            trans_sensor_noise = cell_wrapper.output_conversion.inverse_transform_covariance(
-                transformed_covariance=trans_sensor_noise,
-                transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
-            asoh_sensor_noise = asoh_wrapper.output_conversion.inverse_transform_covariance(
-                transformed_covariance=asoh_sensor_noise,
-                transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
+        # # Prepare raw multivariate Gaussians
+        # transients_hidden = convert_vals_model_to_filter(model_quantities=initial_transients,
+        #                                                  uncertainty_matrix=covariance_transient)
+        # asoh_hidden = MultivariateGaussian(mean=initial_asoh.get_parameters().flatten(),
+        #                                    covariance=covariance_asoh)
+        # initial_controls = convert_vals_model_to_filter(model_quantities=initial_inputs)
 
-        # Initialize filters
-        trans_filter = UKF(
-            model=cell_wrapper,
-            initial_hidden=transients_hidden.convert(
-                conversion_operator=cell_wrapper.hidden_conversion, inverse=True),
-            initial_controls=initial_controls.convert(
-                conversion_operator=cell_wrapper.control_conversion, inverse=True),
-            covariance_process_noise=trans_proc_noise,
-            covariance_sensor_noise=trans_sensor_noise,
-            **filter_args.get('transient', UKFTuningParameters.defaults()))
-        asoh_filter = UKF(
-            model=asoh_wrapper,
-            initial_hidden=asoh_hidden.convert(
-                conversion_operator=asoh_wrapper.hidden_conversion, inverse=True),
-            initial_controls=initial_controls.convert(
-                conversion_operator=asoh_wrapper.control_conversion, inverse=True),
-            covariance_process_noise=asoh_proc_noise,
-            covariance_sensor_noise=asoh_sensor_noise,
-            **filter_args.get('asoh', UKFTuningParameters.defaults()))
+        # # Additional setup/conversions
+        # trans_proc_noise = transient_covariance_process_noise
+        # if trans_proc_noise is not None:
+        #     trans_proc_noise = cell_wrapper.hidden_conversion.inverse_transform_covariance(
+        #         transformed_covariance=trans_proc_noise,
+        #         transformed_pivot=np.zeros(transients_hidden.num_dimensions))
+        # asoh_proc_noise = asoh_covariance_process_noise
+        # if asoh_proc_noise is not None:
+        #     asoh_proc_noise = asoh_wrapper.hidden_conversion.inverse_transform_covariance(
+        #         transformed_covariance=asoh_proc_noise,
+        #         transformed_pivot=np.zeros(asoh_hidden.num_dimensions))
+        # trans_sensor_noise = covariance_sensor_noise
+        # asoh_sensor_noise = covariance_sensor_noise
+        # if covariance_sensor_noise is not None:
+        #     trans_sensor_noise = cell_wrapper.output_conversion.inverse_transform_covariance(
+        #         transformed_covariance=trans_sensor_noise,
+        #         transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
+        #     asoh_sensor_noise = asoh_wrapper.output_conversion.inverse_transform_covariance(
+        #         transformed_covariance=asoh_sensor_noise,
+        #         transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
 
-        return DualEstimator(transient_filter=trans_filter, asoh_filter=asoh_filter)
+        # # Initialize filters
+        # trans_filter = UKF(
+        #     model=cell_wrapper,
+        #     initial_hidden=transients_hidden.convert(
+        #         conversion_operator=cell_wrapper.hidden_conversion, inverse=True),
+        #     initial_controls=initial_controls.convert(
+        #         conversion_operator=cell_wrapper.control_conversion, inverse=True),
+        #     covariance_process_noise=trans_proc_noise,
+        #     covariance_sensor_noise=trans_sensor_noise,
+        #     **filter_args.get('transient', UKFTuningParameters.defaults()))
+        # asoh_filter = UKF(
+        #     model=asoh_wrapper,
+        #     initial_hidden=asoh_hidden.convert(
+        #         conversion_operator=asoh_wrapper.hidden_conversion, inverse=True),
+        #     initial_controls=initial_controls.convert(
+        #         conversion_operator=asoh_wrapper.control_conversion, inverse=True),
+        #     covariance_process_noise=asoh_proc_noise,
+        #     covariance_sensor_noise=asoh_sensor_noise,
+        #     **filter_args.get('asoh', UKFTuningParameters.defaults()))
+
+        # return DualEstimator(transient_filter=trans_filter, asoh_filter=asoh_filter)
+
+    @classmethod
+    def initialize_ukf_from_wrappers(
+        cls,
+        transient_wrapper: CellModelWrapper,
+        asoh_wrapper: DegradationModelWrapper,
+        covariance_transient: np.ndarray,
+        covariance_asoh: np.ndarray,
+        inputs_uncertainty: Optional[np.ndarray] = None,
+        transient_covariance_process_noise: Optional[np.ndarray] = None,
+        asoh_covariance_process_noise: Optional[np.ndarray] = None,
+        covariance_sensor_noise: Optional[np.ndarray] = None,
+        filter_args: Optional[DualUKFTuningParameters] = DualUKFTuningParameters.defaults()
+    ) -> Self:
+        """
+        Function to help initialize dual estimation based on UKF from the individual transient and A-SOH wrappers, which
+        may have been prepared with their own custom
+        :class:`moirae.estimators.online.filters.conversions.ConversionOperator`
+
+        Args:
+            transient_wrapper: wrapper for the transient vector
+            asoh_wrapper: wrapper for the A-SOH
+            covariance_transient: specifies the raw (un-normalized) covariance of the transient state; it is not used if
+                covariance_joint was provided
+            covariance_asoh: specifies the raw (un-normalized) covariance of the A-SOH; it is not used if
+                covariance_joint was provided
+            inputs_uncertainty: uncertainty matrix of the inputs; if not provided, assumes inputs are exact
+            transient_covariance_process_noise: process noise for transient update; only used if
+                joint_covariance_process_noise was not provided
+            asoh_covariance_process_noise: process noise for A-SOH update; only used if joint_covariance_process_noise
+                was not provided
+            covariance_sensor_noise: sensor noise for outputs; if denoising is applied, must match the proper
+                dimensionality
+            normalize_asoh: determines whether A-SOH parameters should be normalized in the filter
+            filter_args: dictionary where keys must be either 'transient' or 'asoh', and values must be a dictionary in
+                which keys are keyword arguments for the UKFs (such as `alpha_param`)
+
+        Returns:
+            instance of DualEstimator based on one UKF for the transient state, and one for the A-SOH
+        """
+        # Quick consistency check
+        assert np.allclose(transient_wrapper.inputs.to_numpy(), asoh_wrapper.inputs.to_numpy()), \
+            'Mismatch between inputs in transient and A-SOH wrappers!'
+        controls = convert_vals_model_to_filter(model_quantities=transient_wrapper.inputs,
+                                                uncertainty_matrix=inputs_uncertainty)
+
+        # Assemble initial hidden states
+        hidden_states = {'transient': convert_vals_model_to_filter(
+            model_quantities=transient_wrapper.transients,
+            uncertainty_matrix=covariance_transient),
+            'asoh': MultivariateGaussian(
+                mean=asoh_wrapper.asoh.get_parameters(names=asoh_wrapper.asoh_inputs).flatten(),
+                covariance=covariance_asoh)}
+        # Assemble additional helper dictionaries
+        wrappers = {'transient': transient_wrapper, 'asoh': asoh_wrapper}
+        process_noise = {'transient': transient_covariance_process_noise, 'asoh': asoh_covariance_process_noise}
+        sensor_noise = {'transient': covariance_sensor_noise, 'asoh': covariance_sensor_noise}
+        filters = {}
+
+        for variables, wrap in wrappers.items():
+            # Prepare the hidden state
+            hidden = hidden_states[variables].convert(conversion_operator=wrap.hidden_conversion, inverse=True)
+            # Prepare input
+            control = controls.convert(conversion_operator=wrap.control_conversion, inverse=True)
+            # Prepare process noise covariance
+            process_noise_filter = None
+            if process_noise[variables] is not None:
+                process_noise_filter = wrap.hidden_conversion.inverse_transform_covariance(
+                    transformed_covariance=process_noise[variables],
+                    transformed_pivot=np.zeros(process_noise[variables].shape[0]))
+            # Prepare sensor noise covariance
+            sensor_noise_filter = None
+            if sensor_noise[variables] is not None:
+                sensor_noise_filter = wrap.output_conversion.inverse_transform_covariance(
+                    transformed_covariance=sensor_noise[variables],
+                    transformed_pivot=np.zeros(sensor_noise[variables].shape[0]))
+            # Initialize filter
+            filters[variables + '_filter'] = UKF(model=wrap,
+                                                 initial_hidden=hidden,
+                                                 initial_controls=control,
+                                                 covariance_process_noise=process_noise_filter,
+                                                 covariance_sensor_noise=sensor_noise_filter,
+                                                 **filter_args.get(variables, UKFTuningParameters.defaults()))
+
+        return DualEstimator(**filters)
