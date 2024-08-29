@@ -46,7 +46,7 @@ class BaseCellWrapper(ModelWrapper):
                  asoh: HealthVariable,
                  transients: GeneralContainer,
                  inputs: InputQuantities,
-                 converters: Optional[ModelWrapperConverters] = ModelWrapperConverters.defaults()):
+                 converters: ModelWrapperConverters = ModelWrapperConverters.defaults()):
 
         # Give converters to parent class
         super().__init__(**converters)
@@ -81,7 +81,7 @@ class CellModelWrapper(BaseCellWrapper):
                  asoh: HealthVariable,
                  transients: GeneralContainer,
                  inputs: InputQuantities,
-                 converters: Optional[ModelWrapperConverters] = ModelWrapperConverters.defaults()) -> None:
+                 converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
         self.num_transients = transients.to_numpy().shape[1]
@@ -151,7 +151,7 @@ class DegradationModelWrapper(BaseCellWrapper):
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
-                 converters: Optional[ModelWrapperConverters] = ModelWrapperConverters.defaults()) -> None:
+                 converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
 
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
@@ -255,7 +255,7 @@ class JointCellModelWrapper(BaseCellWrapper):
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
-                 converters: Optional[ModelWrapperConverters] = ModelWrapperConverters.defaults()) -> None:
+                 converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
         # Store the information about the identity of variables in the transient state

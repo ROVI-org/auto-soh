@@ -209,18 +209,22 @@ class DualEstimator(OnlineEstimator):
         trans_proc_noise = transient_covariance_process_noise
         if trans_proc_noise is not None:
             trans_proc_noise = cell_wrapper.hidden_conversion.inverse_transform_covariance(
-                transformed_covariance=trans_proc_noise)
+                transformed_covariance=trans_proc_noise,
+                transformed_pivot=np.zeros(transients_hidden.num_dimensions))
         asoh_proc_noise = asoh_covariance_process_noise
         if asoh_proc_noise is not None:
             asoh_proc_noise = asoh_wrapper.hidden_conversion.inverse_transform_covariance(
-                transformed_covariance=asoh_proc_noise)
+                transformed_covariance=asoh_proc_noise,
+                transformed_pivot=np.zeros(asoh_hidden.num_dimensions))
         trans_sensor_noise = covariance_sensor_noise
         asoh_sensor_noise = covariance_sensor_noise
         if covariance_sensor_noise is not None:
             trans_sensor_noise = cell_wrapper.output_conversion.inverse_transform_covariance(
-                transformed_covariance=trans_sensor_noise)
+                transformed_covariance=trans_sensor_noise,
+                transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
             asoh_sensor_noise = asoh_wrapper.output_conversion.inverse_transform_covariance(
-                transformed_covariance=asoh_sensor_noise)
+                transformed_covariance=asoh_sensor_noise,
+                transformed_pivot=np.zeros(covariance_sensor_noise.shape[0]))
 
         # Initialize filters
         trans_filter = UKF(

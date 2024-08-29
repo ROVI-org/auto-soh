@@ -177,8 +177,10 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         if inverse:
             transformed_mean = conversion_operator.inverse_transform_samples(transformed_samples=self.get_mean())
             transformed_cov = conversion_operator.inverse_transform_covariance(
-                transformed_covariance=self.get_covariance())
+                transformed_covariance=self.get_covariance(),
+                transformed_pivot=self.get_mean())
             return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
-        transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance())
+        transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance(),
+                                                                   pivot=self.get_mean())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
