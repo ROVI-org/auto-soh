@@ -45,8 +45,8 @@ necessary to specify a particular storage systems.
 
 .. note::
 
-    Moirae's models assume that a positive current for batteries charging,
-    which is opposite from the `battery-data-toolkit's choice <https://rovi-org.github.io/battery-data-toolkit/schemas.html>`_,
+    Moirae's models assume that a positive current corresponds to charging a battery,
+    opposite from the `battery-data-toolkit's choice <https://rovi-org.github.io/battery-data-toolkit/schemas.html>`_,
     but in line with conventions common for battery modeling.
 
 
