@@ -174,6 +174,7 @@ class Simulator:
         output = []
         for _, group in df.groupby('batch'):
             batch = BatteryDataset(raw_data=group.drop(columns=['batch']))
+            batch.raw_data['current'] *= -1  # Moirae uses the opposite sign convention as batdata
 
             # Compile names for the other columns
             #  TODO (wardlt): I bet I can grab the description from the model fields.

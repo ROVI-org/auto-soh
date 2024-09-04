@@ -43,6 +43,12 @@ necessary to specify a particular storage systems.
     The ``InputQuantities`` and ``OutputQuantities`` classes define
     the required names for the time, current, and voltage.
 
+.. note::
+
+    Moirae's models assume that a positive current corresponds to charging a battery,
+    opposite from the `battery-data-toolkit's choice <https://rovi-org.github.io/battery-data-toolkit/schemas.html>`_,
+    but in line with conventions common for battery modeling.
+
 
 Health Parameters
 -----------------
