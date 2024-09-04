@@ -194,7 +194,7 @@ class FirstOrderTaylorConversionOperator(ConversionOperator):
     the covariance of the transformed vector :math:`f` can be simply expressed as
     :math:`{\\Sigma}_f = J {\\Sigma}_X J^T`, exactly like that in the
     :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`
-    Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`
+    Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`_.
     """
     @abstractmethod
     def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
