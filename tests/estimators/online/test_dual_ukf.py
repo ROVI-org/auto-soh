@@ -62,7 +62,7 @@ def real_initialization() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
     real_transients = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=0.1)
     real_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0, R0=1., H0=0.)
     # Prepare simulator
-    simulator = Simulator(model=ECM(),
+    simulator = Simulator(cell_model=ECM(),
                           asoh=real_asoh,
                           transient_state=real_transients,
                           initial_input=ECMInput(),
@@ -149,7 +149,7 @@ def test_swap(simple_rint, swapper_operator):
     # Prep basics
     rint_asoh, rint_transient, ecm_inputs, ecm_model = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
-    simulator = Simulator(model=ECM(),
+    simulator = Simulator(cell_model=ECM(),
                           asoh=rint_asoh,
                           transient_state=rint_transient,
                           initial_input=ecm_inputs,
