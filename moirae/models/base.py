@@ -716,23 +716,23 @@ class DegradationModel:
     used to update the A-SOH to be used by the cell models. Similarly to the cell models, they need to be able to be
     used in an online fashion, but can degrade the A-SOH with a different frequency.
 
-    At a minimum, they must be able to take the previous A-SOH, as well as a collection of
-    :class:`moirae.models.base.InputQuantities` objects and a collection of :class:`moirae.models.base.GeneralContainer`
-    transient states, and output a new A-SOH object
+    At a minimum, they must be able to:
+    1. Take the previous A-SOH, as well as a new :class:`moirae.models.base.InputQuantities` object and an optional
+        new :class:`moirae.models.base.GeneralContainer` transient states, and output an updated A-SOH object
     """
 
     @abstractmethod
     def update_asoh(self,
                     previous_asoh: HealthVariable,
-                    input_history: Union[InputQuantities, List[InputQuantities]],
-                    transient_history: Union[GeneralContainer, List[GeneralContainer]]) -> HealthVariable:
+                    new_inputs: InputQuantities,
+                    new_transients: Optional[GeneralContainer]) -> HealthVariable:
         """
         Method to degrade previous A-SOH based on inputs.
 
         Args:
             previous_asoh: previous A-SOH to be updated/degrade
-            input_history: history of inputs since the previous A-SOH
-            transient_history: history of transient states since the previous A-SOH
+            new_inputs: new inputs since the previous A-SOH
+            new_transients: new transient states since the previous A-SOH
 
         Returns:
             a new updated/degraded A-SOH object
