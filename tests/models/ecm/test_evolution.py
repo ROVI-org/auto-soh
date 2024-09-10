@@ -14,7 +14,7 @@ def rint_const() -> Simulator:
     rint_asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
     # Removing hysteresis
     rint_asoh.h0.base_values = np.zeros((1, 1))
-    return Simulator(model=ECM(), asoh=rint_asoh, initial_input=ECMInput(),
+    return Simulator(cell_model=ECM(), asoh=rint_asoh, initial_input=ECMInput(),
                      transient_state=ECMTransientVector.from_asoh(rint_asoh), keep_history=True)
 
 
@@ -26,7 +26,7 @@ def hyst_only() -> Simulator:
     # Setting hysteresis to known value and speeding up its rate of asymptotic approach
     hyst_asoh.h0.base_values = np.array([[3 * np.pi / 10]])
     hyst_asoh.h0.gamma = np.array([[15]])
-    return Simulator(model=ECM(), asoh=hyst_asoh, initial_input=ECMInput(),
+    return Simulator(cell_model=ECM(), asoh=hyst_asoh, initial_input=ECMInput(),
                      transient_state=ECMTransientVector(), keep_history=True)
 
 
@@ -52,7 +52,7 @@ def rc_only() -> Simulator:
     asoh.rc_elements[0].c.base_values = np.zeros((1, 1)) + 3 * np.pi
     # I want the simulator to start at an SOC of 0.5
     start_transient = ECMTransientVector.provide_template(has_C0=False, num_RC=1, soc=0.5, i_rc=np.array([0.]))
-    return Simulator(model=ECM(), asoh=asoh, initial_input=ECMInput(),
+    return Simulator(cell_model=ECM(), asoh=asoh, initial_input=ECMInput(),
                      transient_state=start_transient, keep_history=True)
 
 
