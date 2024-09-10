@@ -706,3 +706,32 @@ class CellModel:
         Compute expected output (terminal voltage, etc.) of the model.
         """
         pass
+
+
+class DegradationModel:
+    """
+    Base class for A-SOH degradation/aging models.
+
+    While the :class:`moirae.models.base.CellModel` are used for updating transient vectors, degradation models are
+    used to update the A-SOH to be used by the cell models. Similarly to the cell models, they need to be able to be
+    used in an online fashion, but can degrade the A-SOH with a different frequency.
+
+    At a minimum, they must be able to take the previous A-SOH, as well as a collection of
+    :class:`moirae.models.base.InputQuantities` objects, and output a new A-SOH object
+    """
+
+    @abstractmethod
+    def update_asoh(self,
+                    previous_asoh: HealthVariable,
+                    input_history: Union[InputQuantities, List[InputQuantities]]) -> HealthVariable:
+        """
+        Method to degrade previous A-SOH based on inputs.
+
+        Args:
+            previous_asoh: previous A-SOH to be updated/degrade
+            input_history: history of inputs since the previous A-SOH
+
+        Returns:
+            a new updated/degraded A-SOH object
+        """
+        raise NotImplementedError("Please implement in child class!")
