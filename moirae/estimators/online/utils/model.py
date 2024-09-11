@@ -222,14 +222,14 @@ class DegradationModelWrapper(BaseCellWrapper):
         new_inputs = self.inputs.make_copy(
             values=self.control_conversion.transform_samples(samples=new_controls))
         # Compute measurements
-        new_measumrents = self.cell_model.calculate_terminal_voltage(new_inputs=new_inputs,
-                                                                     transient_state=self.transients,
-                                                                     asoh=asoh)
+        new_measurements = self.cell_model.calculate_terminal_voltage(new_inputs=new_inputs,
+                                                                      transient_state=self.transients,
+                                                                      asoh=asoh)
         # Degrade A-SOH
         deg_asoh = self.deg_model.update_asoh(previous_asoh=asoh,
                                               new_inputs=new_inputs,
                                               new_transients=self.transients,
-                                              new_measurements=new_measumrents)
+                                              new_measurements=new_measurements)
 
         return self.hidden_conversion.inverse_transform_samples(
             transformed_samples=deg_asoh.get_parameters(names=self.asoh_inputs))
