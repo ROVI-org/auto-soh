@@ -73,6 +73,8 @@ class SOCInterpolatedHealth(HealthVariable):
         if soc_batch_size > 1 and batch_size > 1:
             y = np.diag(y.squeeze())  # Match the SOC with the model its calling
         elif soc_batch_size == 1 and batch_size > 1:
+            if len(input_dims) > 1:
+                return y.reshape((batch_size, soc_batch_size))  # + input_dims)
             return y.reshape((batch_size,) + input_dims)
         return y.reshape(input_dims)
 
