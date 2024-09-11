@@ -5,7 +5,8 @@ from typing import Tuple, Optional, Union
 
 from moirae.estimators.online.filters.base import ModelWrapper, ModelWrapperConverters
 from moirae.estimators.online.filters.distributions import DeltaDistribution, MultivariateGaussian
-from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel
+from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel, DegradationModel
+from moirae.models.utils import DummyDegradation
 
 
 def convert_vals_model_to_filter(
@@ -32,6 +33,14 @@ class BaseCellWrapper(ModelWrapper):
     """
     Base link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
     the filter implementations.
+
+    Args:
+        cell_model: Model which defines the physics of the system being modeled
+        asoh: Values for all state of health parameters of the model
+        transients: Current values of the transient state of the system
+        inputs: Example input values for the model
+        converters: set of converters to be used to translate between filter-coordinate system and model
+            coordinate-system
     """
 
     cell_model: CellModel
@@ -137,8 +146,21 @@ class CellModelWrapper(BaseCellWrapper):
 class DegradationModelWrapper(BaseCellWrapper):
     """
     Link between A-SOH degradation models and the numpy-only interface of the
-    :class:`~moirae.estimators.online.filters.base.BaseFilter`. If provides the model wrapper need for dual estimation
+    :class:`~moirae.estimators.online.filters.base.BaseFilter`. It provides the model wrapper need for dual estimation
     frameworks
+
+    It takes an additional argument compared to the :class:`moirae.estimators.online.utils.model.BaseCellWrapper`, as it
+    needs to know the degrataion model being used. If none is passed, defaults to dummy degradation.
+
+    Args:
+        cell_model: Model which defines the physics of the system being modeled
+        asoh: Values for all state of health parameters of the model
+        transients: Current values of the transient state of the system
+        inputs: Example input values for the model
+        asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
+        degradation_model: degradation model to be used; if not passed, degradation will be fully derived from data
+        converters: set of converters to be used to translate between filter-coordinate system and model
+            coordinate-system
     """
 
     asoh_inputs: Tuple[str]
@@ -146,11 +168,11 @@ class DegradationModelWrapper(BaseCellWrapper):
 
     def __init__(self,
                  cell_model: CellModel,
-                 # TODO (vventuri): allow for passing an A-SOH degradation model!
                  asoh: HealthVariable,
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
+                 degradation_model: DegradationModel = DummyDegradation(),
                  converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
 
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
@@ -163,6 +185,8 @@ class DegradationModelWrapper(BaseCellWrapper):
         self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
         # Storing "previous inputs" just in case a call to `predict_measurement` is made prematurely
         self._previous_inputs = inputs.model_copy(deep=True)
+        # Store degradation model
+        self.deg_model = degradation_model
 
     @property
     def num_hidden_dimensions(self) -> int:
@@ -192,12 +216,23 @@ class DegradationModelWrapper(BaseCellWrapper):
             values=self.control_conversion.transform_samples(samples=previous_controls))
         self._previous_inputs = previous_inputs
 
-        # Convert to A-SOH object (and, in the future, pass through degradation model)
+        # Convert to A-SOH object
         asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
-        # TODO (vventuri): degrade asoh with model
+        # Convert new controls
+        new_inputs = self.inputs.make_copy(
+            values=self.control_conversion.transform_samples(samples=new_controls))
+        # Compute measurements
+        new_measumrents = self.cell_model.calculate_terminal_voltage(new_inputs=new_inputs,
+                                                                     transient_state=self.transients,
+                                                                     asoh=asoh)
+        # Degrade A-SOH
+        deg_asoh = self.deg_model.update_asoh(previous_asoh=asoh,
+                                              new_inputs=new_inputs,
+                                              new_transients=self.transients,
+                                              new_measurements=new_measumrents)
 
         return self.hidden_conversion.inverse_transform_samples(
-            transformed_samples=asoh.get_parameters(names=self.asoh_inputs))
+            transformed_samples=deg_asoh.get_parameters(names=self.asoh_inputs))
 
     def predict_measurement(self,
                             hidden_states: np.ndarray,
@@ -244,6 +279,9 @@ class JointCellModelWrapper(BaseCellWrapper):
         transients: Current values of the transient state of the system
         inputs: Example input values for the model
         asoh_inputs: Names of the ASOH parameters to include as part of the hidden state
+        degradation_model: degradation model to be used; if not passed, degradation will be fully derived from data
+        converters: set of converters to be used to translate between filter-coordinate system and model
+            coordinate-system
     """
 
     asoh_inputs: Tuple[str]
@@ -255,6 +293,7 @@ class JointCellModelWrapper(BaseCellWrapper):
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
+                 degradation_model: DegradationModel = DummyDegradation(),
                  converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
@@ -264,6 +303,7 @@ class JointCellModelWrapper(BaseCellWrapper):
         self.asoh_inputs = asoh_inputs
         self.num_transients = transients.to_numpy().shape[1]
         self.num_asoh = asoh.get_parameters(self.asoh_inputs).shape[1]
+        self.deg_model = degradation_model
 
     @property
     def num_hidden_dimensions(self) -> int:
@@ -330,9 +370,19 @@ class JointCellModelWrapper(BaseCellWrapper):
                                                                 new_inputs=new_inputs,
                                                                 transient_state=my_transients,
                                                                 asoh=my_asoh)
+        # Let's also degrade the A-SOH
+        # We need the measurement
+        new_measurement = self.cell_model.calculate_terminal_voltage(new_inputs=previous_inputs,
+                                                                     transient_state=my_transients,
+                                                                     asoh=my_asoh)
+        deg_asoh = self.deg_model.update_asoh(previous_asoh=my_asoh,
+                                              new_inputs=previous_inputs,
+                                              new_transients=my_transients,
+                                              new_measurements=new_measurement)
 
         # Convert this back to filter lingo
         output[:, :self.num_transients] = new_transients.to_numpy()
+        output[:, self.num_transients:] = deg_asoh.get_parameters()
         output = self.hidden_conversion.inverse_transform_samples(transformed_samples=output)
         return output
 
