@@ -350,6 +350,7 @@ class JointCellModelWrapper(BaseCellWrapper):
 
         # Update the ASOH accordingly
         my_asoh = self.asoh.make_copy(values=joint_raw[:, self.num_transients:], names=self.asoh_inputs)
+
         return my_asoh, my_transients
 
     def update_hidden_states(self,
@@ -370,6 +371,7 @@ class JointCellModelWrapper(BaseCellWrapper):
                                                                 new_inputs=new_inputs,
                                                                 transient_state=my_transients,
                                                                 asoh=my_asoh)
+
         # Let's also degrade the A-SOH
         # We need the measurement
         new_measurement = self.cell_model.calculate_terminal_voltage(new_inputs=previous_inputs,
@@ -382,7 +384,7 @@ class JointCellModelWrapper(BaseCellWrapper):
 
         # Convert this back to filter lingo
         output[:, :self.num_transients] = new_transients.to_numpy()
-        output[:, self.num_transients:] = deg_asoh.get_parameters()
+        output[:, self.num_transients:] = deg_asoh.get_parameters(names=self.asoh_inputs)
         output = self.hidden_conversion.inverse_transform_samples(transformed_samples=output)
         return output
 
