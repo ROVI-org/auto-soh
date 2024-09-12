@@ -19,7 +19,7 @@ def rint() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
     asoh = ECMASOH.provide_template(has_C0=False, num_RC=0)
     # Make hysteresis approach asymptotic value fast
     asoh.h0.gamma = 100
-    simulator = Simulator(model=ECM(),
+    simulator = Simulator(cell_model=ECM(),
                           asoh=asoh,
                           transient_state=transient,
                           initial_input=ECMInput(),
@@ -35,7 +35,7 @@ def pngv() -> Tuple[ECMTransientVector, ECMASOH, Simulator]:
     i_rc = np.arange(6, dtype=float).reshape((3, 2))
     transient = ECMTransientVector(soc=soc, hyst=hyst, q0=q0, i_rc=i_rc)
     asoh = ECMASOH.provide_template(has_C0=True, num_RC=2)
-    simulator = Simulator(model=ECM(),
+    simulator = Simulator(cell_model=ECM(),
                           asoh=asoh,
                           transient_state=transient,
                           initial_input=ECMInput(),

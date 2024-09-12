@@ -16,7 +16,7 @@ def test_dataframe(simple_rint, batched):
         assert rint_asoh.r0.base_values.shape == (2, 1)
 
     simulator = Simulator(
-        model=ecm,
+        cell_model=ecm,
         asoh=rint_asoh,
         transient_state=rint_transient,
         initial_input=rint_inputs,
@@ -48,7 +48,7 @@ def test_dataframe_failure(simple_rint):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
 
     simulator = Simulator(
-        model=ecm,
+        cell_model=ecm,
         asoh=rint_asoh,
         transient_state=rint_transient,
         initial_input=rint_inputs,

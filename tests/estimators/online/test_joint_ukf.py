@@ -108,7 +108,7 @@ def test_joint_ecm() -> None:
     # Initialize transient state and simulator
     transient0_rint = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=1.0)
     rint_sim = Simulator(
-        model=ECM(),
+        cell_model=ECM(),
         asoh=asoh_rint,
         initial_input=ECMInput(),
         transient_state=transient0_rint,
@@ -280,7 +280,7 @@ def test_joint_ecm_with_normalization() -> None:
     # Initialize transient state and simulator
     transient0_rint = ECMTransientVector.provide_template(has_C0=False, num_RC=0, soc=1.0)
     rint_sim = Simulator(
-        model=ECM(),
+        cell_model=ECM(),
         asoh=asoh_rint,
         initial_input=ECMInput(),
         transient_state=transient0_rint,

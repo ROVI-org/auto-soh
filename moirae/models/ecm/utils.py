@@ -58,7 +58,7 @@ class SOCInterpolatedHealth(HealthVariable):
 
         # Special case: no interpolation
         if self.base_values.shape[-1] == 1:
-            y = self.base_values[:, 0]
+            y = self.base_values[:, 0].copy()
             if soc_batch_size > 0 and batch_size == 1:
                 return np.repeat(y, soc.size, axis=0).reshape(input_dims)
             elif soc_batch_size == 1 and batch_size > 1:
@@ -73,6 +73,8 @@ class SOCInterpolatedHealth(HealthVariable):
         if soc_batch_size > 1 and batch_size > 1:
             y = np.diag(y.squeeze())  # Match the SOC with the model its calling
         elif soc_batch_size == 1 and batch_size > 1:
+            if len(input_dims) > 1:
+                return y.reshape((batch_size, soc_batch_size))
             return y.reshape((batch_size,) + input_dims)
         return y.reshape(input_dims)
 
