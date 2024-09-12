@@ -611,7 +611,7 @@ class CellModel:
 
 class DegradationModel:
     """
-    Base class for A-SOH degradation/aging models.
+    Base class for A-SOH aging models.
 
     Degradation models update the A-SOH incrementally given the current transient state,
     similar to how the :class:`CellModel` updates the transient state given current A-SOH.

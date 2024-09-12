@@ -148,9 +148,29 @@ or omit the specific names to set all updatable variables
     assert model.updatable_names == ['resistance.full', 'resistance.empty']
     model.update_parameters([[0.2, 0.1]])  # As a (1, 2) array for 1-sized batch of 2 values
 
-Cell Model
-----------
+Defining the Cell Physics
+-------------------------
 
-All storage systems are represented using a ``CellModel``.
-The model class defines how the transient states change given
-an inputs applied to a system defined using certain health parameters.
+All storage systems are represented using a :class:`~moirae.models.base.CellModel`
+that provides two functions:
+
+1. updating transient state given inputs, and
+2. predicting outputs given state and inputs.
+
+Cell models hold no state themselves and only implement the physics
+that describes how the state of a battery system should evolve with time.
+Attributes of a cell model adjust the how the calculations are performed
+or are resource-specific configuration,
+such as a path to external components.
+
+Changes in the ASOH for a cell are described as :class:`~moirae.models.base.DegradationModel`.
+Such models provide a function which updates the current state of health provided
+new inputs, transient state, and measurements.
+
+.. ::
+
+    We still need to....
+
+    1. Describe where any parameters for the degredation model come from
+    2. Indicate if there are any additional states held by the degradation model
+    3. Provide an index of available Cell and Degredation models
