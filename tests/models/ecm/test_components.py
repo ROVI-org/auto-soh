@@ -37,3 +37,8 @@ def test_r_batch():
     r = r_model.get_value([[0.], [0.5]])  # (n_batches, 1) format used elsewhere
     assert r.shape == (2, 1)
     assert np.allclose(r, [[0.05], [0.055]])
+
+    # SOC provided as "batched" with batch size of 1 (that is, shape is (1,1))
+    r = r_model.get_value([[0.]])
+    assert r.shape == (2, 1)
+    assert np.allclose(r, np.array([[0.05], [0.06]]))
