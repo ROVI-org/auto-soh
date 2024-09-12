@@ -58,123 +58,7 @@ ListParameter = Annotated[
 # TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
 class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     """Base class for a container which holds the physical parameters of system and which ones
-    are being treated as updatable.
-
-    Creating a System Health
-    ------------------------
-
-    Define a new system state by subclassing ``HealthVariable`` then providing
-    adding attributes which describe the learnable parameters of a system.
-
-    Attributes which represents a health parameter must be numpy arrays,
-    other ``HealthVariable`` classes,
-    or lists or dictionaries of other ``HealthVariable`` classes.
-
-    The numpy arrays used to store parameters are 2D arrays where the first dimension is a batch dimension,
-    even for parameters which represent scalar values.
-    Use the :class:`ScalarParameter` type for scalar values and :class:`ListParameter` for list values
-    to enable automatic conversion from user-supplied to the internal format used by :class:`HealthVariable`.
-
-    .. note::
-
-        The ``ListParameter`` and ``ScalarParameter`` classes also supply methods needed for serialization to
-        and parsing form JSON.
-
-    Using a System Health
-    ---------------------
-
-    The core purpose of the ``HealthVariable`` class is to serialize the parameters of system health
-    to a vector and update the values of the system health back into the class structure from a vector.
-
-    ``HealthVariable`` will often be composed of submodels that are other ``HealthVariable`` or
-    tuples and dictionaries of ``HealthVariable``.
-    The following class shows a simple health model for a battery:
-
-    .. code-block:: python
-
-        class Resistance(HealthVariable):
-            full: ScalarParameter
-            '''Resistance at fully charged'''
-            empty: ScalarParameter
-            '''Resistance at fully discharged'''
-
-            def get_resistance(self, soc: float):
-                return self.empty + soc * (self.full - self.empty)
-
-        class BatteryHealth(HealthVariable):
-            capacity: ScalarParameter
-            resistance: Resistance
-
-        model = BatteryHealth(capacity=1., resistance={'full': 0.2, 'empty': 0.1})
-
-    Accessing the Values of Parameters
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    Access the value of a parameter from the Python attributes
-
-    .. code-block:: python
-
-        assert np.allclose(model.resistance.full, [[0.2]])  # Attribute is 2D with shape (1, 1)
-
-    or indirectly using :meth:`get_parameters`, which returns a 2D numpy array.
-
-    The name of a variable within such hierarchical model contains the path to the submodel
-    and the name of the attribute of the submodel separated by periods.
-    For example, the resistance at fully charged of the following class is named "resistance.empty".
-
-    .. code-block:: python
-
-        assert np.allclose(model.get_parameters(['resistance.full']), [[0.2]])
-
-
-    Controlling which Parameters are Updatable
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    No parameters of the ``HealthVariable`` are treated as updatable by default.
-    Mark a variable as updatable by marking the submodel(s) holding that variable as updatable and
-    the variable as updatable in the submodel which holds by adding the names to the :attr:`updatable`
-    set held by every ``HealthVariable`` class.
-    Marking "resistance.empty" is achieved by
-
-    .. code-block:: python
-
-        model.updatable.add('resistance')
-        model.resistance.updatable.add('empty')
-
-    or using the :meth:`mark_updatable` utility method
-
-    .. code-block:: python
-
-        model.mark_updatable('resistance.empty')
-
-    All submodels along the path to a specific parameter must be marked as updatable for that
-    variable to be treated updatable. For example, "resistance.full" would not be considered updatable if
-    the "resistance" submodel is not updatable
-
-    .. code-block:: python
-
-        model.updatable.remove('resistance')
-        model.resistance.mark_updatable('full')  # Has no effect yet because 'resistance' is fixed
-
-    Setting Values of Parameters
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    Parameters which are marked as updatable can be altered using :meth:`update_parameters`.
-
-    Provide a list of new values and a list of names
-
-    .. code-block:: python
-
-        model.updatable.add('resistance')  # Allows resistance fields to be updated
-        model.update_parameters([0.1], ['resistance.full'])
-
-    or omit the specific names to set all updatable variables
-
-    .. code-block:: python
-
-        assert model.updatable_names == ['resistance.full', 'resistance.empty']
-        model.update_parameters([0.2, 0.1])
-    """
+    are being treated as updatable."""
 
     updatable: set[str] = Field(default_factory=set)
     """Which fields are to be treated as updatable by a parameter estimator"""
@@ -678,12 +562,10 @@ class OutputQuantities(GeneralContainer):
 
 
 class CellModel:
-    """
-    Base cell model. At a minimum, it must be able to:
-        1. given physical transient hidden state(s) and the A-SOH(s), output
-            corresponding terminal voltage prediction(s)
-        2. given a past physical transient hidden state(s), A-SOH(s), and new
-            input(s), output new physical transient hidden state(s)
+    """Base model for an energy storage system.
+
+    Cell models describe how to update the transient state of a system and compute expected outputs
+    given the inputs and current A-SOH.
     """
 
     @abstractmethod
@@ -694,6 +576,18 @@ class CellModel:
             transient_state: GeneralContainer,
             asoh: HealthVariable
     ) -> GeneralContainer:
+        """
+        Update the transient state of a chemical cell
+
+        Args:
+            previous_inputs: Inputs at the last time step
+            new_inputs: Inputs at the current time step
+            transient_state: Current transient state
+            asoh: Health parameters of the cell
+
+        Returns:
+            A new transient state
+        """
         pass
 
     @abstractmethod
@@ -703,7 +597,14 @@ class CellModel:
             transient_state: GeneralContainer,
             asoh: HealthVariable) -> OutputQuantities:
         """
-        Compute expected output (terminal voltage, etc.) of the model.
+        Compute expected output (terminal voltage, etc.) of the cell.
+
+        Args:
+            new_inputs: Inputs at the current time step
+            transient_state: Current transient state
+            asoh: Health parameters of the cell
+        Returns:
+            Estimates for all measurable outputs of a cell
         """
         pass
 
@@ -712,14 +613,8 @@ class DegradationModel:
     """
     Base class for A-SOH degradation/aging models.
 
-    While the :class:`moirae.models.base.CellModel` are used for updating transient vectors, degradation models are
-    used to update the A-SOH to be used by the cell models. Similarly to the cell models, they need to be able to be
-    used in an online fashion, but can degrade the A-SOH with a different frequency.
-
-    At a minimum, they must be able to:
-    1. Take the previous A-SOH, as well as a new :class:`moirae.models.base.InputQuantities` object, an optional
-        new :class:`moirae.models.base.GeneralContainer` transient states and new
-        :class:`moirae.models.base.OutputQuantities`, and output an updated A-SOH object
+    Degradation models update the A-SOH incrementally given the current transient state,
+    similar to how the :class:`CellModel` updates the transient state given current A-SOH.
     """
 
     @abstractmethod
@@ -729,15 +624,15 @@ class DegradationModel:
                     new_transients: Optional[GeneralContainer],
                     new_measurements: Optional[OutputQuantities]) -> HealthVariable:
         """
-        Method to degrade previous A-SOH based on inputs.
+        Degrade previous A-SOH based on inputs.
 
         Args:
-            previous_asoh: previous A-SOH to be updated/degrade
+            previous_asoh: previous A-SOH to be updated
             new_inputs: new inputs since the previous A-SOH
             new_transients: new transient states since the previous A-SOH
             new_measurements: new outputs since the previous A-SOH
 
         Returns:
-            a new updated/degraded A-SOH object
+            A new A-SOH object representing the degraded state
         """
         raise NotImplementedError("Please implement in child class!")

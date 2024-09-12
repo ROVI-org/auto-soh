@@ -13,6 +13,7 @@ which define the physics of a variety of storage systems.
    simulator
    estimators/index
    source/modules
+   extending
 
 
 Why the name?

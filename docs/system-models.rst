@@ -6,12 +6,13 @@ A battery system, regardless of its scale or technology, is represented by...
 - A **transient state** representing how the parameters which vary predictably given operating conditions, like the state of charge
 - An **advanced state of health (ASOH)** representing the parameters which vary slowly and unpredictably, like the internal resistance
 - A set of **input quantities** and **output quantities** that define how a system is used and what signals it produces.
-- A **model** describing the transient state evolves over time given the ASOH and inputs.
+- A **cell model** describing the transient state evolves over time given the ASOH and inputs.
+- A **degradation model** which captures how ASOH parameters are expected to change with time and use.
 
 Transient State, Inputs, and Outputs
 ------------------------------------
 
-Transient states, inputs, and outputs are represented as a ``GeneralContainer`` object specific to a certain type of battery.
+Transient states, inputs, and outputs are represented as a :class:`~moirae.models.base.GeneralContainer` object specific to a certain type of battery.
 
 The :class:`~moirae.models.base.GeneralContainer` stores numeric values corresponding to different states and
 can be easily transformed to or from NumPy arrays.
@@ -53,15 +54,102 @@ necessary to specify a particular storage systems.
 Health Parameters
 -----------------
 
-The health parameters for a battery are defined as a subclass of ``HealthVariable``.
+The health parameters for a battery are defined as a subclass of :class:`~moirae.models.base.HealthVariable`.
 As with the transient states, health parameters are specific to the type of battery.
 Unlike transient states, the way they are defined allows a hierarchical structure
 and the ability annotate which parameters are treated as updatable.
 
-.. note:: TODO, figure out how much documentation to copy over from the class docstring
+Consider the following parameter set as an example
 
-Models
-------
+.. code-block:: python
+
+    class Resistance(HealthVariable):
+        full: ScalarParameter
+        '''Resistance at fully charged'''
+        empty: ScalarParameter
+        '''Resistance at fully discharged'''
+
+        def get_resistance(self, soc: float):
+            return self.empty + soc * (self.full - self.empty)
+
+    class BatteryHealth(HealthVariable):
+        capacity: ScalarParameter
+        resistance: Resistance
+
+    model = BatteryHealth(capacity=1., resistance={'full': 0.2, 'empty': 0.1})
+
+
+
+Accessing Values
+++++++++++++++++
+
+All variables are stored as 2D arrays, regardless of whether they are scalar values
+(like the theoretical capacity) or vectors (like the resistance at different charge states).
+
+Access value of a parameter from the Python attributes
+
+.. code-block:: python
+
+    assert np.allclose(model.resistance.full, [[0.2]])  # Attribute is 2D with shape (1, 1)
+
+or indirectly using :meth:`get_parameters`.
+
+.. code-block:: python
+
+    assert np.allclose(model.get_parameters(['resistance.full']), [[0.2]])
+
+The name of a variable within a hierarchical health variable contains the path to its submodel
+and the name of the attribute of the submodel separated by periods.
+For example, the resistance at fully charge is "resistance.full".
+
+Controlling Which Parameters Are Updatable
+++++++++++++++++++++++++++++++++++++++++++
+
+No parameters of the ``HealthVariable`` are treated as updatable by default.
+As a result, no estimation scheme will alter their values.
+
+Mark a variable as updatable by marking the submodel(s) holding that variable as updatable and
+the name of the variable to the :attr:`updatable` of its submodel.
+Marking "resistance.empty" is achieved by
+
+.. code-block:: python
+
+    model.updatable.add('resistance')
+    model.resistance.updatable.add('empty')
+
+or using the :meth:`mark_updatable` utility method
+
+.. code-block:: python
+
+    model.mark_updatable('resistance.empty')
+
+All submodels along the path to a specific parameter must be updatable for it to be updatable.
+For example, "resistance.full" would not be considered updatable if the "resistance" submodel is not updatable
+
+.. code-block:: python
+
+    model.updatable.remove('resistance')
+    model.resistance.mark_updatable('full')  # Has no effect yet because 'resistance' is fixed
+
+Setting Values of Parameters
+++++++++++++++++++++++++++++
+
+Provide a list of new values and a list of names to the ``update_parameters`` function.
+
+.. code-block:: python
+
+    model.updatable.add('resistance')  # Allows resistance fields to be updated
+    model.update_parameters([[0.1]], ['resistance.full'])
+
+or omit the specific names to set all updatable variables
+
+.. code-block:: python
+
+    assert model.updatable_names == ['resistance.full', 'resistance.empty']
+    model.update_parameters([[0.2, 0.1]])  # As a (1, 2) array for 1-sized batch of 2 values
+
+Cell Model
+----------
 
 All storage systems are represented using a ``CellModel``.
 The model class defines how the transient states change given
