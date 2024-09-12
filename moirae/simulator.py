@@ -11,7 +11,7 @@ from moirae.models.base import (HealthVariable,
                                 OutputQuantities,
                                 CellModel,
                                 DegradationModel)
-from moirae.models.utils import DummyDegradation
+from moirae.models.utils import NoDegradation
 
 
 class Simulator:
@@ -52,7 +52,7 @@ class Simulator:
                  asoh: HealthVariable,
                  transient_state: GeneralContainer,
                  initial_input: InputQuantities,
-                 degradation_model: DegradationModel = DummyDegradation(),
+                 degradation_model: DegradationModel = NoDegradation(),
                  keep_history: bool = False):
         self.model = cell_model
         self.degradation_model = degradation_model

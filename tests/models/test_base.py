@@ -6,6 +6,7 @@ from pydantic import Field
 from pytest import fixture, raises
 
 from moirae.models.base import HealthVariable, ListParameter, ScalarParameter, GeneralContainer
+from moirae.models.utils import NoDegradation
 
 
 class SubHeathVariable(HealthVariable):
@@ -379,3 +380,10 @@ def test_make_copy():
     assert np.allclose(new_container.to_numpy(), [10, 11])
     new_health = base_health.make_copy(values=np.arange(10).reshape((10, 1)))
     assert np.allclose(new_health.get_parameters(), np.arange(10).reshape((10, 1)))
+
+
+def test_dummy_deg(example_hv) -> None:
+    deg_model = NoDegradation()
+    example_hv.mark_all_updatable()
+    deg_ex = deg_model.update_asoh(previous_asoh=example_hv)
+    assert np.allclose(example_hv.get_parameters(), deg_ex.get_parameters())

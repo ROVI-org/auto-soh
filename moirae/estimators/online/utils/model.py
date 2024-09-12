@@ -6,7 +6,7 @@ from typing import Tuple, Optional, Union
 from moirae.estimators.online.filters.base import ModelWrapper, ModelWrapperConverters
 from moirae.estimators.online.filters.distributions import DeltaDistribution, MultivariateGaussian
 from moirae.models.base import InputQuantities, GeneralContainer, HealthVariable, CellModel, DegradationModel
-from moirae.models.utils import DummyDegradation
+from moirae.models.utils import NoDegradation
 
 
 def convert_vals_model_to_filter(
@@ -172,7 +172,7 @@ class DegradationModelWrapper(BaseCellWrapper):
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
-                 degradation_model: DegradationModel = DummyDegradation(),
+                 degradation_model: DegradationModel = NoDegradation(),
                  converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
 
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
@@ -293,7 +293,7 @@ class JointCellModelWrapper(BaseCellWrapper):
                  transients: GeneralContainer,
                  inputs: InputQuantities,
                  asoh_inputs: Optional[Tuple[str]] = None,
-                 degradation_model: DegradationModel = DummyDegradation(),
+                 degradation_model: DegradationModel = NoDegradation(),
                  converters: ModelWrapperConverters = ModelWrapperConverters.defaults()) -> None:
         super().__init__(cell_model=cell_model, asoh=asoh, transients=transients, inputs=inputs, converters=converters)
 
