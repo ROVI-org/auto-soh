@@ -8,9 +8,8 @@ For now, it is disconnected sections written as we build capabilities.
 Creating a Health Variable
 --------------------------
 
-Define a new system state by subclassing ``HealthVariable`` then providing
-adding attributes which describe the learnable parameters of a system.
-
+Define the parameters for a new battery system by
+subclassing :class:`~moirae.models.base.HealthVariable`.
 Attributes which represents a health parameter must be numpy arrays,
 other ``HealthVariable`` classes,
 or lists or dictionaries of other ``HealthVariable`` classes.

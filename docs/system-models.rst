@@ -6,7 +6,7 @@ A battery system, regardless of its scale or technology, is represented by...
 - A **transient state** representing how the parameters which vary predictably given operating conditions, like the state of charge
 - An **advanced state of health (ASOH)** representing the parameters which vary slowly and unpredictably, like the internal resistance
 - A set of **input quantities** and **output quantities** that define how a system is used and what signals it produces.
-- A **cell model** describing the transient state evolves over time given the ASOH and inputs.
+- A **cell model** describing how the transient state evolves over time given the ASOH and inputs.
 - A **degradation model** which captures how ASOH parameters are expected to change with time and use.
 
 Transient State, Inputs, and Outputs
@@ -84,7 +84,7 @@ Accessing Values
 ++++++++++++++++
 
 All variables are stored as 2D arrays, regardless of whether they are scalar values
-(like the theoretical capacity) or vectors (like the resistance at different charge states).
+(like the theoretical capacity) or vectors (like the open circuit voltage at different charge states).
 
 Access value of a parameter from the Python attributes
 
@@ -100,7 +100,7 @@ or indirectly using :meth:`get_parameters`.
 
 The name of a variable within a hierarchical health variable contains the path to its submodel
 and the name of the attribute of the submodel separated by periods.
-For example, the resistance at fully charge is "resistance.full".
+For example, the resistance at full charge is "resistance.full".
 
 Controlling Which Parameters Are Updatable
 ++++++++++++++++++++++++++++++++++++++++++
@@ -139,7 +139,7 @@ Provide a list of new values and a list of names to the ``update_parameters`` fu
 .. code-block:: python
 
     model.updatable.add('resistance')  # Allows resistance fields to be updated
-    model.update_parameters([[0.1]], ['resistance.full'])
+    model.update_parameters([[0.1]], names=['resistance.full'])
 
 or omit the specific names to set all updatable variables
 
@@ -154,8 +154,8 @@ Defining the Cell Physics
 All storage systems are represented using a :class:`~moirae.models.base.CellModel`
 that provides two functions:
 
-1. updating transient state given inputs, and
-2. predicting outputs given state and inputs.
+1. updating transient states, and
+2. predicting outputs (e.g., terminal voltage)
 
 Cell models hold no state themselves and only implement the physics
 that describes how the state of a battery system should evolve with time.

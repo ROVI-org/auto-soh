@@ -358,7 +358,8 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         return np.concatenate(output, axis=1)  # Combine along the non-batched dimension
 
     def update_parameters(self, values: Union[np.ndarray, list[float]], names: Optional[Sequence[str]] = None):
-        """Set the value for updatable parameters given their names
+        """
+        Set the value for updatable parameters given their names
 
         Args:
             values: Values of the parameters to set
@@ -409,12 +410,12 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     def make_copy(self, values: np.ndarray, names: Optional[Sequence[str]] = None) -> Self:
         """
-        Helper method that returns a copy of the current object with values specified by numpy.ndarray
+        Create a copy of the current object with values specified by numpy.ndarray
 
         Args:
             values: numpy array containing values to be used in copy
-            names: sequence of the names of attributes to be returned with the values passed. If ``None``, changes all
-                attributes it can
+            names: sequence of the names of attributes to be returned with the values passed.
+                If ``None``, changes all updatable parameters
         """
         copy = self.model_copy(deep=True)
         copy.update_parameters(values=values, names=names)
