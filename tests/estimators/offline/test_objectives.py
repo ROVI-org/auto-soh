@@ -18,15 +18,13 @@ def test_mse_loss(simple_rint, timeseries_dataset, state_only):
         observations=timeseries_dataset
     )
 
-    # Test getting a starting guess
-    x0 = loss.get_x0()
-    assert x0.ndim == 1
+    # Get a starting guess
     if state_only:
-        assert np.allclose(x0, rint_state.to_numpy())
+        x0 = rint_state.to_numpy()
     else:
-        assert np.allclose(x0, np.concatenate([rint_state.to_numpy(), rint_asoh.q_t.base_values], axis=1))
+        x0 = np.concatenate([rint_state.to_numpy(), rint_asoh.q_t.base_values], axis=1)
 
     # Run the evaluation
-    y = loss(x0[None, :])
+    y = loss(x0)
     assert y.shape == (1,)
     assert np.isclose(y, 0.)

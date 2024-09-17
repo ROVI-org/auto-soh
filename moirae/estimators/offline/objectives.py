@@ -30,21 +30,9 @@ class Objective:
                  state: GeneralContainer,
                  observations: BatteryDataset):
         self.cell_model = cell_model
-        self.asoh = asoh
-        self.state = state
+        self.asoh = asoh.model_copy(deep=True)
+        self.state = state.model_copy(deep=True)
         self.observations = observations
-
-    def get_x0(self) -> np.ndarray:
-        """
-        Prepare an initial guess for an optimizer
-
-        Returns:
-            The state and ASOH parameters being fit
-        """
-
-        if self.asoh.num_updatable == 0:
-            return self.state.to_numpy()[0, :]
-        return np.concatenate([self.state.to_numpy(), self.asoh.get_parameters()], axis=1)[0, :]  # Get a 1D vector
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
