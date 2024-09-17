@@ -15,7 +15,7 @@ from moirae.models.base import InputQuantities, OutputQuantities
 from moirae.models.ecm import ECMInput, ECMMeasurement
 
 
-def _row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
+def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
     """Convert a row from the time series data to a distribution object
 
     Args:
@@ -64,7 +64,7 @@ def run_online_estimate(
         raise ValueError('No time series data in the provided dataset')
 
     # Update the initial inputs for the
-    initial_input, _ = _row_to_inputs(dataset.raw_data.iloc[0])
+    initial_input, _ = row_to_inputs(dataset.raw_data.iloc[0])
     estimator._u = initial_input
 
     # Initialize the output arrays
@@ -77,7 +77,7 @@ def run_online_estimate(
     for i, (_, row) in tqdm(
             enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
     ):  # .reset_index to iterate in sort order
-        controls, measurements = _row_to_inputs(row)
+        controls, measurements = row_to_inputs(row)
         new_state, new_outputs = estimator.step(controls, measurements)
 
         state_mean[i, :] = new_state.get_mean()

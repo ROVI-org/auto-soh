@@ -3,7 +3,6 @@ the control signals applied to it, the outputs observable from it,
 and the mathematical models which links state, control, and outputs together."""
 from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
 from typing_extensions import Annotated, Self
-from functools import cached_property
 from abc import abstractmethod
 import logging
 
@@ -462,7 +461,6 @@ class GeneralContainer(BaseModel,
                 output.extend(f'{name}[{i}]' for i in range(length))
         return tuple(output)
 
-    @cached_property
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """
         return sum([self.length_field(field_name) for field_name in self.model_fields.keys()])

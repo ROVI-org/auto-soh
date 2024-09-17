@@ -1,9 +1,11 @@
 """Interfaces that evaluate the fitness of a set of battery state parameters
 provided as a NumPy array."""
 import numpy as np
-
 from batdata.data import BatteryDataset
+
+from moirae.interface import row_to_inputs
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer
+from moirae.simulator import Simulator
 
 
 # TODO (wardlt): Add degradation model after we decide how to handle its parameters
@@ -69,3 +71,33 @@ class MeanSquaredLoss(Objective):
         n_states = len(self.state)
         state_x = self.state.make_copy(x[:, :n_states])
         asoh_x = self.asoh.make_copy(x[:, n_states:])
+
+        # Build a simulator
+        initial_input, initial_output = row_to_inputs(self.observations.raw_data.iloc[0])
+        sim = Simulator(
+            cell_model=self.cell_model,
+            asoh=asoh_x,
+            transient_state=state_x,
+            initial_input=initial_input,
+        )
+
+        # Prepare the output arrays
+        num_outs = len(initial_output)
+        pred_y = np.zeros((len(self.observations.raw_data), 1, num_outs))
+        true_y = np.zeros((len(self.observations.raw_data), x.shape[0], num_outs))
+
+        true_y[0, :] = initial_output.to_numpy()
+        y = self.cell_model.calculate_terminal_voltage(initial_input, state_x, asoh_x)
+        pred_y[0, :] = y.to_numpy()
+
+        # Run the forward model
+        for i, (_, row) in enumerate(self.observations.raw_data.iloc[1:].iterrows()):
+            new_in, new_out = row_to_inputs(row)
+            _, pred_out = sim.step(new_in)
+
+            true_y[i + 1, :] = new_out.to_numpy()
+            pred_y[i + 1, :] = pred_out.to_numpy()
+
+        # Compute the mean-squared-error for each member of the batch
+        squared_error = np.power(pred_y - true_y, 2)
+        return np.mean(squared_error, axis=(0, 2))  # Average over steps and outputs
