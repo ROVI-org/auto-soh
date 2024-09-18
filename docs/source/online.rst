@@ -1,20 +1,12 @@
-Estimators (``moirae.estimators``)
-==================================
-
-.. automodule:: moirae.estimators
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Online Estimators (``moirae.estimators``)
------------------------------------------
+Online Estimators (``m.estimators.online``)
+-------------------------------------------
 
 .. automodule:: moirae.estimators.online
    :members:
    :undoc-members:
    :show-inheritance:
 
-Available frameworks for joint estimation include
+Available frameworks for online estimation include
 
 .. autoclass:: moirae.estimators.online.joint.JointEstimator
    :members:
@@ -26,8 +18,8 @@ Available frameworks for joint estimation include
    :undoc-members:
    :show-inheritance:
 
-Filters (``moirae.estimators.filters``)
-+++++++++++++++++++++++++++++++++++++++
+Filters (``m.e.online.filters``)
+++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.estimators.online.filters
    :members:
@@ -44,8 +36,8 @@ Filters (``moirae.estimators.filters``)
    :undoc-members:
    :show-inheritance:
 
-Kálmán Filters (``moirae.estimtors.filters.kalman``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Kálmán Filters (``m.e.o.filters.kalman``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.filters.kalman
    :members:
@@ -60,32 +52,32 @@ _________
    :undoc-members:
    :show-inheritance:
 
-Multivariate Distributions (``moirae.estimators.filters.distributions``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multivariate Distributions (``m.e.o.filters.distributions``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.filters.distributions
    :members:
    :undoc-members:
    :show-inheritance:
 
-Coordinate Conversion (``moirae.estimators.filters.conversions``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Coordinate Conversion (``m.e.o.filters.conversions``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.filters.conversions
    :members:
    :undoc-members:
    :show-inheritance:
 
-Utilities (``moirae.estimators.online.utils``)
-++++++++++++++++++++++++++++++++++++++++++++++
+Utilities (``m.e.online.utils``)
+++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.estimators.online.utils
    :members:
    :undoc-members:
    :show-inheritance:
 
-Cell Model Wrappers (``moirae.estimators.online.utils.model``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Cell Model Wrappers (``m.e.o.utils.model``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: moirae.estimators.online.utils.model
    :members:

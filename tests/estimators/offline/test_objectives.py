@@ -1,7 +1,7 @@
 import numpy as np
 
 from pytest import mark
-from moirae.estimators.offline.objectives import MeanSquaredLoss
+from moirae.estimators.offline.loss import MeanSquaredLoss
 
 
 @mark.parametrize('state_only', [True, False])
@@ -14,7 +14,7 @@ def test_mse_loss(simple_rint, timeseries_dataset, state_only):
     loss = MeanSquaredLoss(
         cell_model=ecm_model,
         asoh=rint_asoh,
-        state=rint_state,
+        transient_state=rint_state,
         observations=timeseries_dataset
     )
 

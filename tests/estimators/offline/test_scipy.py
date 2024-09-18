@@ -1,7 +1,7 @@
 import numpy as np
 from pytest import mark
 
-from moirae.estimators.offline.objectives import MeanSquaredLoss
+from moirae.estimators.offline.loss import MeanSquaredLoss
 from moirae.estimators.offline.scipy import ScipyMinimizer
 
 
@@ -21,7 +21,7 @@ def test_scipy(simple_rint, timeseries_dataset, state_only):
     loss = MeanSquaredLoss(
         cell_model=ecm_model,
         asoh=rint_asoh,
-        state=state_0,
+        transient_state=state_0,
         observations=timeseries_dataset
     )
 

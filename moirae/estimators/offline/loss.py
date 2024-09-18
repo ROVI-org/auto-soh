@@ -9,10 +9,13 @@ from moirae.simulator import Simulator
 
 
 # TODO (wardlt): Add degradation model after we decide how to handle its parameters
-class Objective:
+class BaseLoss:
     """
     Base class for objective functions which evaluate the ability of a set
-    of battery health parameters to explain the observed performance data
+    of battery health parameters to explain the observed performance data.
+
+    All Loss classes should follow the convention that better sets of
+    parameters yield values which are less than worse parameters.
     """
 
     cell_model: CellModel
@@ -20,18 +23,18 @@ class Objective:
     asoh: HealthVariable
     """Initial guess for battery health"""
     state: GeneralContainer
-    """Initial guess for battery state"""
+    """Initial guess for battery transient state"""
     observations: BatteryDataset
     """Observed data for the battery performance"""
 
     def __init__(self,
                  cell_model: CellModel,
                  asoh: HealthVariable,
-                 state: GeneralContainer,
+                 transient_state: GeneralContainer,
                  observations: BatteryDataset):
         self.cell_model = cell_model
         self.asoh = asoh.model_copy(deep=True)
-        self.state = state.model_copy(deep=True)
+        self.state = transient_state.model_copy(deep=True)
         self.observations = observations
 
     def get_x0(self) -> np.ndarray:
@@ -58,7 +61,7 @@ class Objective:
 
 
 # TODO (wardlt): Generalize to other outputs when we have them
-class MeanSquaredLoss(Objective):
+class MeanSquaredLoss(BaseLoss):
     """
     Score the fitness of a set of health parameters by the mean squared error
     between observed and predicted terminal voltage.

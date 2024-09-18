@@ -1,22 +1,23 @@
 """Estimate the state of health using SciPy optimizers"""
 from scipy.optimize import minimize, OptimizeResult
 
-from moirae.estimators.offline.base import OfflineEstimator
-from moirae.estimators.offline.objectives import Objective
+from moirae.estimators.offline import OfflineEstimator
+from moirae.estimators.offline.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
 
 class ScipyMinimizer(OfflineEstimator):
-    """Estimate using SciPy's
-    `minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`_ function.
+    """Estimate using SciPy's minimize_ function.
 
     Args:
         objective: Objective function to be optimized
-        kwargs: Passed to the minimize function
+        kwargs: Passed to the minimize function. Refer to the documentation to minimize_
+
+    .. _minimize: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
     """
 
     def __init__(self,
-                 objective: Objective,
+                 objective: BaseLoss,
                  **kwargs):
         self.objective = objective
         self.scipy_kwargs = kwargs

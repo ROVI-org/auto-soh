@@ -4,10 +4,11 @@ moirae API
 API documentation for each module
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Contents:
 
-   estimators
+   online
+   offline
    models
    interface
    simulator
