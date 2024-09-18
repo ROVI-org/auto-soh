@@ -13,6 +13,61 @@ Estimators come in several categories:
    :local:
    :depth: 2
 
+Offline Estimators
+------------------
+
+.. image:: ../_static/explain-offline.svg
+    :alt: Estimators receive data from a battery dataset then pass inputs and outputs to Filters, which rely on Models to estimate state changes and measurements
+    :align: center
+    :width: 75 %
+
+The :class:`~moirae.estimators.online.OfflineEstimator` defines the interface for all offline estimators.
+The **Estimator** finds the minimum of a **Objective** function by adjusting inferences
+for the initial state of a system and any state-of-health parameters
+`marked as updatable <../system-models.html#controlling-which-parameters-are-updatable>`_.
+
+The Objective function translates the inputs from the estimator (*x*) into the
+initial state (:math:`h_0`) and ASOH parameters (:math:`\theta`)
+then uses those parameters to simulate the evolution of the system according to a **Model**
+following the inputs provided in operation **Data**.
+The objective returns a scalar fitness metric used by the Estimator to find best parameters.
+
+Building an Estimator
++++++++++++++++++++++
+
+First construct an objective function for the optimizer, which requires
+
+1. The :class:`~moirae.models.base.CellModel` defining system physics
+2. A template for the transient state
+3. A template for the state of health
+4. The observation data as a :class:`~batdata.data.BatteryDataset`
+
+.. code-block:: python
+
+    loss = MeanSquaredLoss(
+        cell_model=ecm,
+        asoh=asoh,
+        state=state,
+        observations=dataset
+    )
+
+Then provide the objective function to an ``OfflineEstimator`` class along with
+any options related to how that optimizer functions.
+
+.. code-block:: python
+
+    scipy = ScipyMinimizer(loss, method='Nedler-Mead')
+
+Using an Estimator
+++++++++++++++++++
+
+Begin the state estimation by calling the ``estimate`` method of the class
+the recieve an estimate of the state as an output.
+
+.. code-block:: python
+
+    state, asoh, result = scipy.estimate()
+
 Online Estimators
 -----------------
 
@@ -27,11 +82,6 @@ how parameters evolve with time.
 
 Building an Estimator
 +++++++++++++++++++++
-
-.. note::
-
-    A :class:`~moirae.models.base.CellModel` and estimates for its health variables are prerequisites.
-    Consult `the model documentation <./system-models.html>`_ to make them.
 
 The online estimator is composed of one or more filters which estimate the values of different parts
 of the battery state in tandem.
