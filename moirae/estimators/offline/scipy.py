@@ -25,18 +25,17 @@ class ScipyMinimizer(OfflineEstimator):
     def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
-        y0 = self.objective(x0[None, :]).item()  # Should be a scalar
+        y0 = self.objective(x0[None, :]).item()   # Used to normalize scale and reduce rtol vs atol issues
 
         # Assemble the function call
         result = minimize(
-            fun=lambda x: self.objective(x[None, :]).item() / max(y0, 1e-12),
+            fun=lambda x: self.objective(x[None, :]).item() / max(abs(y0), 1e-12),
             x0=x0,
             **self.scipy_kwargs
         )
 
         # Assemble the output
         num_states = len(self.objective.state)
-
         states = self.objective.state.make_copy(result.x[None, :num_states])
         asoh = self.objective.asoh.make_copy(result.x[None, num_states:])
         return states, asoh, result

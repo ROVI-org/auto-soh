@@ -16,6 +16,7 @@ class BaseLoss:
 
     All Loss classes should follow the convention that better sets of
     parameters yield values which are less than worse parameters.
+    There are no constraints on whether the values need to be positive or negative.
     """
 
     cell_model: CellModel
