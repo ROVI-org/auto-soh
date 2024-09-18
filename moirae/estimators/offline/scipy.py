@@ -1,6 +1,4 @@
 """Estimate the state of health using SciPy optimizers"""
-from typing import Optional
-
 from scipy.optimize import minimize, OptimizeResult
 
 from moirae.estimators.offline.base import OfflineEstimator
@@ -23,12 +21,9 @@ class ScipyMinimizer(OfflineEstimator):
         self.objective = objective
         self.scipy_kwargs = kwargs
 
-    def estimate(self,
-                 state_0: Optional[GeneralContainer] = None,
-                 asoh_0: Optional[HealthVariable] = None) \
-            -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
+    def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
-        x0 = self._get_x0(state_0, asoh_0)
+        x0 = self.objective.get_x0()
         y0 = self.objective(x0[None, :]).item()  # Should be a scalar
 
         # Assemble the function call
@@ -42,5 +37,5 @@ class ScipyMinimizer(OfflineEstimator):
         num_states = len(self.objective.state)
 
         states = self.objective.state.make_copy(result.x[None, :num_states])
-        asoh = (self.objective.asoh if asoh_0 is None else asoh_0).make_copy(result.x[None, num_states:])
+        asoh = self.objective.asoh.make_copy(result.x[None, num_states:])
         return states, asoh, result

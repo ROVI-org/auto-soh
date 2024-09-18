@@ -34,6 +34,16 @@ class Objective:
         self.state = state.model_copy(deep=True)
         self.observations = observations
 
+    def get_x0(self) -> np.ndarray:
+        """Generate an initial guess
+
+        Returns:
+            A 1D vector used as a starting point for class to this class
+        """
+        if self.asoh.num_updatable == 0:
+            return self.state.to_numpy()[0, :]
+        return np.concatenate([self.state.to_numpy(), self.asoh.get_parameters()], axis=1)[0, :]  # Get a 1D vector
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Compute the fitness of a set of parameters to the observed data.
