@@ -2,6 +2,10 @@ name: Python Package
 
 on: [ push, pull_request ]
 
+defaults:
+  run:
+    shell: bash -el {0}  # Lets conda work
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -20,9 +24,6 @@ jobs:
             run-post: true
             use-mamba: true
             miniforge-version: latest
-      - name: Install package
-        run: |
-          pip install -e .[test,thenevin]
       - name: Lint with flake8
         run: |
           flake8 moirae/ tests
