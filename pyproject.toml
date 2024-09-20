@@ -33,6 +33,10 @@ docs = [
     'pydata-sphinx-theme',
     'sphinx-pydantic'
 ]
+thevenin = [
+    'scikit-ode-sundials',  # Typically installed via Anaconda
+    'git+https://github.com/ROVI-org/thevenin.git'
+]
 
 [project.urls]
 repository = "https://github.com/rovi-org/auto-soh"
