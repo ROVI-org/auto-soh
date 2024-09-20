@@ -10,7 +10,7 @@ dependencies:
   - matplotlib
 
   # Thevenin
-  - scikit_ode_sundials
+  - scikits_odes_sundials
 
   - pip
   - pip:
