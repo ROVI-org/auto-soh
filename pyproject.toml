@@ -34,8 +34,7 @@ docs = [
     'sphinx-pydantic'
 ]
 thevenin = [
-    'scikit-ode-sundials',  # Typically installed via Anaconda
-    'git+https://github.com/ROVI-org/thevenin.git'
+    'thevenin@git+https://github.com/ROVI-org/thevenin.git'
 ]
 
 [project.urls]
