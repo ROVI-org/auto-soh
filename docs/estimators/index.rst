@@ -23,7 +23,7 @@ Offline Estimators
 
 The :class:`~moirae.estimators.online.OfflineEstimator` defines the interface for all offline estimators.
 The **Estimator** finds the minimum of a **Objective** function by adjusting inferences
-for the initial state of a system and any state-of-health parameters
+for both the initial transient state of a system and any state-of-health parameters
 `marked as updatable <../system-models.html#controlling-which-parameters-are-updatable>`_.
 
 The Objective function translates the inputs from the estimator (*x*) into the
@@ -38,8 +38,8 @@ Building an Estimator
 First construct an objective function for the optimizer, which requires
 
 1. The :class:`~moirae.models.base.CellModel` defining system physics
-2. A template for the transient state
-3. A template for the state of health
+2. A starting guess for the transient state
+3. A starting guess for the state of health
 4. The observation data as a :class:`~batdata.data.BatteryDataset`
 
 .. code-block:: python
@@ -61,12 +61,17 @@ any options related to how that optimizer functions.
 Using an Estimator
 ++++++++++++++++++
 
-Begin the state estimation by calling the ``estimate`` method of the class
-the recieve an estimate of the state as an output.
+Begin the state estimation by calling the ``estimate`` method of the Estimator,
+which optimizes the transient state and ASOH parameters.
 
 .. code-block:: python
 
-    state, asoh, result = scipy.estimate()
+    state_0, asoh, result = scipy.estimate()
+
+The (``state_0``) is an estimate for the starting transient state,
+(``asoh``) is an estimate for the state of health during the entire
+extent of the battery data,
+and ``result`` is a diagnostic measure specific to the Estimator.
 
 Online Estimators
 -----------------
