@@ -6,7 +6,7 @@ from typing import Iterator
 from thevenin import Model, Experiment
 
 from ..base import CellModel
-from .state import TheveninASOH, ThenevinTransient
+from .state import TheveninASOH, TheveninTransient
 from .ins_outs import TheveninInput
 
 
@@ -21,7 +21,7 @@ class TheveninModel(CellModel):
     def __init__(self, isothermal: bool = False):
         self.isothermal = isothermal
 
-    def _make_models(self, transient: ThenevinTransient, asoh: TheveninASOH, inputs: TheveninInput) -> Iterator[Model]:
+    def _make_models(self, transient: TheveninTransient, asoh: TheveninASOH, inputs: TheveninInput) -> Iterator[Model]:
         """
         Generate a model for each member of the batch of experimental conditions
 
@@ -37,7 +37,7 @@ class TheveninModel(CellModel):
             # The value of each member of the transient or ASOH is a 2D array with the first dimension either 1
             #  or batch_size. The % signs below are a short syntax for either using the same value for all batches
             #  (anything mod 1 is 0) or the appropriate member of the batch
-            params = {'num_RC_pairs': len(asoh.c)}
+            params = {'num_RC_pairs': len(asoh.c), 'isothermal': self.isothermal}
             for scalar, value in [
                 ('soc0', transient.soc), ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
                 ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm)
@@ -45,7 +45,7 @@ class TheveninModel(CellModel):
                 params[scalar] = value[b % value.shape[0], 0]
 
             # Add the SOC and series resistors as functions where we pin the batch ID to the appropriate value
-            params['soc'] = partial(asoh.ocv, batch_id=b)
+            params['ocv'] = partial(asoh.ocv, batch_id=b)
             params['R0'] = partial(asoh.r[0], batch_id=b)
 
             # Append the RC elements
@@ -68,21 +68,27 @@ class TheveninModel(CellModel):
             self,
             previous_inputs: TheveninInput,
             new_inputs: TheveninInput,
-            transient_state: ThenevinTransient,
+            transient_state: TheveninTransient,
             asoh: TheveninASOH
-    ) -> ThenevinTransient:
+    ) -> TheveninTransient:
         # Initialize the array in which to store output values
         batch_size = max(transient_state.batch_size, asoh.batch_size, new_inputs.batch_size)
         output_array = np.zeros((batch_size, len(transient_state)))
-        assert transient_state.all_fields == ['soc', 'temp', 'eta']
 
         # Iterate over models representing each member of the batch
         for i, model in enumerate(self._make_models(transient_state, asoh, new_inputs)):
             # Propagate the system under a constant current load
             # TODO (wardlt): Make current time-dependent which is possible by passing a function to add_step
             exp = Experiment()
-            exp.add_step('current_A', -new_inputs.current, (new_inputs.time - previous_inputs.time, 2))
+            cur_time = new_inputs.time[i % new_inputs.time.shape[0], 0]
+            pre_time = previous_inputs.time[i % new_inputs.time.shape[0], 0]
+            exp.add_step('current_A',
+                         -new_inputs.current[i % new_inputs.current.shape[0]],  # Sign convention is opposite
+                         (cur_time - pre_time, 2))
             sln = model.run(exp)
 
             # Fill in the state variables
-            output_array[i, 0] = sln.vars
+            output_array[i, 0] = sln.vars['soc'][-1]
+            output_array[i, 1] = sln.vars['temperature_K'][-1]
+
+        return transient_state.make_copy(output_array)

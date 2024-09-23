@@ -43,7 +43,7 @@ class TheveninASOH(HealthVariable):
         return self
 
 
-class ThenevinTransient(GeneralContainer):
+class TheveninTransient(GeneralContainer):
     """Transient state of the ECM circuit"""
 
     soc: ScalarParameter = 0.

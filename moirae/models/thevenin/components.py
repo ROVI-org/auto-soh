@@ -1,15 +1,18 @@
 """Classes used to define components of the ASOH"""
-from typing import Callable
+import numpy as np
+from typing import Callable, Union
 
 from numpy.polynomial.polynomial import polyval
 
 from moirae.models.base import HealthVariable, ListParameter, ScalarParameter
 
+FloatOrArray = Union[float, np.ndarray]
 
-class SOCDependentVariable(HealthVariable, Callable[[float, int], float]):
+
+class SOCDependentVariable(HealthVariable, Callable[[FloatOrArray, int], FloatOrArray]):
     """A health variable which is dependent on the state of charge"""
 
-    def __call__(self, soc: float, batch_id: int = 0) -> float:
+    def __call__(self, soc: FloatOrArray, batch_id: int = 0) -> FloatOrArray:
         """
         Evaluate the value of the parameter at a specific state of charge
 
@@ -28,15 +31,15 @@ class SOCPolynomialVariable(SOCDependentVariable):
     coeffs: ListParameter = 1.
     """Coefficients for the polynomial"""
 
-    def __call__(self, soc: float, batch_id: int = 0) -> float:
+    def __call__(self, soc: FloatOrArray, batch_id: int = 0) -> FloatOrArray:
         coeffs = self.coeffs[batch_id % self.batch_size, :]
-        return polyval(soc, coeffs).item()
+        return polyval(soc, coeffs)
 
 
-class SOCTempDependentVariable(HealthVariable, Callable[[float, float, int], float]):
+class SOCTempDependentVariable(HealthVariable, Callable[[FloatOrArray, FloatOrArray, int], FloatOrArray]):
     """A health variable which is dependent on the state of charge and temperature"""
 
-    def __call__(self, soc: float, temp: float, batch_id: int = 0) -> float:
+    def __call__(self, soc: FloatOrArray, temp: FloatOrArray, batch_id: int = 0) -> FloatOrArray:
         """
         Evaluate the value of the parameter at a specific state of charge and temperature
 
@@ -66,7 +69,7 @@ class SOCTempPolynomialVariable(SOCTempDependentVariable):
     t_coeffs: ListParameter = 0.
     """Reference parameters for the temperature dependence polynomial"""
 
-    def __call__(self, soc: float, temp: float, batch_id: int = 0) -> float:
+    def __call__(self, soc: FloatOrArray, temp: FloatOrArray, batch_id: int = 0) -> FloatOrArray:
         t_corr = temp - self.t_ref[batch_id % self.t_ref.shape[0], 0]
         return (
                 polyval(t_corr, self.t_coeffs[batch_id % self.t_coeffs.shape[0], :]) +
