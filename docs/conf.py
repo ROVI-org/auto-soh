@@ -43,4 +43,5 @@ autoclass_content = 'both'
 intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
+    'thevenin': ('https://rovi-org.github.io/thevenin', None)
 }
