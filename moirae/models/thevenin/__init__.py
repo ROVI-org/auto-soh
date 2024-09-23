@@ -5,7 +5,7 @@ from typing import Iterator
 
 from thevenin import Model, Experiment
 
-from ..base import CellModel
+from ..base import CellModel, InputQuantities, OutputQuantities
 from .state import TheveninASOH, TheveninTransient
 from .ins_outs import TheveninInput
 
@@ -20,6 +20,7 @@ class TheveninModel(CellModel):
 
     def __init__(self, isothermal: bool = False):
         self.isothermal = isothermal
+        # TODO (wardlt): Add a maximum timestep size? Victor was using that to avoid the issues with the integrator
 
     def _make_models(self, transient: TheveninTransient, asoh: TheveninASOH, inputs: TheveninInput) -> Iterator[Model]:
         """
@@ -78,10 +79,10 @@ class TheveninModel(CellModel):
         # Iterate over models representing each member of the batch
         for i, model in enumerate(self._make_models(transient_state, asoh, new_inputs)):
             # Propagate the system under a constant current load
-            # TODO (wardlt): Make current time-dependent which is possible by passing a function to add_step
+            # TODO (wardlt): Make current time-dependent, which is possible by passing a function to add_step
             exp = Experiment()
             cur_time = new_inputs.time[i % new_inputs.time.shape[0], 0]
-            pre_time = previous_inputs.time[i % new_inputs.time.shape[0], 0]
+            pre_time = previous_inputs.time[i % previous_inputs.time.shape[0], 0]
             exp.add_step('current_A',
                          -new_inputs.current[i % new_inputs.current.shape[0]],  # Sign convention is opposite
                          (cur_time - pre_time, 2))
@@ -92,3 +93,16 @@ class TheveninModel(CellModel):
             output_array[i, 1] = sln.vars['temperature_K'][-1]
 
         return transient_state.make_copy(output_array)
+
+    def calculate_terminal_voltage(
+            self,
+            new_inputs: InputQuantities,
+            transient_state: TheveninTransient,
+            asoh: TheveninASOH) -> OutputQuantities:
+        # Thevenin stores overpotentials, so it is easy enough to compute terminal voltage directly from states and ASOH
+        v = (
+                asoh.ocv(transient_state.soc[:, 0])
+                + new_inputs.current[:, 0] * asoh.r[0](transient_state.soc[:, 0], transient_state.temp[:, 0])
+                + transient_state.eta.sum(axis=1, keepdims=True)
+        )
+        return OutputQuantities(terminal_voltage=v)
