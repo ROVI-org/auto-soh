@@ -38,7 +38,7 @@ class TheveninModel(CellModel):
             # The value of each member of the transient or ASOH is a 2D array with the first dimension either 1
             #  or batch_size. The % signs below are a short syntax for either using the same value for all batches
             #  (anything mod 1 is 0) or the appropriate member of the batch
-            params = {'num_RC_pairs': len(asoh.c), 'isothermal': self.isothermal}
+            params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal}
             for scalar, value in [
                 ('soc0', transient.soc), ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
                 ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm)
@@ -77,20 +77,22 @@ class TheveninModel(CellModel):
         output_array = np.zeros((batch_size, len(transient_state)))
 
         # Iterate over models representing each member of the batch
-        for i, model in enumerate(self._make_models(transient_state, asoh, new_inputs)):
+        for model_i, model in enumerate(self._make_models(transient_state, asoh, new_inputs)):
             # Propagate the system under a constant current load
             # TODO (wardlt): Make current time-dependent, which is possible by passing a function to add_step
             exp = Experiment()
-            cur_time = new_inputs.time[i % new_inputs.time.shape[0], 0]
-            pre_time = previous_inputs.time[i % previous_inputs.time.shape[0], 0]
+            cur_time = new_inputs.time[model_i % new_inputs.time.shape[0], 0]
+            pre_time = previous_inputs.time[model_i % previous_inputs.time.shape[0], 0]
             exp.add_step('current_A',
-                         -new_inputs.current[i % new_inputs.current.shape[0]],  # Sign convention is opposite
+                         -new_inputs.current[model_i % new_inputs.current.shape[0]],  # Sign convention is opposite
                          (cur_time - pre_time, 2))
             sln = model.run(exp)
 
             # Fill in the state variables
-            output_array[i, 0] = sln.vars['soc'][-1]
-            output_array[i, 1] = sln.vars['temperature_K'][-1]
+            output_array[model_i, 0] = sln.vars['soc'][-1]
+            output_array[model_i, 1] = sln.vars['temperature_K'][-1]
+            for rc_i in range(asoh.num_rc_elements):
+                output_array[model_i, 2 + rc_i] = sln.vars[f'eta{rc_i + 1}_V'][-1]
 
         return transient_state.make_copy(output_array)
 
@@ -100,9 +102,11 @@ class TheveninModel(CellModel):
             transient_state: TheveninTransient,
             asoh: TheveninASOH) -> OutputQuantities:
         # Thevenin stores overpotentials, so it is easy enough to compute terminal voltage directly from states and ASOH
+        #  See last eq of https://rovi-org.github.io/thevenin/user_guide/model_description.html
         v = (
                 asoh.ocv(transient_state.soc[:, 0])
+                # Sign convention is opposite of thevenin
                 + new_inputs.current[:, 0] * asoh.r[0](transient_state.soc[:, 0], transient_state.temp[:, 0])
-                + transient_state.eta.sum(axis=1, keepdims=True)
+                - transient_state.eta.sum(axis=1, keepdims=True)
         )
         return OutputQuantities(terminal_voltage=v)

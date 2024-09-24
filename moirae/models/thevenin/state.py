@@ -1,4 +1,5 @@
 """Representations for the parameters of a Thenevin model"""
+import numpy as np
 from typing import List
 
 from pydantic import Field, model_validator
@@ -35,6 +36,10 @@ class TheveninASOH(HealthVariable):
     c: List[SOCTempDependentVariable] = Field(default_factory=list)
     """Capacitance in all RC elements (units: C)"""
 
+    @property
+    def num_rc_elements(self) -> int:
+        return len(self.c)
+
     @model_validator(mode='after')
     def _check_rc_elements(self) -> 'TheveninASOH':
         """Ensure the r and c lists are consistent"""
@@ -52,3 +57,20 @@ class TheveninTransient(GeneralContainer):
     """Temperature of the battery (units: K)"""
     eta: ListParameter = []
     """Overpotential for the RC elements (units: V)"""
+
+    @classmethod
+    def from_asoh(cls, asoh: TheveninASOH, soc: float = 0., temp: float = 298.) -> 'TheveninTransient':
+        """
+        Create a transient state appropriate for the circuit defined in a :class:`TheveninASOH`.
+
+        Args:
+            asoh: Circuit definition
+            soc: Starting SOC
+            temp: Starting temperature (units: K)
+
+        Returns:
+            A state with the desired SOC, temperature, and all RC elements fully discharged.
+        """
+
+        eta = np.zeros((1, asoh.num_rc_elements))
+        return cls(soc=soc, temp=temp, eta=eta)
