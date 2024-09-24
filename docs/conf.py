@@ -24,10 +24,6 @@ exclude_patterns = ['_build']
 html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
 
-# -- Options for NBSphinx -----------------------------------------------------
-
-nbsphinx_execute = 'never'
-
 # -- API Documentation --------------------------------------------------------
 
 extensions.extend([
@@ -35,8 +31,13 @@ extensions.extend([
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
-    'sphinx-pydantic'
+    'sphinx-pydantic',
+    'sphinxcontrib.autodoc_pydantic'
 ])
+
+
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_settings_show_json = False
 
 autoclass_content = 'both'
 
