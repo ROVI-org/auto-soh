@@ -107,6 +107,6 @@ class TheveninModel(CellModel):
                 asoh.ocv(transient_state.soc[:, 0])
                 # Sign convention is opposite of thevenin
                 + new_inputs.current[:, 0] * asoh.r[0](transient_state.soc[:, 0], transient_state.temp[:, 0])
-                - transient_state.eta.sum(axis=1, keepdims=True)
+                - transient_state.eta.sum(axis=1)
         )
         return OutputQuantities(terminal_voltage=v)

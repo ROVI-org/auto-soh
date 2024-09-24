@@ -3,6 +3,7 @@
 from pytest import mark
 import numpy as np
 
+from moirae.estimators.online.joint import JointEstimator
 from moirae.models.thevenin import TheveninInput, TheveninTransient, TheveninModel
 from moirae.models.thevenin.components import SOCPolynomialVariable, SOCTempPolynomialVariable
 from moirae.models.thevenin.state import TheveninASOH
@@ -10,7 +11,7 @@ from moirae.models.thevenin.state import TheveninASOH
 rint = TheveninASOH(
     capacity=1.,
     ocv=SOCPolynomialVariable(coeffs=[1.5, 1.]),
-    r=[SOCTempPolynomialVariable(soc_coeffs=[0.01, 0.01], t_coeffs=[0, 0.001])]
+    r=(SOCTempPolynomialVariable(soc_coeffs=[0.01, 0.01], t_coeffs=[0, 0.001]),)
 )
 
 rc2 = TheveninASOH(
@@ -150,3 +151,39 @@ def test_multiple_steps(asoh):
 
     v = model.calculate_terminal_voltage(new_inputs, state, asoh)
     assert np.isclose(v.terminal_voltage, 1.5).all()
+
+
+def test_estimator():
+    """Make sure everything functions with an estimator"""
+
+    # Test a single step at constant current
+    asoh = rint.model_copy(deep=True)
+    state = TheveninTransient.from_asoh(asoh)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+
+    model = TheveninModel()
+    expected_state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
+    expected_v = model.calculate_terminal_voltage(new_inputs, expected_state, asoh)
+
+    # Make a joint estimator with the R0 as an adjustable parameter so that we
+    #  get batching on at least one variable
+    asoh.mark_updatable('r.0.t_coeffs')
+    est = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=model,
+        initial_asoh=asoh,
+        initial_transients=state,
+        initial_inputs=pre_inputs,
+        covariance_transient=np.diag([0.05, 0.1]),
+        covariance_asoh=np.diag([1e-3] * 2),
+        transient_covariance_process_noise=np.diag([0.01] * 2),
+        asoh_covariance_process_noise=np.diag([1e-3] * 2),
+        covariance_sensor_noise=np.diag([1e-3])
+    )
+    assert est.state.get_covariance().shape == (4, 4)
+
+    est_state, est_outputs = est.step(new_inputs, expected_v)
+    assert np.isclose(est_outputs.get_mean(), expected_v.terminal_voltage)
+    est_mean = est_state.get_mean()
+    assert np.allclose(expected_state.to_numpy(), est_mean[:2])  # SOC, T
+    assert np.allclose(asoh.r[0].t_coeffs, est_mean[2:])  # Temp dependence of R

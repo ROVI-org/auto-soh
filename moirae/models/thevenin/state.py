@@ -1,6 +1,6 @@
 """Representations for the parameters of a Thenevin model"""
 import numpy as np
-from typing import List
+from typing import Tuple
 
 from pydantic import Field, model_validator
 
@@ -29,11 +29,11 @@ class TheveninASOH(HealthVariable):
     """Heat loss area (units: m^2)"""
     ocv: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=3.5))
     """Open circuit voltage (units: V)"""
-    r: List[SOCTempDependentVariable] = Field(
-        default_factory=lambda: [SOCTempPolynomialVariable(soc_coeffs=0.1)], min_length=1
+    r: Tuple[SOCTempDependentVariable, ...] = Field(
+        default_factory=lambda: (SOCTempPolynomialVariable(soc_coeffs=0.1),), min_length=1
     )
     """Resistance all resistors, including both the series resistor and those in RC elements (units: Ohm)"""
-    c: List[SOCTempDependentVariable] = Field(default_factory=list)
+    c: Tuple[SOCTempDependentVariable, ...] = Field(default_factory=tuple)
     """Capacitance in all RC elements (units: C)"""
 
     @property
