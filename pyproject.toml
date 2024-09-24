@@ -31,7 +31,8 @@ test = [
 docs = [
     'sphinx',
     'pydata-sphinx-theme',
-    'sphinx-pydantic'
+    'sphinx-pydantic',
+    'autodoc-pydantic'
 ]
 thevenin = [
     'thevenin@git+https://github.com/ROVI-org/thevenin.git'

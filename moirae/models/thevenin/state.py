@@ -18,23 +18,23 @@ class TheveninASOH(HealthVariable):
 
     # Default parameters from: test_model.py in thevenin
     capacity: ScalarParameter = 1.
-    """Maximum battery capacity (units: A-hr)"""
+    """Maximum battery capacity (A-hr)"""
     mass: ScalarParameter = 0.1
-    """Total battery mass of a battery (units: kg)"""
+    """Total battery mass of a battery (kg)"""
     c_p: ScalarParameter = 1150.
-    """Specific heat capacity (units: J/kg/K)"""
+    """Specific heat capacity (J/kg/K)"""
     h_thermal: ScalarParameter = 12
-    """Convective coefficient (units: W/m^2/K)"""
+    """Convective coefficient (W/m^2/K)"""
     a_therm: ScalarParameter = 1
-    """Heat loss area (units: m^2)"""
+    """Heat loss area (m^2)"""
     ocv: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=3.5))
-    """Open circuit voltage (units: V)"""
+    """Open circuit voltage (V)"""
     r: Tuple[SOCTempDependentVariable, ...] = Field(
         default_factory=lambda: (SOCTempPolynomialVariable(soc_coeffs=0.1),), min_length=1
     )
-    """Resistance all resistors, including both the series resistor and those in RC elements (units: Ohm)"""
+    """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
     c: Tuple[SOCTempDependentVariable, ...] = Field(default_factory=tuple)
-    """Capacitance in all RC elements (units: C)"""
+    """Capacitance in all RC elements (C)"""
 
     @property
     def num_rc_elements(self) -> int:

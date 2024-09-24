@@ -35,6 +35,7 @@ extensions.extend([
     'sphinxcontrib.autodoc_pydantic'
 ])
 
+autodoc_mock_imports = ["django"]
 
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_settings_show_json = False
