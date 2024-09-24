@@ -46,7 +46,7 @@ def timeseries_dataset(simple_rint) -> BatteryDataset:
 
     def _update_outputs(time, current, transient, outputs):
         output['test_time'].append(time)
-        output['current'].append(current)
+        output['current'].append(-current)  # Battery data toolkit uses opposite sign convention
         output['voltage'].append(outputs.terminal_voltage)
 
     for cycle in range(num_cycles):
