@@ -16,20 +16,24 @@ Estimators come in several categories:
 Offline Estimators
 ------------------
 
+.. :: Add labels for the symbols into the figures
+
 .. image:: ../_static/explain-offline.svg
-    :alt: Estimators receive data from a battery dataset then pass inputs and outputs to Filters, which rely on Models to estimate state changes and measurements
+    :alt: Offline estimators determine the initial state and ASOH which minimize a loss function.
     :align: center
     :width: 75 %
 
 The :class:`~moirae.estimators.online.OfflineEstimator` defines the interface for all offline estimators.
-The **Estimator** finds the minimum of a **Objective** function by adjusting inferences
+The **Estimator** finds the minimum of a **Loss** function by adjusting inferences
 for both the initial transient state of a system and any state-of-health parameters
 `marked as updatable <../system-models.html#controlling-which-parameters-are-updatable>`_.
 
-The Objective function translates the inputs from the estimator (*x*) into the
+The **Loss** function translates the inputs from the estimator into the
 initial state (:math:`h_0`) and ASOH parameters (:math:`\theta`)
 then uses those parameters to simulate the evolution of the system according to a **Model**
-following the inputs provided in operation **Data**.
+following the inputs (:math:`u`) provided in operation **Data**.
+Loss functions typically compare the voltage observed in the data (:math:`y`) to that
+predicted by the model (:math:`y^\prime`)
 The objective returns a scalar fitness metric used by the Estimator to find best parameters.
 
 Building an Estimator
@@ -46,8 +50,8 @@ First construct an objective function for the optimizer, which requires
 
     loss = MeanSquaredLoss(
         cell_model=ecm,
-        asoh=asoh,
         state=state,
+        asoh=asoh,
         observations=dataset
     )
 
@@ -68,16 +72,18 @@ which optimizes the transient state and ASOH parameters.
 
     state_0, asoh, result = scipy.estimate()
 
-The (``state_0``) is an estimate for the starting transient state,
-(``asoh``) is an estimate for the state of health during the entire
+The ``state_0`` is an estimate for the starting transient state,
+``asoh`` is an estimate for the state of health during the entire
 extent of the battery data,
 and ``result`` is a diagnostic measure specific to the Estimator.
 
 Online Estimators
 -----------------
 
+.. :: Perhaps it would be good to provide another version of this figure that would illustrate how to accommodate additional filters. -noah
+
 .. image:: ../_static/explain-filter.svg
-    :alt: Estimators receive data from a battery dataset then pass inputs and outputs to Filters, which rely on Models to estimate state changes and measurements
+    :alt: Online estimators receive data from a battery dataset then pass inputs and outputs to Filters, which rely on Models to estimate state changes and measurements
     :align: center
     :width: 75 %
 
@@ -96,7 +102,10 @@ The framework in which the filters interact is defined by the choice of
 
 Build an estimator by first constructing a :class:`~moirae.estimators.online.utils.model.BaseCellWrapper` that defines how
 to update or estimate the measurements of a system for each subset of variables being estimated.
-Each framework requires different wrappers.
+Each estimator how the they interact with the underlying :class:`~moirae.models.base.CellModel`
+and :class:`~moirae.models.base.DegradationModel`.
+Moirae provides a library of wrappers with a consistent interface so that
+all estimators can work with any Filter or Model.
 For example, the :class:`~moirae.estimators.online.joint.JointEstimator` requires
 the :class:`~moirae.estimators.online.utils.model.JointCellModelWrapper`.
 
