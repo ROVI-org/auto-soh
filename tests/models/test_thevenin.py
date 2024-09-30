@@ -17,8 +17,8 @@ rint = TheveninASOH(
 rc2 = TheveninASOH(
     capacity=1.,
     ocv=SOCPolynomialVariable(coeffs=[1.5, 1.]),
-    r=[SOCTempPolynomialVariable(soc_coeffs=[0.01, 0.01], t_coeffs=[0, 0.001])] * 3,
-    c=[SOCTempPolynomialVariable(soc_coeffs=[10, 10], t_coeffs=[0])] * 2
+    r=(SOCTempPolynomialVariable(soc_coeffs=[0.01, 0.01], t_coeffs=[0, 0.001]),) * 3,
+    c=(SOCTempPolynomialVariable(soc_coeffs=[10, 10], t_coeffs=[0]),) * 2
 )
 
 
@@ -187,3 +187,37 @@ def test_estimator():
     est_mean = est_state.get_mean()
     assert np.allclose(expected_state.to_numpy(), est_mean[:2])  # SOC, T
     assert np.allclose(asoh.r[0].t_coeffs, est_mean[2:])  # Temp dependence of R
+
+
+def test_overpotentials():
+    """Ensure solution of the RC overpotentials is correct"""
+
+    rc = TheveninASOH(
+        capacity=1.,
+        ocv=SOCPolynomialVariable(coeffs=[1.5, 1.]),
+        r=(
+            SOCTempPolynomialVariable(soc_coeffs=0.010, t_coeffs=0),
+            SOCTempPolynomialVariable(soc_coeffs=0.020, t_coeffs=0),
+            SOCTempPolynomialVariable(soc_coeffs=0.030, t_coeffs=0),
+        ),
+        c=(
+            SOCTempPolynomialVariable(soc_coeffs=[1000], t_coeffs=[0]),
+            SOCTempPolynomialVariable(soc_coeffs=[2000], t_coeffs=[0])
+        )
+    )
+    assert rc.c[0](0., 298) == 1000
+    assert rc.c[1](0., 298) == 2000
+
+    # Charge for 10s at 1A
+    state = TheveninTransient.from_asoh(rc)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
+    new_inputs = TheveninInput(current=1., time=10., t_inf=298.)
+
+    model = TheveninModel()
+    new_state = model.update_transient_state(pre_inputs, new_inputs, state, rc)
+    assert new_state.eta.shape == (1, 2)
+    # The eta_i should be: I r_i (1 - exp(-t / r_i / c_i)
+    assert np.allclose(new_state.eta, [[
+        -0.02 * (1 - np.exp(-10 / 0.02 / 1000)),
+        -0.03 * (1 - np.exp(-10 / 0.03 / 2000))
+    ]], atol=1e-4)

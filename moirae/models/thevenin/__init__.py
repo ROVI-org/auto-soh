@@ -52,7 +52,7 @@ class TheveninModel(CellModel):
             # Append the RC elements
             for r in range(params['num_RC_pairs']):
                 params[f'R{r + 1}'] = partial(asoh.r[r + 1], batch_id=b)
-                params[f'C{r + 1}'] = partial(asoh.r[r], batch_id=b)
+                params[f'C{r + 1}'] = partial(asoh.c[r], batch_id=b)
 
             # Make the model
             model = Model(params=params)
