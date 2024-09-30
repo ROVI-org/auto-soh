@@ -12,7 +12,6 @@ Base Classes (``moirae.models.base``)
 
 .. automodule:: moirae.models.base
    :members:
-   :undoc-members:
    :show-inheritance:
 
 
