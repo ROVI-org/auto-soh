@@ -2,19 +2,28 @@ name: Python Package
 
 on: [ push, pull_request ]
 
+defaults:
+  run:
+    shell: bash -el {0}  # Lets conda work
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v2
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: '3.9'
-      - name: Install package
-        run: |
-          pip install -e .[test]
+            environment-file: dev/environment.yml
+            activate-environment: test
+            auto-activate-base: true
+            auto-update-conda: false
+            remove-profiles: true
+            architecture: x64
+            clean-patched-environment-file: true
+            run-post: true
+            use-mamba: true
+            miniforge-version: latest
       - name: Lint with flake8
         run: |
           flake8 moirae/ tests
