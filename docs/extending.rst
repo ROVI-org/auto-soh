@@ -21,7 +21,7 @@ Any variable stored in a ``GeneralContainer`` is represented as a 2D numpy array
 The first dimension is the batch dimension and the second indexes values within a vector parameter.
 
 Add new attributes to a subclass of :class:`~moirae.models.base.GeneralContainer` by defining them
-as either a ``ScalarParameter`` or ``ListParameter``.
+as either a :class:`~moirae.models.base.ScalarParameter` or :class:`~moirae.models.base.ListParameter`.
 
 .. code-block:: python
 
@@ -82,8 +82,9 @@ The coefficients which capture open circuit voltage (OCV) changes with state of 
 Define the parameters for a new battery system by
 subclassing :class:`~moirae.models.base.HealthVariable`.
 
-Attributes which represents a health parameter must be ``ListParameter`` or ``ScalarParameter`` types,
-other ``HealthVariable`` classes,
+Attributes which represents a health parameter must be
+:class:`~moirae.models.base.ScalarParameter` or :class:`~moirae.models.base.ListParameter` type,
+an other ``HealthVariable`` class,
 or tuples or dictionaries of ``HealthVariable`` classes.
 
 Consider the example battery with a series resistor and polynomial model for OCV below.
