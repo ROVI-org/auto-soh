@@ -13,7 +13,7 @@ class ECMTransientVector(GeneralContainer):
 
     soc: ScalarParameter = Field(0., description='SOC')
     q0: Optional[ScalarParameter] = Field(None, description='Charge in the series capacitor. Units: Coulomb')
-    i_rc: ListParameter = Field(default_factory=list, description='Currents through RC components. Units: Amp')
+    i_rc: ListParameter = Field(description='Currents through RC components. Units: Amp')
     hyst: ScalarParameter = Field(0., description='Hysteresis voltage. Units: V')
 
     @classmethod
