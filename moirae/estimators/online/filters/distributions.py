@@ -15,7 +15,6 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
     Base class to help represent a multivariate random variable.
     """
 
-    @computed_field
     @property
     def num_dimensions(self) -> int:
         """ Number of dimensions of random variable """

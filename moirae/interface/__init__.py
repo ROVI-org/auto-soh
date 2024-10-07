@@ -1,10 +1,11 @@
 """Interfaces for running common workflows with Moirae,
 with a particular emphasis on data built with
 `battery-data-toolkit <https://github.com/ROVI-org/battery-data-toolkit>`_"""
-
-from typing import Tuple
+from typing import Tuple, Union, Literal
 from math import isfinite
+from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -13,6 +14,8 @@ from batdata.data import BatteryDataset
 from moirae.estimators.online import OnlineEstimator
 from moirae.models.base import InputQuantities, OutputQuantities
 from moirae.models.ecm import ECMInput, ECMMeasurement
+
+__all__ = ['row_to_inputs', 'run_online_estimate']
 
 
 def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
@@ -44,7 +47,8 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
 def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator,
-        pbar: bool = False
+        pbar: bool = False,
+        hdf5_output: Union[Path, str, h5py.Group, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -54,6 +58,8 @@ def run_online_estimate(
             a physics model which describes the cell and initial guesses for the battery
             transient and health states.
         pbar: Whether to display a progress bar
+        hdf5_output: Path to an HDF5 file or group within an already-open file in which to
+            write the estimated parameter values
     Returns:
         - Estimates of the parameters at all timesteps from the input dataset
         - Estimator after updating with the data in dataset
@@ -73,17 +79,29 @@ def run_online_estimate(
     output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
     output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
-    # Iterate over all timesteps
-    for i, (_, row) in tqdm(
-            enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
-    ):  # .reset_index to iterate in sort order
-        controls, measurements = row_to_inputs(row)
-        new_state, new_outputs = estimator.step(controls, measurements)
+    # Open a H5 output if desired
+    h5_handle = None
+    if isinstance(hdf5_output, (str, Path)):
+        h5_handle = h5py.File(hdf5_output)
 
-        state_mean[i, :] = new_state.get_mean()
-        state_std[i, :] = np.diag(new_state.get_covariance())
-        output_mean[i, :] = new_outputs.get_mean()
-        output_std[i, :] = np.diag(new_outputs.get_covariance())
+    # Iterate over all timesteps
+    try:
+        for i, (_, row) in tqdm(
+                enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
+        ):  # .reset_index to iterate in sort order
+            controls, measurements = row_to_inputs(row)
+            new_state, new_outputs = estimator.step(controls, measurements)
+
+            state_mean[i, :] = new_state.get_mean()
+            state_std[i, :] = np.diag(new_state.get_covariance())
+            output_mean[i, :] = new_outputs.get_mean()
+            output_std[i, :] = np.diag(new_outputs.get_covariance())
+
+            # Store estimates
+    finally:
+        # Close the HDF5 file if we opened one
+        if h5_handle is not None:
+            h5_handle.close()
 
     # Compile the outputs into a dataframe
     output = pd.DataFrame(

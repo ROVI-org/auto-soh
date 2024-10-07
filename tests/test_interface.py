@@ -1,8 +1,10 @@
+import h5py
 from pytest import mark
 import numpy as np
 
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate
+from moirae.interface.hdf5 import HDF5Writer
 from moirae.models.ecm import EquivalentCircuitModel
 
 # Priors for the covariance matrix, taken from the JointUKF demo
@@ -29,7 +31,8 @@ def make_joint_ukf(init_asoh, init_transients, init_inputs):
         covariance_asoh=cov_asoh_rint,
         transient_covariance_process_noise=noise_tran,
         asoh_covariance_process_noise=noise_asoh,
-        covariance_sensor_noise=noise_sensor)
+        covariance_sensor_noise=noise_sensor
+    )
 
 
 @mark.parametrize('estimator', [make_joint_ukf])
@@ -37,7 +40,7 @@ def test_interface(simple_rint, timeseries_dataset, estimator):
     # Make a simple estimator
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
-    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+    estimator = estimator(rint_asoh, rint_transient, rint_inputs)
 
     # Run then make sure it returns the proper data types
     state_mean, estimator = run_online_estimate(timeseries_dataset, estimator)
@@ -47,3 +50,17 @@ def test_interface(simple_rint, timeseries_dataset, estimator):
     )
 
     # TODO (wardlt): Would be nice to have a check that the SOC, at least, was determined well
+
+
+def test_hdf5_writer(simple_rint, tmpdir):
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+
+    h5_path = tmpdir / 'example.h5'
+    with HDF5Writer(h5_path) as writer:
+        assert writer.is_ready
+        writer.prepare(estimator)
+
+    with h5py.File(h5_path) as f:
+        assert 'state_estimates' in f
