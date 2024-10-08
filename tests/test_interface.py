@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import h5py
-from pytest import mark
+from pytest import mark, raises
 import numpy as np
 
 from moirae.estimators.online.joint import JointEstimator
@@ -54,11 +54,12 @@ def test_interface(simple_rint, timeseries_dataset, estimator):
     # TODO (wardlt): Would be nice to have a check that the SOC, at least, was determined well
 
 
-def test_hdf5_writer(simple_rint, tmpdir):
+def test_hdf5_writer_init(simple_rint, tmpdir):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
 
+    # Test with a resizable dataset
     h5_path = Path(tmpdir / 'example.h5')
     with HDF5Writer(hdf5_output=h5_path) as writer:
         assert writer.is_ready
@@ -69,3 +70,23 @@ def test_hdf5_writer(simple_rint, tmpdir):
         group = f.get('state_estimates')
         assert 'per_step' in group
         assert all(x in group.attrs for x in ['write_settings', 'estimator_name'])
+
+    # Test with a fixed size
+    h5_path.unlink()
+    with HDF5Writer(hdf5_output=h5_path, resizable=False, per_cycle='full', per_timestep='mean') as writer:
+        assert writer.is_ready
+        with raises(ValueError):
+            writer.prepare(estimator)
+        writer.prepare(estimator, 128, 4)
+
+    with h5py.File(h5_path) as f:
+        assert 'state_estimates' in f
+        group = f.get('state_estimates').get('per_step')
+        assert group['mean'].shape == (128, 3)
+        assert 'covariance' not in group
+        assert group['time'].shape == (128,)
+
+        group = f.get('state_estimates').get('per_cycle')
+        assert group['mean'].shape == (128, 3)
+        assert group['covariance'].shape == (128, 3, 3)
+        assert group['time'].shape == (128,)
