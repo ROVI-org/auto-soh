@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import h5py
 from pytest import mark
 import numpy as np
@@ -57,10 +59,13 @@ def test_hdf5_writer(simple_rint, tmpdir):
     rint_asoh.mark_updatable('r0.base_values')
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
 
-    h5_path = tmpdir / 'example.h5'
-    with HDF5Writer(h5_path) as writer:
+    h5_path = Path(tmpdir / 'example.h5')
+    with HDF5Writer(hdf5_output=h5_path) as writer:
         assert writer.is_ready
         writer.prepare(estimator)
 
     with h5py.File(h5_path) as f:
         assert 'state_estimates' in f
+        group = f.get('state_estimates')
+        assert 'per_step' in group
+        assert all(x in group.attrs for x in ['write_settings', 'estimator_name'])

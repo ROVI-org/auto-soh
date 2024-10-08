@@ -1,10 +1,10 @@
 """Tools for writing state estimates to HDF5 files"""
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
-from typing import Union, Optional, Literal
+from typing import Union, Optional, Literal, Dict, Any
 from pathlib import Path
 
 from flatten_dict import flatten
+from pydantic import BaseModel, Field, PrivateAttr
 import numpy as np
 import h5py
 
@@ -13,18 +13,29 @@ from moirae.estimators.online import OnlineEstimator
 OutputType = Literal['full', 'mvn', 'mean', 'none']
 
 
-@dataclass
-class HDF5Writer(AbstractContextManager):
+class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
     """Write state estimation data to an HDF5 file incrementally"""
 
-    hdf5_output: Union[Path, str, h5py.Group]
+    # Attributes defining where and how to write
+    hdf5_output: Union[Path, str, h5py.Group] = Field(exclude=True)
     """File or already-open HDF5 file in which to store data"""
     storage_key: str = 'state_estimates'
     """Name of the group in which to store the estimates"""
+    dataset_options: Dict[str, Any] = Field(default_factory=lambda: dict(compression=9))
+    """Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`"""
+    resizable: bool = True
+    """Whether to use `resizable datasets <https://docs.h5py.org/en/stable/high/dataset.html#resizable-datasets>`_."""
 
-    _file_handle: Optional[h5py.File] = None
+    # Attributes defining what is written
+    per_timestep: OutputType = 'mean'
+    """What information to write each timestep"""
+    per_cycle: OutputType = 'full'
+    """What information to store at the last timestep each cycle"""
+
+    # State used only while in writing mode
+    _file_handle: Optional[h5py.File] = PrivateAttr(None)
     """Handle to an open file"""
-    _group_handle: Optional[h5py.Group] = None
+    _group_handle: Optional[h5py.Group] = PrivateAttr(None)
     """Handle to the group being written to"""
 
     def __enter__(self):
@@ -57,12 +68,8 @@ class HDF5Writer(AbstractContextManager):
 
     def prepare(self,
                 estimator: OnlineEstimator,
-                expected_size: Optional[int] = None,
-                expandable: bool = True,
-                what: OutputType = 'full',
-                compression: Union[str, int] = 9,
-                **kwargs
-                ):
+                expected_steps: Optional[int] = None,
+                expected_cycles: Optional[int] = None):
         """
         Create the necessary groups and store metadata about the OnlineEstimator
 
@@ -70,20 +77,15 @@ class HDF5Writer(AbstractContextManager):
 
         Args:
               estimator: Estimator being used to create estimates
-              expected_size: Expected number of rows for the estimates
-              expandable: Whether the datasets should be created in expandable mode. Data
-              what: Which quantities to save for each timestep
-                - "full": The entire estimated state
-                - "mvn": A multivariate normal summary (i.e., mean and covariance)
-                - "mean": Only the mean estimated value
-                - "none": Do not save any information
-              compression: Compression argument passed to :meth:`~h5py.Group.create_dataset`.
+              expected_steps: Expected number of estimation timesteps. Required if not :attr:`resizable`.
+              expected_cycles: Expected number of cycles.
         """
         self._check_if_ready()
-        if expected_size is None and not expandable:
-            raise ValueError('Expected size must be provided if not writing in expandable mode')
+        if not self.resizable and (expected_steps is None or expected_cycles is None):
+            raise ValueError('Expected sizes must be provided if not writing in resizable mode')
 
         # Put the metadata in the attributes of the group
+        self._group_handle.attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
         self._group_handle.attrs['estimator_name'] = estimator.__class__.__name__
         self._group_handle.attrs['cell_whatl'] = estimator.cell_model.__class__.__name__
         self._group_handle.attrs['initial_asoh'] = estimator.asoh.model_dump_json()
@@ -94,23 +96,27 @@ class HDF5Writer(AbstractContextManager):
 
         # Update accordingly
         state = estimator.state
-        if what == 'full':
-            flattened_state = flatten(state.model_dump(), reducer='dot')
-            to_insert.update(flattened_state)
-        elif what == 'mvn':
-            to_insert['mean'] = state.get_mean()
-            to_insert['covariance'] = state.get_covariance()
-        elif what == 'mean':
-            to_insert['mean'] = state.get_mean()
-        else:
-            raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
+        for what, where in [(self.per_timestep, 'per_step'), (self.per_cycle, 'per_cycle')]:
+            # Make the group for this key
+            my_group = self._group_handle.create_group(where)
 
-        # Create datasets
-        for key, value in to_insert.items():
-            if expandable:
-                starting_size = 128 if expected_size is None else expected_size
-                my_kwargs = {'shape': (starting_size, *value.shape), 'maxshape': (expected_size, *value.shape)}
+            if what == 'full':
+                flattened_state = flatten(state.model_dump(), reducer='dot')
+                to_insert.update(flattened_state)
+            elif what == 'mvn':
+                to_insert['mean'] = state.get_mean()
+                to_insert['covariance'] = state.get_covariance()
+            elif what == 'mean':
+                to_insert['mean'] = state.get_mean()
             else:
-                my_kwargs = {'shape': (expected_size, *value.shape)}
+                raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
-            self._group_handle.create_dataset(key, **my_kwargs, dtype=value.dtype, fillvalue=np.nan, **kwargs)
+            # Create datasets
+            for key, value in to_insert.items():
+                if self.resizable:
+                    starting_size = 128 if expected_steps is None else expected_steps
+                    my_kwargs = {'shape': (starting_size, *value.shape), 'maxshape': (expected_steps, *value.shape)}
+                else:
+                    my_kwargs = {'shape': (expected_steps, *value.shape)}
+
+                my_group.create_dataset(key, dtype=value.dtype, fillvalue=np.nan, **my_kwargs, **self.dataset_options)
