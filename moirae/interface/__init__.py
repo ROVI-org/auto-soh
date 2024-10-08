@@ -1,7 +1,7 @@
 """Interfaces for running common workflows with Moirae,
 with a particular emphasis on data built with
 `battery-data-toolkit <https://github.com/ROVI-org/battery-data-toolkit>`_"""
-from typing import Tuple, Union, Literal
+from typing import Tuple, Union
 from math import isfinite
 from pathlib import Path
 

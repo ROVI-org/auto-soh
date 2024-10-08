@@ -5,7 +5,7 @@ from typing_extensions import Self
 
 import numpy as np
 from scipy.linalg import block_diag
-from pydantic import Field, field_validator, computed_field, model_validator, BaseModel
+from pydantic import Field, field_validator, model_validator, BaseModel
 
 from .conversions import ConversionOperator
 
