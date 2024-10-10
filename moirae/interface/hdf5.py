@@ -33,7 +33,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     """File or already-open HDF5 file in which to store data"""
     storage_key: str = 'state_estimates'
     """Name of the group in which to store the estimates"""
-    dataset_options: Dict[str, Any] = Field(default_factory=lambda: dict(compression=9))
+    dataset_options: Dict[str, Any] = Field(default_factory=lambda: dict(compression='lzf'))
     """Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`"""
     resizable: bool = True
     """Whether to use `resizable datasets <https://docs.h5py.org/en/stable/high/dataset.html#resizable-datasets>`_."""
@@ -98,17 +98,16 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
         # Put the metadata in the attributes of the group
         self._group_handle.attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
+        self._group_handle.attrs['state_names'] = estimator.state_names
         self._group_handle.attrs['estimator_name'] = estimator.__class__.__name__
-        self._group_handle.attrs['cell_whatl'] = estimator.cell_model.__class__.__name__
+        self._group_handle.attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle.attrs['initial_asoh'] = estimator.asoh.model_dump_json()
         self._group_handle.attrs['initial_transient_state'] = estimator.transients.model_dump_json()
 
-        # Start the list of things to insert
-        to_insert = {'time': np.array(0., dtype=np.float64)}
-
         # Update accordingly
         state = estimator.state
-        for what, where in [(self.per_timestep, 'per_step'), (self.per_cycle, 'per_cycle')]:
+        for what, where, expected in [(self.per_timestep, 'per_step', expected_steps),
+                                      (self.per_cycle, 'per_cycle', expected_cycles)]:
             # Determine what to write
             if what == "none":
                 continue
@@ -119,10 +118,10 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             my_group = self._group_handle.create_group(where)
             for key, value in to_insert.items():
                 if self.resizable:
-                    starting_size = 128 if expected_steps is None else expected_steps
-                    my_kwargs = {'shape': (starting_size, *value.shape), 'maxshape': (expected_steps, *value.shape)}
+                    starting_size = 128 if expected is None else expected
+                    my_kwargs = {'shape': (starting_size, *value.shape), 'maxshape': (expected, *value.shape)}
                 else:
-                    my_kwargs = {'shape': (expected_steps, *value.shape)}
+                    my_kwargs = {'shape': (expected, *value.shape)}
 
                 my_group.create_dataset(key, dtype=value.dtype, fillvalue=np.nan, **my_kwargs, **self.dataset_options)
 
@@ -144,8 +143,9 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             if what == "none":
                 continue
             my_group = self._group_handle[where]
-            if where == "per_cycle" and not np.isnan(my_group['time'][ind]):
-                # Only write the first state for each cycle
+
+            # Only write the first state for each cycle
+            if where == "per_cycle" and ind < my_group['time'].shape[0] and not np.isnan(my_group['time'][ind]):
                 continue
 
             # Determine what to write
@@ -154,6 +154,11 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
             # Write it
             for key, value in to_insert.items():
-                my_dataset = my_group[key]
+                my_dataset: h5py.Dataset = my_group[key]
+
+                # Expand by one chunk size if necessary
+                if my_dataset.shape[0] <= ind:
+                    my_dataset.resize(my_dataset.shape[0] + my_dataset.chunks[0], axis=0)
+
                 my_ind = (ind,) + (slice(None),) * value.ndim
                 my_dataset[my_ind] = value

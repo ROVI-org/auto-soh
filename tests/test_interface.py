@@ -91,9 +91,9 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert group['time'].shape == (128,)
 
         group = f.get('state_estimates').get('per_cycle')
-        assert group['mean'].shape == (128, 3)
-        assert group['covariance'].shape == (128, 3, 3)
-        assert group['time'].shape == (128,)
+        assert group['mean'].shape == (4, 3)
+        assert group['covariance'].shape == (4, 3, 3)
+        assert group['time'].shape == (4,)
 
 
 @mark.parametrize('what,expected_keys', [
@@ -143,3 +143,38 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
         assert np.allclose(my_group['time'][0], 0)
 
         assert np.isnan(my_group['mean'][1:, :]).all()
+
+
+@mark.parametrize('mode', ('path', 'prefab'))
+def test_interface_write(mode, simple_rint, tmpdir, timeseries_dataset):
+    # Make a simple estimator
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+
+    # Prepare the input argument
+    h5_path = Path(tmpdir) / 'states.hdf5'
+    if mode == 'path':
+        h5_output = h5_path
+    else:
+        h5_output = HDF5Writer(hdf5_output=h5_path, resizable=False, per_cycle='full')
+
+    # Run the estimation
+    _, estimator = run_online_estimate(timeseries_dataset, estimator, hdf5_output=h5_output)
+
+    with h5py.File(h5_path) as f:
+        assert 'state_estimates' in f
+        group = f['state_estimates']
+
+        # Test that steps only include the mean
+        per_step = group['per_step']
+        assert set(per_step.keys()) == {'time', 'mean'}
+
+        # Test that cycles includes the full version
+        per_cycle = group['per_cycle']
+        assert set(per_cycle.keys()) == {'time', 'mean', 'covariance'}
+
+        # Ensure the shapes vary depending on prefab or path mode
+        assert per_step['time'].shape == (len(timeseries_dataset.raw_data),)
+        if mode == 'prefab':
+            assert per_step['time'].maxshape == (len(timeseries_dataset.raw_data),)

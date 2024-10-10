@@ -1,6 +1,8 @@
 """Interfaces for running common workflows with Moirae,
 with a particular emphasis on data built with
 `battery-data-toolkit <https://github.com/ROVI-org/battery-data-toolkit>`_"""
+from contextlib import nullcontext
+
 from typing import Tuple, Union
 from math import isfinite
 from pathlib import Path
@@ -12,6 +14,7 @@ from tqdm import tqdm
 from batdata.data import BatteryDataset
 
 from moirae.estimators.online import OnlineEstimator
+from moirae.interface.hdf5 import HDF5Writer
 from moirae.models.base import InputQuantities, OutputQuantities
 from moirae.models.ecm import ECMInput, ECMMeasurement
 
@@ -48,7 +51,7 @@ def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator,
         pbar: bool = False,
-        hdf5_output: Union[Path, str, h5py.Group, None] = None,
+        hdf5_output: Union[Path, str, h5py.Group, HDF5Writer, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -59,7 +62,9 @@ def run_online_estimate(
             transient and health states.
         pbar: Whether to display a progress bar
         hdf5_output: Path to an HDF5 file or group within an already-open file in which to
-            write the estimated parameter values
+            write the estimated parameter values. Writes the mean for each timestep and
+            the full state for the first timestep in each cycle by default. Modify what is written
+            by providing a :class:`~moirae.interface.hdf5.HDF5Writer`.
     Returns:
         - Estimates of the parameters at all timesteps from the input dataset
         - Estimator after updating with the data in dataset
@@ -80,12 +85,23 @@ def run_online_estimate(
     output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
     # Open a H5 output if desired
-    h5_handle = None
-    if isinstance(hdf5_output, (str, Path)):
-        h5_handle = h5py.File(hdf5_output)
+    if isinstance(hdf5_output, (str, Path, h5py.Group)):
+        h5_writer = HDF5Writer(hdf5_output=hdf5_output)
+    elif hdf5_output is not None:
+        h5_writer = hdf5_output
+    else:
+        h5_writer = nullcontext()
 
     # Iterate over all timesteps
-    try:
+    with h5_writer:
+        # Prepare given the available data
+        if hdf5_output is not None:
+            h5_writer.prepare(
+                estimator=estimator,
+                expected_steps=len(dataset.raw_data),
+                expected_cycles=dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0,
+            )
+
         for i, (_, row) in tqdm(
                 enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
         ):  # .reset_index to iterate in sort order
@@ -98,10 +114,8 @@ def run_online_estimate(
             output_std[i, :] = np.diag(new_outputs.get_covariance())
 
             # Store estimates
-    finally:
-        # Close the HDF5 file if we opened one
-        if h5_handle is not None:
-            h5_handle.close()
+            if hdf5_output is not None:
+                h5_writer.write(i, row['test_time'], row['cycle_number'], new_state)
 
     # Compile the outputs into a dataframe
     output = pd.DataFrame(
