@@ -47,6 +47,7 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
     return inputs, outputs
 
 
+# TODO (wardlt): Create generic "Writer" classes which can store data in other formats (e.g., streaming to DataHub)
 def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator,

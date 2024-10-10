@@ -26,7 +26,22 @@ def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution, what: Ou
 
 
 class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
-    """Write state estimation data to an HDF5 file incrementally"""
+    """Write state estimation data to an HDF5 file incrementally
+
+    Args:
+        hdf5_output: Path to an HDF5 file or group within a file in which to write data
+        storage_key: Name of the group within the file to store all states
+        dataset_options: Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`.
+            Default is to use LZF compression.
+        resizable: Whether to allow the file to be shrunk or expanded
+        per_timestep: Which information to store at each timestep:
+            - `full`: All available information about the estimated state
+            - `mvn`: The mean and covariance of the estimated state
+            - `mean`: Only the mean
+            - `none`: No information
+        per_cycle: Which information to write at the first step of a cycle. The options are the same
+            as `per_timestep`.
+    """
 
     # Attributes defining where and how to write
     hdf5_output: Union[Path, str, h5py.Group] = Field(exclude=True)
@@ -42,7 +57,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     per_timestep: OutputType = 'mean'
     """What information to write each timestep"""
     per_cycle: OutputType = 'full'
-    """What information to store at the last timestep each cycle"""
+    """What information to store at the first timestep each cycle"""
 
     # State used only while in writing mode
     _file_handle: Optional[h5py.File] = PrivateAttr(None)
@@ -100,6 +115,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._group_handle.attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
         self._group_handle.attrs['state_names'] = estimator.state_names
         self._group_handle.attrs['estimator_name'] = estimator.__class__.__name__
+        self._group_handle.attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle.attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle.attrs['initial_asoh'] = estimator.asoh.model_dump_json()
         self._group_handle.attrs['initial_transient_state'] = estimator.transients.model_dump_json()
