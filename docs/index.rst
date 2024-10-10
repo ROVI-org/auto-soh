@@ -14,6 +14,7 @@ Source Code: https://github.com/ROVI-org/auto-soh/
    system-models
    simulator
    estimators/index
+   toolkit
    source/modules
    extending
 

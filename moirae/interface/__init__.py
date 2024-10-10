@@ -1,18 +1,24 @@
 """Interfaces for running common workflows with Moirae,
 with a particular emphasis on data built with
 `battery-data-toolkit <https://github.com/ROVI-org/battery-data-toolkit>`_"""
+from contextlib import nullcontext
 
-from typing import Tuple
+from typing import Tuple, Union
 from math import isfinite
+from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from batdata.data import BatteryDataset
 
 from moirae.estimators.online import OnlineEstimator
+from moirae.interface.hdf5 import HDF5Writer
 from moirae.models.base import InputQuantities, OutputQuantities
 from moirae.models.ecm import ECMInput, ECMMeasurement
+
+__all__ = ['row_to_inputs', 'run_online_estimate']
 
 
 def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
@@ -41,10 +47,12 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
     return inputs, outputs
 
 
+# TODO (wardlt): Create generic "Writer" classes which can store data in other formats (e.g., streaming to DataHub)
 def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator,
-        pbar: bool = False
+        pbar: bool = False,
+        hdf5_output: Union[Path, str, h5py.Group, HDF5Writer, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -54,6 +62,10 @@ def run_online_estimate(
             a physics model which describes the cell and initial guesses for the battery
             transient and health states.
         pbar: Whether to display a progress bar
+        hdf5_output: Path to an HDF5 file or group within an already-open file in which to
+            write the estimated parameter values. Writes the mean for each timestep and
+            the full state for the first timestep in each cycle by default. Modify what is written
+            by providing a :class:`~moirae.interface.hdf5.HDF5Writer`.
     Returns:
         - Estimates of the parameters at all timesteps from the input dataset
         - Estimator after updating with the data in dataset
@@ -73,17 +85,38 @@ def run_online_estimate(
     output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
     output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
-    # Iterate over all timesteps
-    for i, (_, row) in tqdm(
-            enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
-    ):  # .reset_index to iterate in sort order
-        controls, measurements = row_to_inputs(row)
-        new_state, new_outputs = estimator.step(controls, measurements)
+    # Open a H5 output if desired
+    if isinstance(hdf5_output, (str, Path, h5py.Group)):
+        h5_writer = HDF5Writer(hdf5_output=hdf5_output)
+    elif hdf5_output is not None:
+        h5_writer = hdf5_output
+    else:
+        h5_writer = nullcontext()
 
-        state_mean[i, :] = new_state.get_mean()
-        state_std[i, :] = np.diag(new_state.get_covariance())
-        output_mean[i, :] = new_outputs.get_mean()
-        output_std[i, :] = np.diag(new_outputs.get_covariance())
+    # Iterate over all timesteps
+    with h5_writer:
+        # Prepare given the available data
+        if hdf5_output is not None:
+            h5_writer.prepare(
+                estimator=estimator,
+                expected_steps=len(dataset.raw_data),
+                expected_cycles=dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0,
+            )
+
+        for i, (_, row) in tqdm(
+                enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
+        ):  # .reset_index to iterate in sort order
+            controls, measurements = row_to_inputs(row)
+            new_state, new_outputs = estimator.step(controls, measurements)
+
+            state_mean[i, :] = new_state.get_mean()
+            state_std[i, :] = np.diag(new_state.get_covariance())
+            output_mean[i, :] = new_outputs.get_mean()
+            output_std[i, :] = np.diag(new_outputs.get_covariance())
+
+            # Store estimates
+            if hdf5_output is not None:
+                h5_writer.write(i, row['test_time'], row['cycle_number'], new_state)
 
     # Compile the outputs into a dataframe
     output = pd.DataFrame(

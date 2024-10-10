@@ -5,6 +5,8 @@ from moirae.estimators.offline.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
 
+# TODO (wardlt): Make it possible to define bounds for classes
+# TODO (wardlt): Consider letting users pass x0 in as an input
 class OfflineEstimator:
     """
     Base class for tools which estimate battery health parameters given
