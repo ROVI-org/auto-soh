@@ -65,6 +65,10 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert writer.is_ready
         writer.prepare(estimator)
 
+    assert not writer.is_ready
+    with raises(ValueError):
+        writer.prepare(estimator)
+
     with h5py.File(h5_path) as f:
         assert 'state_estimates' in f
         group = f.get('state_estimates')
@@ -90,3 +94,52 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert group['mean'].shape == (128, 3)
         assert group['covariance'].shape == (128, 3, 3)
         assert group['time'].shape == (128,)
+
+
+@mark.parametrize('what,expected_keys', [
+    ('full', ('mean', 'covariance')),
+    ('mvn', ('mean', 'covariance')),
+    ('mean', ('mean',)),
+    ('none', ())
+])
+def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
+    # Prepare an HDF5 file for writing
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+    h5_path = Path(tmpdir / 'example.h5')
+    with HDF5Writer(hdf5_output=h5_path, per_timestep=what) as writer:
+        assert writer.is_ready
+        writer.prepare(estimator)
+
+        # Write two states to the file
+        writer.write(0, 0., 0, estimator.state)
+
+        new_state = estimator.state.copy(deep=True)
+        new_state.mean = estimator.state.get_mean() + 0.1
+        writer.write(1, 1., 0, new_state)
+
+    # Make sure it's got the desired values
+    with h5py.File(h5_path) as f:
+        # Test the per-step quantities
+        group = f.get('state_estimates')
+        if what == 'none':
+            assert 'per_step' not in group
+        else:
+            my_group = group.get('per_step')
+            # Mean should only be set in the first two rows
+            assert np.allclose(my_group['mean'][0, :], estimator.state.get_mean())
+            assert np.allclose(my_group['mean'][1, :], new_state.get_mean())
+            assert np.isnan(my_group['mean'][2:, :]).all()
+
+            # Covariance should only be available with full and mvn
+            assert ('covariance' in my_group) == (what in ['full', 'mvn'])
+
+        # Make sure per_cycle was unaffected, and it only recorded the first state
+        my_group = group.get('per_cycle')
+
+        assert np.allclose(my_group['mean'][0, :], estimator.state.get_mean())
+        assert np.allclose(my_group['covariance'][0, :], estimator.state.get_covariance())
+        assert np.allclose(my_group['time'][0], 0)
+
+        assert np.isnan(my_group['mean'][1:, :]).all()

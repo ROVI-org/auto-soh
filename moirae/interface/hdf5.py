@@ -8,9 +8,21 @@ from pydantic import BaseModel, Field, PrivateAttr
 import numpy as np
 import h5py
 
-from moirae.estimators.online import OnlineEstimator
+from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
 
 OutputType = Literal['full', 'mvn', 'mean', 'none']
+
+
+def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution, what: OutputType) -> Dict[str, np.ndarray]:
+    """Convert a multivariate distribution to a dictionary of arrays as requeted by the user."""
+    if what == 'full':
+        return flatten(state.model_dump(), reducer='dot')
+    elif what == 'mvn':
+        return {'mean': state.get_mean(), 'covariance': state.get_covariance()}
+    elif what == 'mean':
+        return {'mean': state.get_mean()}
+    else:
+        raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
 
 class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
@@ -97,21 +109,14 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         # Update accordingly
         state = estimator.state
         for what, where in [(self.per_timestep, 'per_step'), (self.per_cycle, 'per_cycle')]:
-            # Make the group for this key
-            my_group = self._group_handle.create_group(where)
-
-            if what == 'full':
-                flattened_state = flatten(state.model_dump(), reducer='dot')
-                to_insert.update(flattened_state)
-            elif what == 'mvn':
-                to_insert['mean'] = state.get_mean()
-                to_insert['covariance'] = state.get_covariance()
-            elif what == 'mean':
-                to_insert['mean'] = state.get_mean()
-            else:
-                raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
+            # Determine what to write
+            if what == "none":
+                continue
+            to_insert = {'time': np.array(0.)}
+            to_insert.update(_convert_state_to_numpy_dict(state, what))
 
             # Create datasets
+            my_group = self._group_handle.create_group(where)
             for key, value in to_insert.items():
                 if self.resizable:
                     starting_size = 128 if expected_steps is None else expected_steps
@@ -120,3 +125,35 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
                     my_kwargs = {'shape': (expected_steps, *value.shape)}
 
                 my_group.create_dataset(key, dtype=value.dtype, fillvalue=np.nan, **my_kwargs, **self.dataset_options)
+
+    def write(self, step: int, time: float, cycle: int, state: MultivariateRandomDistribution):
+        """
+        Write a state estimate to the dataset
+
+        Args:
+            step: Index of timestep
+            time: Test time of timestep
+            cycle: Cycle associated with the timestep
+            state: State to be stored
+        """
+        self._check_if_ready()
+
+        # Write the column to the appropriate part of the HDF5 file
+        for ind, what, where in [(step, self.per_timestep, 'per_step'), (cycle, self.per_cycle, 'per_cycle')]:
+            # Determine if we must write
+            if what == "none":
+                continue
+            my_group = self._group_handle[where]
+            if where == "per_cycle" and not np.isnan(my_group['time'][ind]):
+                # Only write the first state for each cycle
+                continue
+
+            # Determine what to write
+            to_insert = {'time': np.array(time)}
+            to_insert.update(_convert_state_to_numpy_dict(state, what))
+
+            # Write it
+            for key, value in to_insert.items():
+                my_dataset = my_group[key]
+                my_ind = (ind,) + (slice(None),) * value.ndim
+                my_dataset[my_ind] = value
