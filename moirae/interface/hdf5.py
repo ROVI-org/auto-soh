@@ -64,6 +64,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     """Handle to an open file"""
     _group_handle: Optional[h5py.Group] = PrivateAttr(None)
     """Handle to the group being written to"""
+    position: Optional[int] = None
+    """Index of the next step to be written"""
 
     def __enter__(self):
         """Open the file and store the group in which to write data"""
@@ -74,6 +76,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         if self.storage_key not in root:
             root.create_group(self.storage_key)
         self._group_handle = root.get(self.storage_key)
+        self.position = 0  # TODO (wardlt): Support re-opening files for writing phase
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -131,6 +134,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             to_insert.update(_convert_state_to_numpy_dict(state, what))
 
             # Create datasets
+            if where in self._group_handle:
+                raise ValueError(f'File contains {self.storage_key}/{where} group. Overwriting not yet supported')
             my_group = self._group_handle.create_group(where)
             for key, value in to_insert.items():
                 if self.resizable:
@@ -141,12 +146,11 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
                 my_group.create_dataset(key, dtype=value.dtype, fillvalue=np.nan, **my_kwargs, **self.dataset_options)
 
-    def write(self, step: int, time: float, cycle: int, state: MultivariateRandomDistribution):
+    def append_step(self, time: float, cycle: int, state: MultivariateRandomDistribution):
         """
-        Write a state estimate to the dataset
+        Add a state estimate to the dataset
 
         Args:
-            step: Index of timestep
             time: Test time of timestep
             cycle: Cycle associated with the timestep
             state: State to be stored
@@ -154,7 +158,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._check_if_ready()
 
         # Write the column to the appropriate part of the HDF5 file
-        for ind, what, where in [(step, self.per_timestep, 'per_step'), (cycle, self.per_cycle, 'per_cycle')]:
+        # TODO (wardlt): Introduce a batched write implementation.
+        for ind, what, where in [(self.position, self.per_timestep, 'per_step'), (cycle, self.per_cycle, 'per_cycle')]:
             # Determine if we must write
             if what == "none":
                 continue
@@ -178,3 +183,6 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
                 my_ind = (ind,) + (slice(None),) * value.ndim
                 my_dataset[my_ind] = value
+
+        # Increment the step position
+        self.position += 1

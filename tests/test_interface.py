@@ -113,11 +113,11 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
         writer.prepare(estimator)
 
         # Write two states to the file
-        writer.write(0, 0., 0, estimator.state)
+        writer.append_step(0., 0, estimator.state)
 
         new_state = estimator.state.copy(deep=True)
         new_state.mean = estimator.state.get_mean() + 0.1
-        writer.write(1, 1., 0, new_state)
+        writer.append_step(1., 0, new_state)
 
     # Make sure it's got the desired values
     with h5py.File(h5_path) as f:

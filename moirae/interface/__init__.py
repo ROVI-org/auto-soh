@@ -116,7 +116,7 @@ def run_online_estimate(
 
             # Store estimates
             if hdf5_output is not None:
-                h5_writer.write(i, row['test_time'], row['cycle_number'], new_state)
+                h5_writer.append_step(row['test_time'], row['cycle_number'], new_state)
 
     # Compile the outputs into a dataframe
     output = pd.DataFrame(

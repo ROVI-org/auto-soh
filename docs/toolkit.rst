@@ -62,19 +62,19 @@ calling the :meth:`~moirae.interface.hdf5.HDF5Writer.prepare` method providing a
 The ``prepare`` option records details about the estimator, such as its name and how the cell physics is being modeled,
 then creates the `"Datasets" <https://docs.h5py.org/en/stable/high/dataset.html>`_ that will store the time and values of each state.
 
-Write states to the file incrementally by calling :meth:`~moirae.interface.hdf5.HDF5Writer.write`.
+Write states to the file incrementally by calling :meth:`~moirae.interface.hdf5.HDF5Writer.append_step`.
 
 .. code-block:: python
 
     with writer:
-        writer.prepare(step=0, time=1., cycle=0, state=estimator.state)
+        writer.append_step(step=0, time=1., cycle=0, state=estimator.state)
 
-The resultant data may not be available in the output HDF5 file until the Python code exits the ``with`` block,
-which triggers the HDF5 library to complete any pending writes.
+The resultant data may not be available in the output HDF5 file until after the ``with`` block.
 
-.. note::
+.. warning::
 
-    Perform multiple writes in each ``with`` block for improved performance.
+    Moirae currently supports writing to an HDF5 file only once.
+    The states cannot be edited after exiting the ``with`` block.
 
 Reading Estimates from HDF5
 ---------------------------
