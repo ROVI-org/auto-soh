@@ -138,6 +138,11 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
             # Check the other keys
             assert set(my_group.keys()) == set(expected_keys + ('time',))
 
+            # Check the shapes of the variance
+            if 'state_variance' in my_group:
+                assert my_group['state_variance'].shape[1:] == (3,)
+                assert my_group['output_variance'].shape[1:] == (1,)
+
         # Make sure per_cycle was unaffected, and it only recorded the first state
         my_group = group.get('per_cycle')
 

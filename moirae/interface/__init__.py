@@ -52,6 +52,7 @@ def run_online_estimate(
         dataset: BatteryDataset,
         estimator: OnlineEstimator,
         pbar: bool = False,
+        output_states: bool = True,
         hdf5_output: Union[Path, str, h5py.Group, HDF5Writer, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
@@ -62,6 +63,8 @@ def run_online_estimate(
             a physics model which describes the cell and initial guesses for the battery
             transient and health states.
         pbar: Whether to display a progress bar
+        output_states: Whether to return summaries of the per-step states. Can require
+            a large amount of memory for full datasets.
         hdf5_output: Path to an HDF5 file or group within an already-open file in which to
             write the estimated parameter values. Writes the mean for each timestep and
             the full state for the first timestep in each cycle by default. Modify what is written
@@ -80,10 +83,11 @@ def run_online_estimate(
     estimator._u = initial_input
 
     # Initialize the output arrays
-    state_mean = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
-    state_std = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
-    output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
-    output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
+    if output_states:
+        state_mean = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
+        state_std = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
+        output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
+        output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
 
     # Open a H5 output if desired
     if isinstance(hdf5_output, (str, Path, h5py.Group)):
@@ -109,21 +113,24 @@ def run_online_estimate(
             controls, measurements = row_to_inputs(row)
             new_state, new_outputs = estimator.step(controls, measurements)
 
-            state_mean[i, :] = new_state.get_mean()
-            state_std[i, :] = np.diag(new_state.get_covariance())
-            output_mean[i, :] = new_outputs.get_mean()
-            output_std[i, :] = np.diag(new_outputs.get_covariance())
+            if output_states:
+                state_mean[i, :] = new_state.get_mean()
+                state_std[i, :] = np.diag(new_state.get_covariance())
+                output_mean[i, :] = new_outputs.get_mean()
+                output_std[i, :] = np.diag(new_outputs.get_covariance())
 
             # Store estimates
             if hdf5_output is not None:
                 h5_writer.append_step(row['test_time'], row['cycle_number'], new_state, new_outputs)
 
     # Compile the outputs into a dataframe
-    output = pd.DataFrame(
-        np.concatenate([state_mean, state_std, output_mean, output_std], axis=1),
-        columns=list(
-            estimator.state_names + tuple(f'{s}_std' for s in estimator.state_names)
-            + estimator.output_names + tuple(f'{s}_std' for s in estimator.output_names)
+    output = None
+    if output_states:
+        output = pd.DataFrame(
+            np.concatenate([state_mean, state_std, output_mean, output_std], axis=1),
+            columns=list(
+                estimator.state_names + tuple(f'{s}_std' for s in estimator.state_names)
+                + estimator.output_names + tuple(f'{s}_std' for s in estimator.output_names)
+            )
         )
-    )
     return output, estimator

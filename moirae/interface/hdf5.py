@@ -28,7 +28,7 @@ def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution,
     elif what == 'mean_cov':
         return {f'{tag}_mean': state.get_mean(), f'{tag}_covariance': state.get_covariance()}
     elif what == 'mean_var':
-        return {f'{tag}_mean': state.get_mean(), f'{tag}_variance': np.trace(state.get_covariance())}
+        return {f'{tag}_mean': state.get_mean(), f'{tag}_variance': np.diag(state.get_covariance())}
     elif what == 'mean':
         return {f'{tag}_mean': state.get_mean()}
     else:
@@ -47,7 +47,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         per_timestep: Which information to store at each timestep:
             - `full`: All available information about the estimated state
             - `mean_cov`: The mean and covariance of the estimated state
-            - `mean_var`: The mean and variance (i.e., trace of covariance matrix) of the estimated state
+            - `mean_var`: The mean and variance (i.e., diagonal of covariance matrix) of the estimated state
             - `mean`: Only the mean
             - `none`: No information
         per_cycle: Which information to write at the first step of a cycle. The options are the same
@@ -184,7 +184,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
         # Write the column to the appropriate part of the HDF5 file
         # TODO (wardlt): Introduce a batched write implementation.
-        for ind, what, where in [(self.position, self.per_timestep, 'per_step'), (cycle, self.per_cycle, 'per_cycle')]:
+        for ind, what, where in [(self.position, self.per_timestep, 'per_step'),
+                                 (int(cycle), self.per_cycle, 'per_cycle')]:
             # Determine if we must write
             if what == "none":
                 continue
