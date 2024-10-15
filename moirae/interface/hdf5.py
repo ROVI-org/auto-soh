@@ -10,15 +10,17 @@ import h5py
 
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
 
-OutputType = Literal['full', 'mvn', 'mean', 'none']
+OutputType = Literal['full', 'mean_cov', 'mean_std', 'mean', 'none']
 
 
 def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution, what: OutputType) -> Dict[str, np.ndarray]:
-    """Convert a multivariate distribution to a dictionary of arrays as requeted by the user."""
+    """Convert a multivariate distribution to a dictionary of arrays as requested by the user."""
     if what == 'full':
         return flatten(state.model_dump(), reducer='dot')
-    elif what == 'mvn':
+    elif what == 'mean_cov':
         return {'mean': state.get_mean(), 'covariance': state.get_covariance()}
+    elif what == 'mean_std':
+        return {'mean': state.get_mean(), 'std_dev': np.sqrt(np.trace(state.get_covariance()))}
     elif what == 'mean':
         return {'mean': state.get_mean()}
     else:
@@ -36,7 +38,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         resizable: Whether to allow the file to be shrunk or expanded
         per_timestep: Which information to store at each timestep:
             - `full`: All available information about the estimated state
-            - `mvn`: The mean and covariance of the estimated state
+            - `mean_cov`: The mean and covariance of the estimated state
+            - `mean_std`: The mean and standard deviations of the estimated state
             - `mean`: Only the mean
             - `none`: No information
         per_cycle: Which information to write at the first step of a cycle. The options are the same

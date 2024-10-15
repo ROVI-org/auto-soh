@@ -98,7 +98,8 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
 
 @mark.parametrize('what,expected_keys', [
     ('full', ('mean', 'covariance')),
-    ('mvn', ('mean', 'covariance')),
+    ('mean_cov', ('mean', 'covariance')),
+    ('mean_std', ('mean', 'std_dev')),
     ('mean', ('mean',)),
     ('none', ())
 ])
@@ -132,8 +133,8 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
             assert np.allclose(my_group['mean'][1, :], new_state.get_mean())
             assert np.isnan(my_group['mean'][2:, :]).all()
 
-            # Covariance should only be available with full and mvn
-            assert ('covariance' in my_group) == (what in ['full', 'mvn'])
+            # Check the other keys
+            assert set(my_group.keys()) == set(expected_keys + ('time',))
 
         # Make sure per_cycle was unaffected, and it only recorded the first state
         my_group = group.get('per_cycle')
