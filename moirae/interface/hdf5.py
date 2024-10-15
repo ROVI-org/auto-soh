@@ -46,6 +46,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     # Attributes defining where and how to write
     hdf5_output: Union[Path, str, h5py.Group] = Field(exclude=True)
     """File or already-open HDF5 file in which to store data"""
+    file_options: Dict[str, Any] = Field(default_factory=lambda: dict(rdcc_nbytes=1024 ** 2 * 16, rdcc_w0=0))
+    """Options employed when opening the HDFt file. See :meth:`~h5py.File`"""
     storage_key: str = 'state_estimates'
     """Name of the group in which to store the estimates"""
     dataset_options: Dict[str, Any] = Field(default_factory=lambda: dict(compression='lzf'))
@@ -70,7 +72,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     def __enter__(self):
         """Open the file and store the group in which to write data"""
         if not isinstance(self.hdf5_output, h5py.Group):
-            root = self._file_handle = h5py.File(self.hdf5_output, mode='a')
+            root = self._file_handle = h5py.File(self.hdf5_output, mode='a', **self.file_options)
         else:
             root = self.hdf5_output
         if self.storage_key not in root:
