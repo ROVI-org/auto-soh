@@ -9,20 +9,28 @@ import numpy as np
 import h5py
 
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
+from moirae.estimators.online.filters.distributions import MultivariateGaussian
 
-OutputType = Literal['full', 'mean_cov', 'mean_std', 'mean', 'none']
+OutputType = Literal['full', 'mean_cov', 'mean_var', 'mean', 'none']
 
 
-def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution, what: OutputType) -> Dict[str, np.ndarray]:
-    """Convert a multivariate distribution to a dictionary of arrays as requested by the user."""
+def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution,
+                                 what: OutputType, tag: str) -> Dict[str, np.ndarray]:
+    """Convert a multivariate distribution to a dictionary of arrays as requested by the user.
+
+    Args:
+        state: State to be stored
+        what: What to store
+        tag: Name of the distribution (e.g., state, outputs)
+    """
     if what == 'full':
-        return flatten(state.model_dump(), reducer='dot')
+        return dict((f'{tag}_{k}', v) for k, v in flatten(state.model_dump(), reducer='dot').items())
     elif what == 'mean_cov':
-        return {'mean': state.get_mean(), 'covariance': state.get_covariance()}
-    elif what == 'mean_std':
-        return {'mean': state.get_mean(), 'std_dev': np.sqrt(np.trace(state.get_covariance()))}
+        return {f'{tag}_mean': state.get_mean(), f'{tag}_covariance': state.get_covariance()}
+    elif what == 'mean_var':
+        return {f'{tag}_mean': state.get_mean(), f'{tag}_variance': np.trace(state.get_covariance())}
     elif what == 'mean':
-        return {'mean': state.get_mean()}
+        return {f'{tag}_mean': state.get_mean()}
     else:
         raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
@@ -39,7 +47,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         per_timestep: Which information to store at each timestep:
             - `full`: All available information about the estimated state
             - `mean_cov`: The mean and covariance of the estimated state
-            - `mean_std`: The mean and standard deviations of the estimated state
+            - `mean_var`: The mean and variance (i.e., trace of covariance matrix) of the estimated state
             - `mean`: Only the mean
             - `none`: No information
         per_cycle: Which information to write at the first step of a cycle. The options are the same
@@ -122,6 +130,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         # Put the metadata in the attributes of the group
         self._group_handle.attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
         self._group_handle.attrs['state_names'] = estimator.state_names
+        self._group_handle.attrs['output_names'] = estimator.output_names
         self._group_handle.attrs['estimator_name'] = estimator.__class__.__name__
         self._group_handle.attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle.attrs['cell_model'] = estimator.cell_model.__class__.__name__
@@ -130,13 +139,19 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
         # Update accordingly
         state = estimator.state
+        num_outputs = estimator.num_output_dimensions
+        # TODO (wardlt): Use actual output class employed by estimator
+        output = MultivariateGaussian(mean=np.zeros((num_outputs,)),
+                                      covariance=np.zeros((num_outputs, num_outputs)))
+
         for what, where, expected in [(self.per_timestep, 'per_step', expected_steps),
                                       (self.per_cycle, 'per_cycle', expected_cycles)]:
             # Determine what to write
             if what == "none":
                 continue
             to_insert = {'time': np.array(0.)}
-            to_insert.update(_convert_state_to_numpy_dict(state, what))
+            to_insert.update(_convert_state_to_numpy_dict(state, what, 'state'))
+            to_insert.update(_convert_state_to_numpy_dict(output, what, 'output'))
 
             # Create datasets
             if where in self._group_handle:
@@ -151,7 +166,11 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
                 my_group.create_dataset(key, dtype=value.dtype, fillvalue=np.nan, **my_kwargs, **self.dataset_options)
 
-    def append_step(self, time: float, cycle: int, state: MultivariateRandomDistribution):
+    def append_step(self,
+                    time: float,
+                    cycle: int,
+                    state: MultivariateRandomDistribution,
+                    output: MultivariateRandomDistribution):
         """
         Add a state estimate to the dataset
 
@@ -159,6 +178,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             time: Test time of timestep
             cycle: Cycle associated with the timestep
             state: State to be stored
+            output: Outputs predicted from the estimator
         """
         self._check_if_ready()
 
@@ -176,7 +196,8 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
             # Determine what to write
             to_insert = {'time': np.array(time)}
-            to_insert.update(_convert_state_to_numpy_dict(state, what))
+            to_insert.update(_convert_state_to_numpy_dict(state, what, 'state'))
+            to_insert.update(_convert_state_to_numpy_dict(output, what, 'output'))
 
             # Write it
             for key, value in to_insert.items():

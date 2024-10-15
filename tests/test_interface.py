@@ -4,6 +4,7 @@ import h5py
 from pytest import mark, raises
 import numpy as np
 
+from moirae.estimators.online.filters.distributions import MultivariateGaussian
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate
 from moirae.interface.hdf5 import HDF5Writer
@@ -86,21 +87,21 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
     with h5py.File(h5_path) as f:
         assert 'state_estimates' in f
         group = f.get('state_estimates').get('per_step')
-        assert group['mean'].shape == (128, 3)
+        assert group['state_mean'].shape == (128, 3)
         assert 'covariance' not in group
         assert group['time'].shape == (128,)
 
         group = f.get('state_estimates').get('per_cycle')
-        assert group['mean'].shape == (4, 3)
-        assert group['covariance'].shape == (4, 3, 3)
+        assert group['state_mean'].shape == (4, 3)
+        assert group['state_covariance'].shape == (4, 3, 3)
         assert group['time'].shape == (4,)
 
 
 @mark.parametrize('what,expected_keys', [
-    ('full', ('mean', 'covariance')),
-    ('mean_cov', ('mean', 'covariance')),
-    ('mean_std', ('mean', 'std_dev')),
-    ('mean', ('mean',)),
+    ('full', ('state_mean', 'state_covariance', 'output_mean', 'output_covariance')),
+    ('mean_cov', ('state_mean', 'state_covariance', 'output_mean', 'output_covariance')),
+    ('mean_var', ('state_mean', 'state_variance', 'output_mean', 'output_variance')),
+    ('mean', ('state_mean', 'output_mean')),
     ('none', ())
 ])
 def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
@@ -109,16 +110,17 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
     rint_asoh.mark_updatable('r0.base_values')
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
     h5_path = Path(tmpdir / 'example.h5')
+    example_output = MultivariateGaussian(mean=np.array([0.]), covariance=np.array([[1.]]))
     with HDF5Writer(hdf5_output=h5_path, per_timestep=what) as writer:
         assert writer.is_ready
         writer.prepare(estimator)
 
         # Write two states to the file
-        writer.append_step(0., 0, estimator.state)
+        writer.append_step(0., 0, estimator.state, example_output)
 
         new_state = estimator.state.copy(deep=True)
         new_state.mean = estimator.state.get_mean() + 0.1
-        writer.append_step(1., 0, new_state)
+        writer.append_step(1., 0, new_state, example_output)
 
     # Make sure it's got the desired values
     with h5py.File(h5_path) as f:
@@ -129,9 +131,9 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
         else:
             my_group = group.get('per_step')
             # Mean should only be set in the first two rows
-            assert np.allclose(my_group['mean'][0, :], estimator.state.get_mean())
-            assert np.allclose(my_group['mean'][1, :], new_state.get_mean())
-            assert np.isnan(my_group['mean'][2:, :]).all()
+            assert np.allclose(my_group['state_mean'][0, :], estimator.state.get_mean())
+            assert np.allclose(my_group['state_mean'][1, :], new_state.get_mean())
+            assert np.isnan(my_group['state_mean'][2:, :]).all()
 
             # Check the other keys
             assert set(my_group.keys()) == set(expected_keys + ('time',))
@@ -139,11 +141,11 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
         # Make sure per_cycle was unaffected, and it only recorded the first state
         my_group = group.get('per_cycle')
 
-        assert np.allclose(my_group['mean'][0, :], estimator.state.get_mean())
-        assert np.allclose(my_group['covariance'][0, :], estimator.state.get_covariance())
+        assert np.allclose(my_group['state_mean'][0, :], estimator.state.get_mean())
+        assert np.allclose(my_group['state_covariance'][0, :], estimator.state.get_covariance())
         assert np.allclose(my_group['time'][0], 0)
 
-        assert np.isnan(my_group['mean'][1:, :]).all()
+        assert np.isnan(my_group['state_mean'][1:, :]).all()
 
 
 @mark.parametrize('mode', ('path', 'prefab'))
@@ -169,11 +171,12 @@ def test_interface_write(mode, simple_rint, tmpdir, timeseries_dataset):
 
         # Test that steps only include the mean
         per_step = group['per_step']
-        assert set(per_step.keys()) == {'time', 'mean'}
+        assert set(per_step.keys()) == {'time', 'state_mean', 'output_mean'}
 
         # Test that cycles includes the full version
         per_cycle = group['per_cycle']
-        assert set(per_cycle.keys()) == {'time', 'mean', 'covariance'}
+        assert set(per_cycle.keys()) == {'time', 'state_mean', 'state_covariance',
+                                         'output_mean', 'output_covariance'}
 
         # Ensure the shapes vary depending on prefab or path mode
         assert per_step['time'].shape == (len(timeseries_dataset.raw_data),)

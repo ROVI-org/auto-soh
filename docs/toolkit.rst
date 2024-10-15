@@ -35,10 +35,12 @@ and the estimator after running across all data.
 
 Access more state estimates by supplying a path at which to write an HDF5 file as the
 ``hdf5_output`` argument to ``run_online_estimate``.
-The interface will save the mean of the estimate for the state at each timestep,
-and a full resolution of the estimated state for the first timestep of each cycle.
+The interface will save the mean of the estimate for the state and outputs at each timestep,
+and the full probability distribution of the estimated state and outputs for the first timestep of each cycle.
 Provide an :class:`~moirae.interface.hdf5.HDF5Writer` (described below) to ``hdf5_output``
 to control which information is written to HDF5.
+
+.. note:: We may change to storing the average over a cycle instead of only the first time step.
 
 Writing Estimates to HDF5 Files
 -------------------------------
@@ -67,7 +69,7 @@ Write states to the file incrementally by calling :meth:`~moirae.interface.hdf5.
 .. code-block:: python
 
     with writer:
-        writer.append_step(step=0, time=1., cycle=0, state=estimator.state)
+        writer.append_step(step=0, time=1., cycle=0, state=estimator.state, output=output)
 
 The resultant data may not be available in the output HDF5 file until after the ``with`` block.
 
@@ -91,12 +93,14 @@ Metadata are listed as attributes.
     with h5py.File('states.hdf5') as f:
         assert 'state_estimates' in f
         group = f['state_estimates']
-        print(f'Estimates were performed by a {group.attrs["estimator_name"]} with physics described by a {group.attrs["cell_model"]}')
+        print(f'Estimates were performed by a {group.attrs["estimator_name"]}'
+              f' with physics described by a {group.attrs["cell_model"]}')
 
 The attributes stored by Moirae include:
 
 - ``write_settings``: The settings used by the ``HDF5Writer``
 - ``state_names``: Names of the states in the order provided in estimates
+- ``state_names``: Names of the outputs in the order provided by the estimator
 - ``estimator_name``: The name of the `estimator framework <estimators/index.html#online-estimators>`_ employed
 - ``distribution_type``: The type of `probability distribution <source/online.html#module-moirae.estimators.online.filters.distributions>`_ used by the estimator
 - ``cell_model``: Name of the `model used to describe cell behavior <system-models.html#defining-the-cell-physics>`_
@@ -109,5 +113,10 @@ The information in each varies depending on the choice of what to write.
 .. code-block:: python
 
     with h5py.File('states.hdf5') as f:
+        # Access the mean of all states for the first step of the first cycle
         per_cycle = group.get('per_cycle')
-        per_cycle['mean'][0, :]  # Access the mean of all states for the first step
+        per_cycle['mean'][0, :]
+
+        # Access the standard deviation of the first state for all time steps
+        per_cycle = group.get('per_step')
+        per_cycle['covariance'][:, 0, 0]
