@@ -9,7 +9,7 @@ Running Estimators on `BatteryDataset` Objects
 ----------------------------------------------
 
 The :meth:`~moirae.interface.run_online_estimate` object runs an online estimator using the performance
-data stored in the pandas-based, `BatteryDataset`.
+data stored in the pandas-based, :class:`~batdata.data.BatteryDataset`.
 
 .. code-block::
 
