@@ -253,6 +253,7 @@ def read_state_estimates(data_path: Union[str, Path, h5py.Group],
         read_type = json.loads(se_group.attrs['write_settings'])[tag]
         if read_type == 'full':
             if dist_type.__name__ != (stored_type := se_group.attrs['distribution_type']):
+                # TODO (wardlt): Have Moriae load the correct one automatically
                 raise ValueError(f'Estimates were stored as a {stored_type}'
                                  f' but you provided dist_type={dist_type.__name__}')
         elif read_type in ['mean_cov', 'mean_var']:
