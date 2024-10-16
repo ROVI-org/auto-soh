@@ -1,7 +1,8 @@
 """Tools for writing state estimates to HDF5 files"""
 from contextlib import AbstractContextManager
-from typing import Union, Optional, Literal, Dict, Any
+from typing import Union, Optional, Literal, Dict, Any, Iterator
 from pathlib import Path
+import json
 
 from flatten_dict import flatten
 from pydantic import BaseModel, Field, PrivateAttr
@@ -9,7 +10,7 @@ import numpy as np
 import h5py
 
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
-from moirae.estimators.online.filters.distributions import MultivariateGaussian
+from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
 
 OutputType = Literal['full', 'mean_cov', 'mean_var', 'mean', 'none']
 
@@ -35,6 +36,7 @@ def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution,
         raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
 
+# TODO (wardlt): Consider writing only every N timesteps
 class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
     """Write state estimation data to an HDF5 file incrementally
 
@@ -144,7 +146,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         output = MultivariateGaussian(mean=np.zeros((num_outputs,)),
                                       covariance=np.zeros((num_outputs, num_outputs)))
 
-        for what, where, expected in [(self.per_timestep, 'per_step', expected_steps),
+        for what, where, expected in [(self.per_timestep, 'per_timestep', expected_steps),
                                       (self.per_cycle, 'per_cycle', expected_cycles)]:
             # Determine what to write
             if what == "none":
@@ -184,7 +186,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
         # Write the column to the appropriate part of the HDF5 file
         # TODO (wardlt): Introduce a batched write implementation.
-        for ind, what, where in [(self.position, self.per_timestep, 'per_step'),
+        for ind, what, where in [(self.position, self.per_timestep, 'per_timestep'),
                                  (int(cycle), self.per_cycle, 'per_cycle')]:
             # Determine if we must write
             if what == "none":
@@ -213,3 +215,79 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 
         # Increment the step position
         self.position += 1
+
+
+def read_state_estimates(data_path: Union[str, Path, h5py.Group],
+                         per_timestep: bool = True,
+                         dist_type: type[MultivariateRandomDistribution] = MultivariateGaussian
+                         ) -> Iterator[tuple[float, MultivariateRandomDistribution, MultivariateRandomDistribution]]:
+    """
+    Read the state estimates from a file into progressive streams
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estiamtes
+        dist_type: Distribution type to create if the "full" distribution is stored
+
+    Yields:
+        - Time associated with estimate
+        - Distribution of state estimates
+        - Distribution of the output estimates
+    """
+
+    # Open the file and access the group holding the state estimates
+    file = None
+    if isinstance(data_path, (str, Path)):
+        file = h5py.File(data_path, mode='r')
+        try:
+            se_group = file['state_estimates']
+        except ValueError:
+            file.close()
+            raise
+    else:
+        se_group = data_path
+
+    try:
+        # Access the target group to read from
+        tag = 'per_timestep' if per_timestep else 'per_cycle'
+        read_type = json.loads(se_group.attrs['write_settings'])[tag]
+        if read_type == 'full':
+            if dist_type.__name__ != (stored_type := se_group.attrs['distribution_type']):
+                raise ValueError(f'Estimates were stored as a {stored_type}'
+                                 f' but you provided dist_type={dist_type.__name__}')
+        elif read_type in ['mean_cov', 'mean_var']:
+            dist_type = MultivariateGaussian
+        elif read_type == 'mean':
+            dist_type = DeltaDistribution
+        elif read_type == 'none':
+            raise ValueError(f'No data was written for {tag}')
+        else:
+            raise NotImplementedError(f'Support for {read_type} not yet implemented')
+        data_group = se_group[tag]
+
+        # Read what data are available
+        data_keys = list(data_group.keys())
+        data_keys.remove('time')
+
+        # Yield the data from the file
+        def _unpack(ind, typ):
+            values = dict((k[len(typ):], data_group[k][ind]) for k in data_keys if k.startswith(typ))
+
+            # Expand variance to covariance
+            if read_type == 'mean_var':
+                values['covariance'] = np.diag(values.pop('variance'))
+            return values
+
+        for i, time in enumerate(data_group['time']):
+            if np.isnan(time):  # NaN marks the end of the data
+                return
+            # Unpack the dists
+            state_values = _unpack(i, 'state_')
+            state_dist = dist_type(**state_values)
+
+            output_values = _unpack(i, 'output_')
+            output_dist = dist_type(**output_values)
+            yield time, state_dist, output_dist
+    finally:
+        if file is not None:
+            file.close()

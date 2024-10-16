@@ -100,14 +100,14 @@ The attributes stored by Moirae include:
 
 - ``write_settings``: The settings used by the ``HDF5Writer``
 - ``state_names``: Names of the states in the order provided in estimates
-- ``state_names``: Names of the outputs in the order provided by the estimator
+- ``output_names``: Names of the outputs in the order provided by the estimator
 - ``estimator_name``: The name of the `estimator framework <estimators/index.html#online-estimators>`_ employed
 - ``distribution_type``: The type of `probability distribution <source/online.html#module-moirae.estimators.online.filters.distributions>`_ used by the estimator
 - ``cell_model``: Name of the `model used to describe cell behavior <system-models.html#defining-the-cell-physics>`_
 - ``initial_asoh``: Initial estimate of the cell health parameters
 - ``initial_transient_state``: Initial estimate of the cell transient state
 
-The values of the estimates at each timestep and the first step in each cycle are stored in ``per_step`` and ``per_cycle`` subgroups, respectively.
+The values of the estimates at each timestep and the first step in each cycle are stored in ``per_timestep`` and ``per_cycle`` subgroups, respectively.
 The information in each varies depending on the choice of what to write.
 
 .. code-block:: python
@@ -118,5 +118,13 @@ The information in each varies depending on the choice of what to write.
         per_cycle['mean'][0, :]
 
         # Access the standard deviation of the first state for all time steps
-        per_cycle = group.get('per_step')
+        per_cycle = group.get('per_timestep')
         per_cycle['covariance'][:, 0, 0]
+
+Moirae provides a utility function, :meth:`~moirae.interface.hdf5.read_state_estimates`, to read the
+distributions from the file sequentially as :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.
+
+.. code-block:: python
+
+    for time, state_dist, output_dist in read_state_estimates('states.hdf5', per_timestep=True):
+        continue  # Distributions are read into memory in batches as an iterator
