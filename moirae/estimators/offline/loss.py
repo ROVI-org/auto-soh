@@ -38,6 +38,7 @@ class BaseLoss:
         self.state = transient_state.model_copy(deep=True)
         self.observations = observations
 
+    # TODO (wardlt): Consider passing the ASOH parameters through somewhere else
     def get_x0(self) -> np.ndarray:
         """Generate an initial guess
 
