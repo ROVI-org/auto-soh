@@ -55,6 +55,19 @@ def test_interface(simple_rint, timeseries_dataset, estimator):
     # TODO (wardlt): Would be nice to have a check that the SOC, at least, was determined well
 
 
+def test_interface_stream(simple_rint, timeseries_dataset, tmpdir):
+    # Make a simple estimator
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+
+    # Run then make sure it returns the proper data types
+    h5_path = Path(tmpdir) / 'example.h5'
+    timeseries_dataset.to_batdata_hdf(h5_path)
+    state_mean, estimator = run_online_estimate(h5_path, estimator, hdf5_output=Path(tmpdir) / 'estimates.h5')
+    assert state_mean.shape[0] == len(timeseries_dataset.raw_data)
+
+
 def test_hdf5_writer_init(simple_rint, tmpdir):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
