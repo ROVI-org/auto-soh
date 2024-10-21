@@ -2,7 +2,6 @@
 with a particular emphasis on data built with
 `battery-data-toolkit <https://github.com/ROVI-org/battery-data-toolkit>`_"""
 from contextlib import nullcontext
-
 from typing import Tuple, Union
 from math import isfinite
 from pathlib import Path
@@ -12,6 +11,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from batdata.data import BatteryDataset
+from batdata.streaming import iterate_records_from_file
 
 from moirae.estimators.online import OnlineEstimator
 from moirae.interface.hdf5 import HDF5Writer
@@ -49,7 +49,7 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
 
 # TODO (wardlt): Create generic "Writer" classes which can store data in other formats (e.g., streaming to DataHub)
 def run_online_estimate(
-        dataset: BatteryDataset,
+        dataset: Union[BatteryDataset, str, Path],
         estimator: OnlineEstimator,
         pbar: bool = False,
         output_states: bool = True,
@@ -58,7 +58,8 @@ def run_online_estimate(
     """Run an online estimation of battery parameters given a fixed dataset for the
 
     Args:
-        dataset: Dataset containing the time series of a battery's performance
+        dataset: Dataset containing the time series of a battery's performance.
+            Provide either the path to a ``battdata`` HDF5 file or :class:`~batdata.data.BatteryDataset` object.
         estimator: Technique used to estimate the state of health, which is built using
             a physics model which describes the cell and initial guesses for the battery
             transient and health states.
@@ -74,20 +75,38 @@ def run_online_estimate(
         - Estimator after updating with the data in dataset
     """
 
-    # Ensure raw data are present in the data file
-    if dataset.raw_data is None:
-        raise ValueError('No time series data in the provided dataset')
+    # Determine the number of rows in the dataset and an interator over the dataset
+    if isinstance(dataset, BatteryDataset):
+        # Ensure raw data are present in the data file
+        if dataset.raw_data is None:
+            raise ValueError('No time series data in the provided dataset')
+
+        num_rows = dataset.raw_data.shape[0]
+        num_cycles = dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0
+
+        def _row_iter(d):
+            for _, r in d.iterrows():
+                yield r
+
+        row_iter = _row_iter(dataset.raw_data.reset_index())  # .reset_index to iterate in sort order
+    elif isinstance(dataset, (str, Path)):
+        with pd.HDFStore(dataset, mode='r') as store:
+            num_rows = store.get_storer('raw_data').nrows
+        row_iter = iterate_records_from_file(dataset)
+        num_cycles = None  # Cannot know this w/o reading
+    else:
+        raise ValueError(f'Unrecognized data type: {type(dataset)}')
 
     # Update the initial inputs for the
-    initial_input, _ = row_to_inputs(dataset.raw_data.iloc[0])
+    initial_input, _ = row_to_inputs(next(row_iter))
     estimator._u = initial_input
 
     # Initialize the output arrays
     if output_states:
-        state_mean = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
-        state_std = np.zeros((len(dataset.raw_data), estimator.num_state_dimensions))
-        output_mean = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
-        output_std = np.zeros((len(dataset.raw_data), estimator.num_output_dimensions))
+        state_mean = np.zeros((num_rows, estimator.num_state_dimensions))
+        state_std = np.zeros((num_rows, estimator.num_state_dimensions))
+        output_mean = np.zeros((num_rows, estimator.num_output_dimensions))
+        output_std = np.zeros((num_rows, estimator.num_output_dimensions))
 
     # Open a H5 output if desired
     if isinstance(hdf5_output, (str, Path, h5py.Group)):
@@ -101,15 +120,11 @@ def run_online_estimate(
     with h5_writer:
         # Prepare given the available data
         if hdf5_output is not None:
-            h5_writer.prepare(
-                estimator=estimator,
-                expected_steps=len(dataset.raw_data),
-                expected_cycles=dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0,
-            )
+            h5_writer.prepare(estimator=estimator, expected_steps=num_rows, expected_cycles=num_cycles)
 
-        for i, (_, row) in tqdm(
-                enumerate(dataset.raw_data.reset_index().iterrows()), total=len(dataset.raw_data), disable=not pbar,
-        ):  # .reset_index to iterate in sort order
+        for i, row in tqdm(
+                enumerate(row_iter), total=num_rows, disable=not pbar,
+        ):
             controls, measurements = row_to_inputs(row)
             new_state, new_outputs = estimator.step(controls, measurements)
 

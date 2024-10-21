@@ -28,8 +28,8 @@ def make_dataset(simple_rint):
     num_cycles = 2
     charge_time = 1800
     discharge_time = charge_time * 2
-    charge_current = rint_asoh.q_t.value / discharge_time
-    discharge_current = -rint_asoh.q_t.value / discharge_time
+    charge_current = rint_asoh.q_t.value.item() / discharge_time
+    discharge_current = -rint_asoh.q_t.value.item() / discharge_time
     rest_time = 20.
 
     # Run the model
@@ -46,7 +46,7 @@ def make_dataset(simple_rint):
     def _update_outputs(time, current, transient, outputs, cycle_number):
         output['test_time'].append(time)
         output['current'].append(-current)  # Battery data toolkit uses opposite sign convention
-        output['voltage'].append(outputs.terminal_voltage)
+        output['voltage'].append(outputs.terminal_voltage.item())
         output['cycle_number'] = cycle_number
 
     for cycle in range(num_cycles):
