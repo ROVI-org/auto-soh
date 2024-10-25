@@ -3,6 +3,7 @@ from typing import Tuple, Optional, Union, List
 
 from pydantic import Field
 import numpy as np
+from scipy.integrate import trapezoid
 
 from moirae.models.base import HealthVariable, ScalarParameter
 from .components import (MaxTheoreticalCapacity,
@@ -26,6 +27,24 @@ class ECMASOH(HealthVariable):
     rc_elements: Tuple[RCComponent, ...] = Field(default_factory=tuple, description='Tuple of RC components')
     h0: HysteresisParameters = Field(default=HysteresisParameters(base_values=0.0),
                                      description='Hysteresis component')
+
+    def get_theoretical_energy(self, temperature: Optional[float] = None) -> Union[float, np.ndarray]:
+        """
+        Function that computes the maximum theoretical energy of the cell in Wh.
+
+        By integrating the OCV over the SOC, we can calculate the amount of energy available in the cell, assuming no
+        losses (such as I*R0 ones).
+
+        Args:
+            temperature: value of temperature (in °C) to be used in the calculation of energy; defaults to None
+
+        Returns:
+            value(s) of maximum theoretical energy, which may be batched
+        """
+        soc_vals = np.linspace(0., 1., 100)
+        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)
+        energy = self.q_t.amp_hour * trapezoid(y=ocv_vals.reshape((self.batch_size, len(soc_vals))), x=soc_vals)
+        return energy
 
     @classmethod
     def provide_template(
