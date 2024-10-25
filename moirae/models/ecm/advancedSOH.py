@@ -41,10 +41,13 @@ class ECMASOH(HealthVariable):
         Returns:
             value(s) of maximum theoretical energy, which may be batched
         """
+        # Get SOC values to be used in the integration
         soc_vals = np.linspace(0., 1., 100)
-        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)
-        energy = self.q_t.amp_hour * trapezoid(y=ocv_vals.reshape((self.batch_size, len(soc_vals))), x=soc_vals)
-        return energy
+        # If the OCV is batched, we need additional caution
+        if self.ocv.batch_size == 1:
+            ocv_vals = self.ocv(soc=soc_vals, temp=temperature)
+            energy = self.q_t.amp_hour * trapezoid(y=ocv_vals.reshape((self.batch_size, len(soc_vals))), x=soc_vals)
+            return energy.reshape((self.batch_size, 1))
 
     @classmethod
     def provide_template(
