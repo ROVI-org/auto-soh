@@ -71,10 +71,14 @@ class EquivalentCircuitModel(CellModel):
             q0_kp1 = transient_state.q0 + charge_cycled
 
         # Update i_RCs
-        iRC_kp1 = transient_state.i_rc.copy()  # Shape: batch_size, num_rc
+        iRC_kp1 = transient_state.i_rc.copy()  # Shape: (trans_batch_size, num_rc, trans_dim if it is > 1)
         if iRC_kp1.shape[1] > 0:  # If there are RC elements
             tau = np.array([RC.time_constant(soc=soc_k, temp=temp_k)
-                            for RC in asoh.rc_elements])[:, :, 0].T  # Shape: batch_size, num_rc
+                            for RC in asoh.rc_elements])  # Shape: (num_rc, asoh_batch_size == trans_batch_size, 1)
+            tau = np.swapaxes(tau, axis1=0, axis2=1)  # transpose to get shape of (batch_size, num_rc, ...)
+            # Now, there is a chance the array is 3D, so we will remove the additional dimensions
+            while len(tau.shape) > 2 and tau.shape[-1] == 1:
+                tau = tau.reshape(tau.shape[:-1])
             exp_factor = np.exp(-delta_t / tau)
             iRC_kp1 = iRC_kp1 * exp_factor
             iRC_kp1 = iRC_kp1 + ((1 - exp_factor) * (current_kp1 - (current_slope * tau)))
@@ -87,7 +91,7 @@ class EquivalentCircuitModel(CellModel):
         # Recall that, if charging, than M has to be >0, but, if dischargin, it
         # has to be <0. The easiest way to check for that is to multiply by the
         # current and divide by its absolute value
-        M *= current_k
+        M = M * current_k
         if current_k != 0:
             M /= abs(current_k)
 
@@ -158,8 +162,13 @@ class EquivalentCircuitModel(CellModel):
                 [rc.r.get_value(soc=transient_state.soc,
                                 temp=new_inputs.temperature)
                  for rc in asoh.rc_elements]
-            )  # Shape: (rc_rs, batch_dim, 1 resistance)
-            V_drops = transient_state.i_rc * rc_rs[:, :, 0].T
+            )  # Shape: (rc_rs, batch_dim == soc_batch ?, num_soc_values = 1?)
+            # Transpose to get the batch size as first dimension
+            rc_rs = np.swapaxes(rc_rs, axis1=0, axis2=1)
+            # Remove superfluous last dimensions if they exist
+            while len(rc_rs.shape) > 2 and rc_rs.shape[-1] == 1:
+                rc_rs = rc_rs.reshape(rc_rs.shape[:-1])
+            V_drops = transient_state.i_rc * rc_rs
             Vt = Vt + np.sum(V_drops, axis=1, keepdims=True)
 
         # Include hysteresis

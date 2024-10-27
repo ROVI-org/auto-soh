@@ -42,41 +42,73 @@ class SOCInterpolatedHealth(HealthVariable):
                         fill_value='extrapolate')
         return func
 
-    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
-        """Computes value(s) at given SOC(s)
+    def get_value(self, soc: Union[Number, List, np.ndarray], broadcast_batch: bool = True) -> np.ndarray:
+        """Computes value(s) at given SOC(s).
+
+        If the SOC is batched and the :class:`~moirae.models.ecm.utils.SOCInterpolatedHealth` base values are also
+        batched, the returned array will be a 3D array with shape (health.batch_size, soc.batch_size, num_soc_vals),
+        unless the SOC batch size matched the internal batch size and the broadcast_batch flag is set to True, in which
+        case each SOC batch will be matched with a base value batch. Additionally, if the broadcast_batch flag is set to
+        True, it will also remove superfluous batch dimensions, meaning, if a batch only has one component, it will be
+        removed (as to conform to previous standards we had set).
 
         Args:
             soc: Values at which to compute the property
+            broadcast_batch: flag to determine whether to broadcast as much as possible. If True, it will try to match
+            SOC batches with internal batches and remove superfluous dimensions; defaults to True
         Returns:
             Interpolated values
         """
         # Determine which case we're dealing with
-        batch_size = self.batch_size
         soc = np.array(soc)
-        input_dims = soc.shape
-        soc_batch_size = soc.size
+        soc_shape = soc.shape
+        soc_batch_size = 1
+        soc_dim = 1 if len(soc_shape) == 0 else soc_shape[0]  # taking care of 0 or 1D cases
+        if len(soc_shape) == 2:
+            soc_batch_size = soc.shape[0]
+            soc_dim = soc.shape[1]
+        internal_batch_size = self.batch_size
 
         # Special case: no interpolation
         if self.base_values.shape[-1] == 1:
-            y = self.base_values[:, 0].copy()
-            if soc_batch_size > 0 and batch_size == 1:
-                return np.repeat(y, soc.size, axis=0).reshape(input_dims)
-            elif soc_batch_size == 1 and batch_size > 1:
-                if len(input_dims) > 0:
-                    return y.reshape((batch_size, 1))
-                else:
-                    return y.reshape((batch_size,))
-            return y.reshape(input_dims)
+            y = self.base_values[:, 0].copy()[:, None]  # shape = (internal_batch_size, 1)
+            y = np.tile(y, (soc_batch_size, 1, soc_dim))  # shape = (soc_batch, internal_batch, soc_dim)
+            y = np.swapaxes(y, 0, 1)  # shape = (internal_batch, soc_batch, soc_dim)
+        # Otherwise, run the interpolator, but the results mean something different
+        else:
+            y = self._interp_func(soc)  # interpolator adds batch dimension:
+            # If the SOC was batched, the shape is (internal_batch, soc_batch, soc_dim)
+            # Otherwise, the shape is (internal_batch, soc_dim)
+            y = y.reshape((internal_batch_size, soc_batch_size, soc_dim))
 
-        # Run the interpolator, but the results mean something different
-        y = self._interp_func(soc)  # interpolator adds a dimension
-        if soc_batch_size > 1 and batch_size > 1:
-            y = np.diag(y.squeeze())  # Match the SOC with the model its calling
-        elif soc_batch_size == 1 and batch_size > 1:
-            if len(input_dims) > 1:
-                return y.reshape((batch_size, soc_batch_size))
-            return y.reshape((batch_size,) + input_dims)
-        return y.reshape(input_dims)
+        # Now, the y array has shape (internal_batch, soc_batch, soc_dim).
+        # If we don't need to broadcast the batches, we can check if the soc_dim is 1 and, if not return
+        if not broadcast_batch:
+            return y if soc_dim != 1 else y.reshape(y.shape[:-1])
+
+        # We now have to attempt to broadcast and squeeze everything we can
+        y_shape = y.shape
+        expected_shape = (internal_batch_size, soc_batch_size, soc_dim)
+        assert y_shape == expected_shape, f'Wrong shape of interpolated array; got {y_shape}, expected {expected_shape}'
+        # First, check to see if need to match the SOC batches with the internal matches
+        if soc_batch_size == internal_batch_size:
+            # Let's get the elements along the diagonal off the axes SOC_batch and internal_batch
+            y = np.diagonal(y, axis1=0, axis2=1).T  # a new axis, corresponding to the diagonal, is added at the end
+            y = y.copy()  # the return from np.diagonal is read-only, so copy makes it read/write
+        # If the SOC batch is superflous, we remove it
+        if soc_batch_size == 1:
+            y = y.reshape((internal_batch_size, soc_dim))
+        # If the internal batch is superflous, we remove it
+        if internal_batch_size == 1:
+            y = y.reshape((soc_batch_size, soc_dim))
+        # If it just so happens we ended up again with a superflous first dimension, remove it
+        if y.shape[0] == 1:
+            y = y.reshape(y.shape[1:])
+        # Finally, if only one SOC value was provided as a single number, we need to squeeze it
+        if soc_dim == 1:
+            if len(soc_shape) == 0:  # We need to distinguish the 0D case
+                return y.squeeze()
+        return y
 
 
 def realistic_fake_ocv(

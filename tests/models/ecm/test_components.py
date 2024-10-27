@@ -31,12 +31,16 @@ def test_r_batch():
     assert np.allclose(r, [0.05, 0.06])
 
     r = r_model.get_value([0., 0.5])
-    assert r.shape == (2,)
-    assert np.allclose(r, [0.05, 0.055])
+    assert r.shape == (2, 2)
+    assert np.allclose(r, [[0.05, 0.045], [0.06, 0.055]])
 
     r = r_model.get_value([[0.], [0.5]])  # (n_batches, 1) format used elsewhere
     assert r.shape == (2, 1)
     assert np.allclose(r, [[0.05], [0.055]])
+
+    r = r_model.get_value([[0.], [0.5]], broadcast_batch=False)  # do not try to match the batches
+    assert r.shape == (2, 2)
+    assert np.allclose(r, [[0.05, 0.045], [0.06, 0.055]])
 
     # SOC provided as "batched" with batch size of 1 (that is, shape is (1,1))
     r = r_model.get_value([[0.]])

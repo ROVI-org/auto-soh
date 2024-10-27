@@ -51,14 +51,15 @@ class Resistance(SOCInterpolatedHealth):
 
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
-                  temp: Union[float, List, np.ndarray, None] = None
+                  temp: Union[float, List, np.ndarray, None] = None,
+                  broadcast_batch: bool = True
                   ) -> Union[float, np.ndarray]:
         """
         Computes value of series resistance at a given SOC and temperature.
         """
 
         # Compute the SOC dependence
-        reference_value = super().get_value(soc)
+        reference_value = super().get_value(soc, broadcast_batch=broadcast_batch)
 
         # Correct for temperature dependence
         if temp is None or self.temperature_dependence_factor == 0:
@@ -86,20 +87,22 @@ class RCComponent(HealthVariable):
 
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
-                  temp: Union[float, List, np.ndarray, None] = None
+                  temp: Union[float, List, np.ndarray, None] = None,
+                  broadcast_batch: bool = True
                   ) -> List[Union[float, np.ndarray]]:
         """
         Returns values of resistance and capacitance at given SOC and temperature.
         """
-        r_val = self.r.get_value(soc=soc, temp=temp)
-        c_val = self.c.get_value(soc=soc)
+        r_val = self.r.get_value(soc=soc, temp=temp, broadcast_batch=broadcast_batch)
+        c_val = self.c.get_value(soc=soc, broadcast_batch=broadcast_batch)
         return [r_val, c_val]
 
     def time_constant(self,
                       soc: Union[float, List, np.ndarray],
-                      temp: Union[float, List, np.ndarray, None] = None
+                      temp: Union[float, List, np.ndarray, None] = None,
+                      broadcast_batch: bool = True
                       ) -> Union[float, np.ndarray]:
-        r, c = self.get_value(soc=soc, temp=temp)
+        r, c = self.get_value(soc=soc, temp=temp, broadcast_batch=broadcast_batch)
         return r * c
 
 
@@ -126,16 +129,17 @@ class OpenCircuitVoltage(HealthVariable):
 
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
-                  temp: Union[float, List, np.ndarray, None] = None
+                  temp: Union[float, List, np.ndarray, None] = None,
+                  broadcast_batch: bool = True
                   ) -> Union[float, np.ndarray]:
         """
         Returns values of OCV at given SOC(s) and temperature(s).
         """
-        ocv = enforce_dimensions(self.ocv_ref.get_value(soc=soc), 0)
+        ocv = enforce_dimensions(self.ocv_ref.get_value(soc=soc, broadcast_batch=broadcast_batch), 0)
         if temp is not None:
             T_ref = self.ocv_ref.reference_temperature
             delta_T = temp - T_ref
-            ocv += delta_T * enforce_dimensions(self.ocv_ent.get_value(soc=soc), 0)
+            ocv += delta_T * enforce_dimensions(self.ocv_ent.get_value(soc=soc, broadcast_batch=broadcast_batch), 0)
         return ocv
 
     def __call__(self,
