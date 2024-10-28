@@ -43,14 +43,28 @@ class SOCInterpolatedHealth(HealthVariable):
         return func
 
     def get_value(self, soc: Union[Number, List, np.ndarray], broadcast_batch: bool = True) -> np.ndarray:
-        """Computes value(s) at given SOC(s).
+        """
+        Computes value(s) at given SOC(s).
 
-        If the SOC is batched and the :class:`~moirae.models.ecm.utils.SOCInterpolatedHealth` base values are also
-        batched, the returned array will be a 3D array with shape (health.batch_size, soc.batch_size, num_soc_vals),
-        unless the SOC batch size matched the internal batch size and the broadcast_batch flag is set to True, in which
-        case each SOC batch will be matched with a base value batch. Additionally, if the broadcast_batch flag is set to
-        True, it will also remove superfluous batch dimensions, meaning, if a batch only has one component, it will be
-        removed (as to conform to previous standards we had set).
+        If the SOC array is two dimensional, it is considered to have shape `(soc_batch_size, soc_dim)`.
+        If it is one dimensional, it is considered to have a single batch (that is, `soc_batch_size == 1`).
+        If it is zero dimensional (just a number), we treat is as `soc_batch_size == soc_dim == 1`.
+
+        That means we consider `soc_batch_size` batches, each with `soc_dim` values to be evaluated. The underlying
+        :class:`~moirae.models.ecm.utils.SOCInterpolatedHealth` base values are also batched, with `internal_batch_size`
+        batches.
+
+        Therefore, it is natural to work with a 3D array of shape `(internal_batch_size, soc_batch_size, soc_dim)`. If
+        the user does not wish to broadcast and match batches, they must set the `broadcast_batch` value to `False`, in
+        which case the return array is the 3D array mentioned above.
+
+        However, in most cases, each SOC batch is supposed to be equally matched with a internal batch (that is the
+        case in joint UKF estimation, for example). The default behavior is to ty to match these batches, so that the
+        returned array is 2D with shape `(internal_batch_size = soc_batch_size, soc_dim)` if the batch sizes are equal.
+        Additionally, the `broadcast_batch` flag will also remove superfluous dimensions, that is, if any of the batch
+        sizes is equal to one, the array will be flattened in the dimension. For example, if both the SOC and the
+        internal batch sizes are one, the returned array will have shape `(soc_dim,)`, unless the SOC was passed as a
+        single number, in which case the return will be 0D as well.
 
         Args:
             soc: Values at which to compute the property
