@@ -83,7 +83,7 @@ class EquivalentCircuitModel(CellModel):
                 tau = np.diagonal(tau, axis1=1, axis2=2)  # shape (num_rc, 1, batch_size)
                 tau = np.swapaxes(tau, axis1=1, axis2=2)  # shape (num_rc, batch_size, 1)
             # Make sure this is 2D in a way that takes care of the case where one or both of the batche sizes is 1
-            tau = np.atleast_2d(tau.squeeze())  # shape (num_rc, batch_size)
+            tau = tau.reshape((tau.shape[0], -1))  # shape (num_rc, batch_size)
             # Transpose to get shape of (batch_size, num_rc)
             tau = np.swapaxes(tau, axis1=0, axis2=1)
             # Now, tau should be two-dimensional
@@ -140,9 +140,10 @@ class EquivalentCircuitModel(CellModel):
         assert len(hyst_kp1.shape) == 3, f'Hysteresis has shape {hyst_kp1.shape}, but we expected a 3D array!'
         if hyst_kp1.shape[0] == hyst_kp1.shape[1]:
             hyst_kp1 = np.diagonal(hyst_kp1, axis1=0, axis2=1)  # shape (1, batch_size)
-            hyst_kp1 = np.swapaxes(hyst_kp1, axis1=0, axis2=1)
-        # Now, make sure array is 2D, even when the batches are not equal (which means at least one of them is 1)
-        hyst_kp1 = np.atleast_2d(hyst_kp1.squeeze())
+            hyst_kp1 = np.swapaxes(hyst_kp1, axis1=0, axis2=1)  # shape (batch_size, 1)
+        # Now, make sure array is 2D, even when the batches are not equal (which means at least one of them is 1 due to
+        # the assumption that they must be broadcastable)
+        hyst_kp1 = hyst_kp1.squeeze().reshape((-1, 1))
 
         return ECMTransientVector(soc=soc_kp1,
                                   q0=q0_kp1,
@@ -190,7 +191,7 @@ class EquivalentCircuitModel(CellModel):
             # For proper broadcasting, let's turn this into a shape of (num_rc, i_rc_batch, 1)
             i_rc = i_rc.T[:, :, None]
             V_drops = i_rc * rc_rs  # shape (rc.r_batch, num_rc, trans_batch, soc_dim=1)
-            V_drop_sum = np.sum(V_drops, axis=1, keepdims=True)  # shape (rc.r_batch, trans_batch, soc_dim=1)
+            V_drop_sum = np.sum(V_drops, axis=1)  # shape (rc.r_batch, trans_batch, soc_dim=1)
             Vt = Vt + V_drop_sum  # shape (asoh_batch_size, trans_batch_size, 1)
 
         # Include hysteresis
