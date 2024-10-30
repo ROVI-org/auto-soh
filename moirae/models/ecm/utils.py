@@ -42,29 +42,16 @@ class SOCInterpolatedHealth(HealthVariable):
                         fill_value='extrapolate')
         return func
 
-    def get_value(self, soc: Union[Number, List, np.ndarray], broadcast_batch: bool = True) -> np.ndarray:
+    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
         """
         Computes value(s) at given SOC(s).
 
-        If the SOC array is two dimensional, it is considered to have shape `(soc_batch_size, soc_dim)`.
-        If it is one dimensional, it is considered to have a single batch (that is, `soc_batch_size == 1`).
-        If it is zero dimensional (just a number), we treat is as `soc_batch_size == soc_dim == 1`.
-
-        That means we consider `soc_batch_size` batches, each with `soc_dim` values to be evaluated. The underlying
-        :class:`~moirae.models.ecm.utils.SOCInterpolatedHealth` base values are also batched, with `internal_batch_size`
-        batches.
-
-        Therefore, it is natural to work with a 3D array of shape `(internal_batch_size, soc_batch_size, soc_dim)`. If
-        the user does not wish to broadcast and match batches, they must set the `broadcast_batch` value to `False`, in
-        which case the return array is the 3D array mentioned above.
-
-        However, in most cases, each SOC batch is supposed to be equally matched with a internal batch (that is the
-        case in joint UKF estimation, for example). The default behavior is to ty to match these batches, so that the
-        returned array is 2D with shape `(internal_batch_size = soc_batch_size, soc_dim)` if the batch sizes are equal.
-        Additionally, the `broadcast_batch` flag will also remove superfluous dimensions, that is, if any of the batch
-        sizes is equal to one, the array will be flattened in the dimension. For example, if both the SOC and the
-        internal batch sizes are one, the returned array will have shape `(soc_dim,)`, unless the SOC was passed as a
-        single number, in which case the return will be 0D as well.
+        This function always returns a 3D array, of shape `(internal_batch_size, soc_batch_size, soc_dim)`, where
+        `internal_batch_size` is the batch size of the underlying health variable, `soc_batch_size` is the batch size
+        of the SOC array, and `soc_dim` is the dimensionality of the SOC. The SOC must be passed as either:
+        1. a 2D array of shape `(soc_batch_size, soc_dim)`
+        2. a 1D array of shape `(soc_dim,)`, in which case we will consider the `soc_batch_size` to be equal to 1
+        3. a 0D array (that is, a numer), in which case both `soc_batch_size` and `soc_dim` are equal to 1.
 
         Args:
             soc: Values at which to compute the property
@@ -78,6 +65,8 @@ class SOCInterpolatedHealth(HealthVariable):
         soc_shape = soc.shape
         soc_batch_size = 1
         soc_dim = 1 if len(soc_shape) == 0 else soc_shape[0]  # taking care of 0 or 1D cases
+        if len(soc_shape) > 3:
+            raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc_shape}!')
         if len(soc_shape) == 2:
             soc_batch_size = soc.shape[0]
             soc_dim = soc.shape[1]
@@ -96,32 +85,6 @@ class SOCInterpolatedHealth(HealthVariable):
             y = y.reshape((internal_batch_size, soc_batch_size, soc_dim))
 
         # Now, the y array has shape (internal_batch, soc_batch, soc_dim).
-        # If we don't need to broadcast the batches, we can check if the soc_dim is 1 and, if not return
-        if not broadcast_batch:
-            return y if soc_dim != 1 else y.reshape(y.shape[:-1])
-
-        # We now have to attempt to broadcast and squeeze everything we can
-        y_shape = y.shape
-        expected_shape = (internal_batch_size, soc_batch_size, soc_dim)
-        assert y_shape == expected_shape, f'Wrong shape of interpolated array; got {y_shape}, expected {expected_shape}'
-        # First, check to see if need to match the SOC batches with the internal matches
-        if soc_batch_size == internal_batch_size:
-            # Let's get the elements along the diagonal off the axes SOC_batch and internal_batch
-            y = np.diagonal(y, axis1=0, axis2=1).T  # a new axis, corresponding to the diagonal, is added at the end
-            y = y.copy()  # the return from np.diagonal is read-only, so copy makes it read/write
-        # If the SOC batch is superflous, we remove it
-        if soc_batch_size == 1:
-            y = y.reshape((internal_batch_size, soc_dim))
-        # If the internal batch is superflous, we remove it
-        if internal_batch_size == 1:
-            y = y.reshape((soc_batch_size, soc_dim))
-        # If it just so happens we ended up again with a superflous first dimension, remove it
-        if y.shape[0] == 1:
-            y = y.reshape(y.shape[1:])
-        # Finally, if only one SOC value was provided as a single number, we need to squeeze it
-        if soc_dim == 1:
-            if len(soc_shape) == 0:  # We need to distinguish the 0D case
-                return y.squeeze()
         return y
 
 
@@ -178,7 +141,7 @@ def hysteresis_solver_const_sign(
         Hysteresis value at the end of the time interval
     """
     assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
-    exp_factor = kappa * dt
+    exp_factor = kappa * dt  # shape (broadcasted_batch_size, 1)
     exp_factor = exp_factor * (i0 + (0.5 * alpha * dt))
     # Now, flip the sign depending if current is positive in the interval
     if i0 > -(alpha * dt):  # this indicates (i0 + alpha * t) > 0
