@@ -183,10 +183,8 @@ class EquivalentCircuitModel(CellModel):
                                 temp=new_inputs.temperature)
                  for rc in asoh.rc_elements]
             )  # Shape: (num_rc, rc.r_batch, soc_batch, soc_dim=1)
-            print(f'1. {rc_rs.shape}')
             # Transpose to get shape of (rc.r_batch, num_rc, soc_batch, soc_dim=1)
             rc_rs = np.swapaxes(rc_rs, axis1=0, axis2=1)
-            print(f'2. {rc_rs.shape}')
             # Get currents through resistors in RC
             i_rc = transient_state.i_rc  # shape (i_rc_batch, num_rc)
             # For proper broadcasting, let's turn this into a shape of (num_rc, i_rc_batch, 1)
