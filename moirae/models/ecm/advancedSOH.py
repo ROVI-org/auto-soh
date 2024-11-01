@@ -28,7 +28,9 @@ class ECMASOH(HealthVariable):
     h0: HysteresisParameters = Field(default=HysteresisParameters(base_values=0.0),
                                      description='Hysteresis component')
 
-    def get_theoretical_energy(self, temperature: Optional[float] = None) -> Union[float, np.ndarray]:
+    def get_theoretical_energy(self,
+                               soc_limits: Tuple[float, float] = (0., 1.),
+                               temperature: Optional[float] = None) -> Union[float, np.ndarray]:
         """
         Function that computes the maximum theoretical energy of the cell in Wh.
 
@@ -36,18 +38,20 @@ class ECMASOH(HealthVariable):
         losses (such as I*R0 ones).
 
         Args:
+            soc_limits: minimum and maximum SOC limit to be used in the computation of the energy; defaults to (0, 1)
             temperature: value of temperature (in °C) to be used in the calculation of energy; defaults to None
 
         Returns:
-            value(s) of maximum theoretical energy, which may be batched
+            value(s) of maximum theoretical energy as a 2D array of shape (asoh_batch_size, 1)
         """
         # Get SOC values to be used in the integration
-        soc_vals = np.linspace(0., 1., 100)
-        # If the OCV is batched, we need additional caution
-        if self.ocv.batch_size == 1:
-            ocv_vals = self.ocv(soc=soc_vals, temp=temperature)
-            energy = self.q_t.amp_hour * trapezoid(y=ocv_vals.reshape((self.batch_size, len(soc_vals))), x=soc_vals)
-            return energy.reshape((self.batch_size, 1))
+        soc_vals = np.linspace(min(soc_limits), max(soc_limits), 100)
+        # Get corresponding OCV
+        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)  # shape (ocv_batch, 1, soc_dim)
+        # Integrate
+        energy = trapezoid(y=ocv_vals, x=soc_vals, axis=-1)  # integrate over the last axis, corresponding to soc_dim
+        # Now, multiply by the charge
+        return energy * self.q_t.amp_hour  # shape (asoh_batch, 1)
 
     @classmethod
     def provide_template(
