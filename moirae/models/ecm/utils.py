@@ -43,40 +43,49 @@ class SOCInterpolatedHealth(HealthVariable):
         return func
 
     def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
-        """Computes value(s) at given SOC(s)
+        """
+        Computes value(s) at given SOC(s).
+
+        This function always returns a 3D array, of shape `(internal_batch_size, soc_batch_size, soc_dim)`, where
+        `internal_batch_size` is the batch size of the underlying health variable, `soc_batch_size` is the batch size
+        of the SOC array, and `soc_dim` is the dimensionality of the SOC. The SOC must be passed as either:
+        1. a 2D array of shape `(soc_batch_size, soc_dim)`
+        2. a 1D array of shape `(soc_dim,)`, in which case we will consider the `soc_batch_size` to be equal to 1
+        3. a 0D array (that is, a numer), in which case both `soc_batch_size` and `soc_dim` are equal to 1.
 
         Args:
             soc: Values at which to compute the property
+            broadcast_batch: flag to determine whether to broadcast as much as possible. If True, it will try to match
+            SOC batches with internal batches and remove superfluous dimensions; defaults to True
         Returns:
             Interpolated values
         """
         # Determine which case we're dealing with
-        batch_size = self.batch_size
         soc = np.array(soc)
-        input_dims = soc.shape
-        soc_batch_size = soc.size
+        soc_shape = soc.shape
+        soc_batch_size = 1
+        soc_dim = 1 if len(soc_shape) == 0 else soc_shape[0]  # taking care of 0 or 1D cases
+        if len(soc_shape) > 3:
+            raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc_shape}!')
+        if len(soc_shape) == 2:
+            soc_batch_size = soc.shape[0]
+            soc_dim = soc.shape[1]
+        internal_batch_size = self.batch_size
 
         # Special case: no interpolation
         if self.base_values.shape[-1] == 1:
-            y = self.base_values[:, 0].copy()
-            if soc_batch_size > 0 and batch_size == 1:
-                return np.repeat(y, soc.size, axis=0).reshape(input_dims)
-            elif soc_batch_size == 1 and batch_size > 1:
-                if len(input_dims) > 0:
-                    return y.reshape((batch_size, 1))
-                else:
-                    return y.reshape((batch_size,))
-            return y.reshape(input_dims)
+            y = self.base_values[:, 0].copy()[:, None]  # shape = (internal_batch_size, 1)
+            y = np.tile(y, (soc_batch_size, 1, soc_dim))  # shape = (soc_batch, internal_batch, soc_dim)
+            y = np.swapaxes(y, 0, 1)  # shape = (internal_batch, soc_batch, soc_dim)
+        # Otherwise, run the interpolator, but the results mean something different
+        else:
+            y = self._interp_func(soc)  # interpolator adds batch dimension:
+            # If the SOC was batched, the shape is (internal_batch, soc_batch, soc_dim)
+            # Otherwise, the shape is (internal_batch, soc_dim)
+            y = y.reshape((internal_batch_size, soc_batch_size, soc_dim))
 
-        # Run the interpolator, but the results mean something different
-        y = self._interp_func(soc)  # interpolator adds a dimension
-        if soc_batch_size > 1 and batch_size > 1:
-            y = np.diag(y.squeeze())  # Match the SOC with the model its calling
-        elif soc_batch_size == 1 and batch_size > 1:
-            if len(input_dims) > 1:
-                return y.reshape((batch_size, soc_batch_size))
-            return y.reshape((batch_size,) + input_dims)
-        return y.reshape(input_dims)
+        # Now, the y array has shape (internal_batch, soc_batch, soc_dim).
+        return y
 
 
 def realistic_fake_ocv(
@@ -132,7 +141,7 @@ def hysteresis_solver_const_sign(
         Hysteresis value at the end of the time interval
     """
     assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
-    exp_factor = kappa * dt
+    exp_factor = kappa * dt  # shape (broadcasted_batch_size, 1)
     exp_factor = exp_factor * (i0 + (0.5 * alpha * dt))
     # Now, flip the sign depending if current is positive in the interval
     if i0 > -(alpha * dt):  # this indicates (i0 + alpha * t) > 0
