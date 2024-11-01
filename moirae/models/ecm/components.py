@@ -32,7 +32,7 @@ class MaxTheoreticalCapacity(HealthVariable):
         """
         Returns capacity in Amp-hour, as it was initialized.
         """
-        return self.base_values.item()
+        return self.base_values
 
 
 class Resistance(SOCInterpolatedHealth):
