@@ -52,6 +52,7 @@ def test_energy():
     # With this simple example, we expect the energy to simply be the total discharge capacity multiplied by 1 V
     expected = asoh.q_t.amp_hour
     computed = asoh.get_theoretical_energy()
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Mismatch in constant OCV ECMASOH energy calculation; expected {expected} but got {computed} Wh!'
 
@@ -59,6 +60,7 @@ def test_energy():
     # SOC from 10 to 90%, and, thus, expect to obtain 80% of the energy from before
     expected = 0.8 * asoh.q_t.amp_hour
     computed = asoh.get_theoretical_energy(soc_limits=(0.1, 0.9))
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Mismatch in constant OCV ECMASOH energy calculation; expected {expected} but got {computed} Wh!'
 
@@ -69,6 +71,7 @@ def test_energy():
     # In this case, we expect the energy to be Qt/2 (in Wh)
     expected = asoh.q_t.amp_hour / 2.
     computed = asoh.get_theoretical_energy()
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Mismatch in linear OCV ECMASOH energy calculation; expected {expected} but got {computed} Wh!'
 
@@ -79,12 +82,14 @@ def test_energy():
     temp = asoh.ocv.ocv_ref.reference_temperature + 1
     expected += asoh.q_t.amp_hour
     computed = asoh.get_theoretical_energy(temperature=temp)
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Mismatch in temperature dependent ECMASOH energy calculation; expected {expected} but got {computed} Wh!'
     # Let's see if it still works if the entropic OCV is the same as the reference
     asoh.update_parameters(names=('ocv.ocv_ent.base_values',), values=np.linspace(0., 1., 11))
     expected = asoh.q_t.amp_hour
     computed = asoh.get_theoretical_energy(temperature=temp)
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Mismatch in temp-dependent linear OCV ECMASOH energy calculation; expected {expected} but got {computed} Wh!'
 
@@ -99,6 +104,7 @@ def test_energy():
     expected = asoh.q_t.amp_hour.copy()  # need the copy() here because we change the last value in the next line
     expected[-1, :] /= 2.
     computed = asoh.get_theoretical_energy()
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Wrong batched energy calculation, expected {expected} but got {computed} Wh!'
     # Now, let's see if this still works with an SOC ranging from 0 to 90%, which should alter the SOC-dependent OCV
@@ -106,6 +112,7 @@ def test_energy():
     expected = 0.9 * asoh.q_t.amp_hour.copy()
     expected[-1, :] *= (0.9 / 2.)
     computed = asoh.get_theoretical_energy(soc_limits=(0., 0.9))
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Wrong batched SOC-limited energy calculation, expected {expected.flatten()} but got {computed.flatten()} Wh!'
     # What about temperature variations? In either case, the entropic OCV would add a total of Qt/2 over the whole SOC
@@ -114,6 +121,7 @@ def test_energy():
     expected[-1, :] /= 2.
     expected += asoh.q_t.amp_hour / 2.
     computed = asoh.get_theoretical_energy(temperature=temp)
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Wrong batched temp-dependent energy calc, expected {expected.flatten()} but got {computed.flatten()} Wh!'
     # Now, both SOC from 0 to 90% and temperature!
@@ -121,5 +129,6 @@ def test_energy():
     expected[-1, :] *= (0.9 / 2.)  # OCV_ref triangle with limited SOC
     expected += 0.81 * asoh.q_t.amp_hour / 2.  # OCV_ent triangle with limited SOC
     computed = asoh.get_theoretical_energy(soc_limits=(0., 0.9), temperature=temp)
+    assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'
     assert np.allclose(expected, computed), \
         f'Wrong batched SOC-lim temp-dependent calc, expected {expected.flatten()} but got {computed.flatten()} Wh!'
