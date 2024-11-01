@@ -32,10 +32,10 @@ class ECMASOH(HealthVariable):
                                soc_limits: Tuple[float, float] = (0., 1.),
                                temperature: Optional[float] = None) -> Union[float, np.ndarray]:
         """
-        Function that computes the maximum theoretical energy of the cell in Wh.
+        Function that computes the theoretical energy of the cell in Wh.
 
-        By integrating the OCV over the SOC, we can calculate the amount of energy available in the cell, assuming no
-        losses (such as I*R0 ones).
+        Computes cell energy by integrating Open-Circuit Voltage (OCV) over the supplied state of charge (SOC) ranges.
+        Assumes no energy loss, such as from the resistive or hysteresis elements.
 
         Args:
             soc_limits: minimum and maximum SOC limit to be used in the computation of the energy; defaults to (0, 1)
