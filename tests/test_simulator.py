@@ -40,7 +40,7 @@ def test_dataframe(simple_rint, batched):
 
     # Ensure that the sign convention is the HDF5 is opposite of the dataframe in the moirae convention
     assert len(output[0].raw_data) == len(df) // rint_asoh.batch_size
-    assert np.allclose(output[0].raw_data['current'], -df.query('batch == 0')['current'])
+    assert np.allclose(output[0].raw_data['current'], df.query('batch == 0')['current'])
     assert np.allclose(output[0].raw_data['test_time'], df.query('batch == 0')['time'])
 
 

@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Tuple
 
 from pytest import fixture
-from batdata.data import BatteryDataset
+from battdat.data import BatteryDataset, CellDataset
 import pandas as pd
 import numpy as np
 
@@ -45,7 +45,7 @@ def make_dataset(simple_rint):
 
     def _update_outputs(time, current, transient, outputs, cycle_number):
         output['test_time'].append(time)
-        output['current'].append(-current)  # Battery data toolkit uses opposite sign convention
+        output['current'].append(current)
         output['voltage'].append(outputs.terminal_voltage.item())
         output['cycle_number'] = cycle_number
 
@@ -71,7 +71,7 @@ def make_dataset(simple_rint):
         start_time += rest_time
 
     raw_data = pd.DataFrame(dict(output))
-    return BatteryDataset(raw_data=raw_data)
+    return CellDataset(raw_data=raw_data)
 
 
 dataset = None
