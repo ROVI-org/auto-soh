@@ -1,7 +1,7 @@
 """Interfaces that evaluate the fitness of a set of battery state parameters
 provided as a NumPy array."""
 import numpy as np
-from batdata.data import BatteryDataset
+from battdat.data import BatteryDataset
 
 from moirae.interface import row_to_inputs
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer
@@ -76,7 +76,8 @@ class MeanSquaredLoss(BaseLoss):
         asoh_x = self.asoh.make_copy(x[:, n_states:])
 
         # Build a simulator
-        initial_input, initial_output = row_to_inputs(self.observations.raw_data.iloc[0])
+        raw_data = self.observations.datasets['raw_data']
+        initial_input, initial_output = row_to_inputs(raw_data.iloc[0])
         sim = Simulator(
             cell_model=self.cell_model,
             asoh=asoh_x,
@@ -86,8 +87,8 @@ class MeanSquaredLoss(BaseLoss):
 
         # Prepare the output arrays
         num_outs = len(initial_output)
-        pred_y = np.zeros((len(self.observations.raw_data), 1, num_outs))
-        true_y = np.zeros((len(self.observations.raw_data), x.shape[0], num_outs))
+        pred_y = np.zeros((len(raw_data), 1, num_outs))
+        true_y = np.zeros((len(raw_data), x.shape[0], num_outs))
 
         true_y[0, :] = initial_output.to_numpy()
         y = self.cell_model.calculate_terminal_voltage(initial_input, state_x, asoh_x)
