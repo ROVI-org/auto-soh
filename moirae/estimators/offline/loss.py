@@ -76,7 +76,7 @@ class MeanSquaredLoss(BaseLoss):
         asoh_x = self.asoh.make_copy(x[:, n_states:])
 
         # Build a simulator
-        raw_data = self.observations.datasets['raw_data']
+        raw_data = self.observations.tables['raw_data']
         initial_input, initial_output = row_to_inputs(raw_data.iloc[0])
         sim = Simulator(
             cell_model=self.cell_model,
