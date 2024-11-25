@@ -87,8 +87,8 @@ class MeanSquaredLoss(BaseLoss):
 
         # Prepare the output arrays
         num_outs = len(initial_output)
-        pred_y = np.zeros((len(self.observations.raw_data), 1, num_outs))
-        true_y = np.zeros((len(self.observations.raw_data), x.shape[0], num_outs))
+        pred_y = np.zeros((len(raw_data), 1, num_outs))
+        true_y = np.zeros((len(raw_data), x.shape[0], num_outs))
 
         true_y[0, :] = initial_output.to_numpy()
         y = self.cell_model.calculate_terminal_voltage(initial_input, state_x, asoh_x)

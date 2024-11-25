@@ -10,8 +10,8 @@ import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from batdata.data import BatteryDataset
-from batdata.streaming import iterate_records_from_file
+from battdat.data import BatteryDataset
+from battdat.streaming import iterate_records_from_file
 
 from moirae.estimators.online import OnlineEstimator
 from moirae.interface.hdf5 import HDF5Writer
@@ -37,7 +37,7 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
     # TODO (wardlt): Remove hard code from ECM when we're ready (maybe a "from_batdata" to the model class?)
     inputs = ECMInput(
         time=row['test_time'],
-        current=-row['current'],  # Opposite sign convention from batdata
+        current=row['current'],
         temperature=row['temperature'] if use_temp else default_temperature
     )
     outputs = ECMMeasurement(

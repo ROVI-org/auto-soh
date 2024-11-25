@@ -62,8 +62,8 @@ def test_interface_stream(simple_rint, timeseries_dataset, tmpdir):
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
 
     # Run then make sure it returns the proper data types
-    h5_path = Path(tmpdir) / 'example.h5'
-    timeseries_dataset.to_batdata_hdf(h5_path)
+    h5_path = str(Path(tmpdir) / 'example.h5')
+    timeseries_dataset.to_hdf(h5_path)
     state_mean, estimator = run_online_estimate(h5_path, estimator, hdf5_output=Path(tmpdir) / 'estimates.h5')
     assert state_mean.shape[0] == len(timeseries_dataset.raw_data)
 

@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Optional
 
-from batdata.data import BatteryDataset
+from battdat.data import BatteryDataset, CellDataset
+from battdat.schemas.column import ColumnInfo, DataType
 from moirae.models.base import (HealthVariable,
                                 GeneralContainer,
                                 InputQuantities,
@@ -189,24 +190,18 @@ class Simulator:
 
         output = []
         for _, group in df.groupby('batch'):
-            batch = BatteryDataset(raw_data=group.drop(columns=['batch']))
-            batch.raw_data['current'] *= -1  # Moirae uses the opposite sign convention as batdata
+            batch = CellDataset(raw_data=group.drop(columns=['batch']))
 
             # Compile names for the other columns
             #  TODO (wardlt): I bet I can grab the description from the model fields.
             if extra_columns:
-                batch.metadata.raw_data_columns.update(
-                    (name, f'Input variable from {self.previous_input.__class__.__name__}')
-                    for name in self.previous_input.all_names if name not in known_names
-                )
-                batch.metadata.raw_data_columns.update(
-                    (name, f'Transient state variable from {self.transient.__class__.__name__}')
-                    for name in self.transient.all_names if name not in known_names
-                )
-                batch.metadata.raw_data_columns.update(
-                    (name, f'Measurement variable from {self.measurement.__class__.__name__}')
-                    for name in self.measurement.all_names if name not in known_names
-                )
-
+                for tag, source in [('Input', self.previous_input),
+                                    ('Transient state', self.transient),
+                                    ('Measurement', self.measurement)]:
+                    for name in source.all_names:
+                        batch.schemas['raw_data'].extra_columns[name] = ColumnInfo(
+                            description=f'Input variable from {source.__class__.__name__}',
+                            type=DataType.FLOAT
+                        )
             output.append(batch)
         return output

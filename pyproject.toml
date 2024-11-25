@@ -3,7 +3,7 @@ name = "moirae"
 version = "0.0.1"
 description = "Algorithms for automatic assessment of advanced state of health for batteries"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 keywords = ["batteries", "science", "data science"]
 authors = [
