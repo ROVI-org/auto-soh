@@ -150,7 +150,7 @@ class DegradationModelWrapper(BaseCellWrapper):
     frameworks
 
     It takes an additional argument compared to the :class:`moirae.estimators.online.utils.model.BaseCellWrapper`, as it
-    needs to know the degrataion model being used. If none is passed, defaults to dummy degradation.
+    needs to know the degradaion model being used. If none is passed, defaults to dummy degradation.
 
     Args:
         cell_model: Model which defines the physics of the system being modeled
@@ -207,7 +207,7 @@ class DegradationModelWrapper(BaseCellWrapper):
         """
         Function that takes a numpy representation of the A-SOH and degrades it using the degradation model and the
         previous and new controls. If the degradation model needs information for further in the past, it is responsible
-        for keeping track of that. The degration model will also be provided the current estimate of the transient
+        for keeping track of that. The degradation model will also be provided the current estimate of the transient
         vector.
         """
         # Remember that, during this step, we should also store the previous controls so that the transient vector can
@@ -247,18 +247,12 @@ class DegradationModelWrapper(BaseCellWrapper):
         # Do the same for the A-SOH
         asoh = self._convert_hidden_to_asoh(hidden_states=hidden_states)
 
-        # Now, propagate the transients through the A-SOH
-        propagated_transients = self.cell_model.update_transient_state(previous_inputs=self._previous_inputs,
-                                                                       new_inputs=inputs,
-                                                                       transient_state=self.transients,
-                                                                       asoh=asoh)
-
         # Finally, compute outputs
         outputs = self.cell_model.calculate_terminal_voltage(new_inputs=inputs,
-                                                             transient_state=propagated_transients,
+                                                             transient_state=self.transients,
                                                              asoh=asoh)
 
-        # Convert outpus to filter lingo
+        # Convert outputs to filter lingo
         outputs = self.output_conversion.inverse_transform_samples(transformed_samples=outputs.to_numpy())
         return outputs
 

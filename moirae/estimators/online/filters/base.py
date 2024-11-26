@@ -103,6 +103,11 @@ class BaseFilter:
         initial_controls: initial control state of the system
     """
 
+    hidden: MultivariateRandomDistribution
+    """Probability distribution of parameters"""
+    controls: MultivariateRandomDistribution
+    """Probability distribution of controls for the previous timestep"""
+
     def __init__(self,
                  model: ModelWrapper,
                  initial_hidden: MultivariateRandomDistribution,

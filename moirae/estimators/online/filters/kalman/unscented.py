@@ -88,6 +88,7 @@ class UnscentedKalmanFilter(BaseFilter):
         covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
     """
+
     def __init__(self,
                  model: ModelWrapper,
                  initial_hidden: MultivariateGaussian,
@@ -185,7 +186,7 @@ class UnscentedKalmanFilter(BaseFilter):
         # Don't forget to update the internal control!
         self.controls = new_controls.model_copy(deep=True)
         # Return
-        return (self.hidden.model_copy(deep=True), y_k.model_copy(deep=True))
+        return self.hidden.model_copy(deep=True), y_k
 
     def build_sigma_points(self) -> np.ndarray:
         """
