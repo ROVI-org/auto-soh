@@ -7,7 +7,7 @@ from moirae.models.base import GeneralContainer, HealthVariable
 
 
 class ScipyDifferentialEvolution(OfflineEstimator):
-    """Estimate using SciPy's :meth:`~scipy.optimize.differential_evolution` function.
+    """Estimate using SciPy's differential_evolution_ function.
 
     Args:
         objective: Objective function to be optimized
@@ -15,7 +15,10 @@ class ScipyDifferentialEvolution(OfflineEstimator):
             Bounds class, or (min, max) pairs for each element in x, defining the finite lower and
             upper bounds for the optimizing argument of func.
         kwargs: Passed to the minimize function.
-            Refer to the documentation for :meth:`~scipy.optimize.differential_evolution`
+            Refer to the documentation for differential_evolution
+
+    .. _differential_evolution:
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.differential_evolution.html
     """
 
     def __init__(self,
