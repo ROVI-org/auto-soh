@@ -51,8 +51,8 @@ class OCVExtractor:
             A subset from the dataframe with the smallest maximum current
         """
         raw_data = dataset.raw_data
-        max_i = raw_data.groupby('cycle_number')['current'].agg(lambda x: np.abs(x).max()).idxmax()
-        return raw_data.query(f'cycle_number == {max_i}')
+        min_i = raw_data.groupby('cycle_number')['current'].agg(lambda x: np.abs(x).max()).idxmin()
+        return raw_data.query(f'cycle_number == {min_i}')
 
     def interpolate_ocv(self, dataset: CellDataset, cycle: pd.DataFrame) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains voltage as a function of SOC and current
