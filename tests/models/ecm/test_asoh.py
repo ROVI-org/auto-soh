@@ -7,7 +7,7 @@ from moirae.models.ecm.components import (MaxTheoreticalCapacity,
                                           Resistance,
                                           ReferenceOCV,
                                           EntropicOCV,
-                                          OCVExtractor)
+                                          OpenCircuitVoltage)
 from moirae.models.ecm.utils import realistic_fake_ocv
 
 
@@ -46,7 +46,7 @@ def test_energy():
     r0 = Resistance(base_values=1.)
     ocv_ref = ReferenceOCV(base_values=np.ones(11))
     ocv_ent = EntropicOCV(base_values=np.zeros(11))
-    ocv = OCVExtractor(ocv_ref=ocv_ref, ocv_ent=ocv_ent)
+    ocv = OpenCircuitVoltage(ocv_ref=ocv_ref, ocv_ent=ocv_ent)
     asoh = ECMASOH(q_t=qt, ce=1, ocv=ocv, r0=r0)
 
     # With this simple example, we expect the energy to simply be the total discharge capacity multiplied by 1 V
