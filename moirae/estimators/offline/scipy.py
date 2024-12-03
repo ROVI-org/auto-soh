@@ -1,5 +1,5 @@
 """Estimate the state of health using SciPy optimizers"""
-from scipy.optimize import differential_evolution, minimize, OptimizeResult
+from scipy.optimize import differential_evolution, minimize, OptimizeResult, Bounds
 
 from moirae.estimators.offline import OfflineEstimator
 from moirae.estimators.offline.loss import BaseLoss
@@ -7,21 +7,20 @@ from moirae.models.base import GeneralContainer, HealthVariable
 
 
 class ScipyDifferentialEvolution(OfflineEstimator):
-    """Estimate using SciPy's differential_evolution function.
+    """Estimate using SciPy's :meth:`~scipy.optimize.differential_evolution` function.
 
     Args:
         objective: Objective function to be optimized
         bounds: Bounds for variables. There are two ways to specify the bounds: instance of scipy
             Bounds class, or (min, max) pairs for each element in x, defining the finite lower and
             upper bounds for the optimizing argument of func.
-        kwargs: Passed to the minimize function. Refer to the documentation to minimize_
-
-    .. _minimize: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
+        kwargs: Passed to the minimize function.
+            Refer to the documentation for :meth:`~scipy.optimize.differential_evolution`
     """
 
     def __init__(self,
                  objective: BaseLoss,
-                 bounds=None,
+                 bounds: Bounds | list[tuple[float, float]] = None,
                  **kwargs):
         self.objective = objective
         self.bounds = bounds
@@ -30,7 +29,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
     def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
-        y0 = self.objective(x0[None, :]).item()   # Used to normalize scale and reduce rtol vs atol issues
+        y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
 
         # Assemble the function call
         result = differential_evolution(
@@ -52,7 +51,7 @@ class ScipyMinimizer(OfflineEstimator):
 
     Args:
         objective: Objective function to be optimized
-        kwargs: Passed to the minimize function. Refer to the documentation to minimize_
+        kwargs: Passed to the minimize function. Refer to the documentation of minimize_
 
     .. _minimize: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
     """
@@ -66,7 +65,7 @@ class ScipyMinimizer(OfflineEstimator):
     def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
-        y0 = self.objective(x0[None, :]).item()   # Used to normalize scale and reduce rtol vs atol issues
+        y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
 
         # Assemble the function call
         result = minimize(
