@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from pydantic import Field
 import numpy as np
 
-from moirae.models.base import HealthVariable, ListParameter, ScalarParameter, enforce_dimensions
+from moirae.models.base import HealthVariable, ListParameter, ScalarParameter
 from .utils import SOCInterpolatedHealth
 
 
@@ -32,7 +32,7 @@ class MaxTheoreticalCapacity(HealthVariable):
         """
         Returns capacity in Amp-hour, as it was initialized.
         """
-        return self.base_values.item()
+        return self.base_values
 
 
 class Resistance(SOCInterpolatedHealth):
@@ -131,11 +131,11 @@ class OpenCircuitVoltage(HealthVariable):
         """
         Returns values of OCV at given SOC(s) and temperature(s).
         """
-        ocv = enforce_dimensions(self.ocv_ref.get_value(soc=soc), 0)
+        ocv = self.ocv_ref.get_value(soc=soc)
         if temp is not None:
             T_ref = self.ocv_ref.reference_temperature
             delta_T = temp - T_ref
-            ocv += delta_T * enforce_dimensions(self.ocv_ent.get_value(soc=soc), 0)
+            ocv += delta_T * self.ocv_ent.get_value(soc=soc)
         return ocv
 
     def __call__(self,

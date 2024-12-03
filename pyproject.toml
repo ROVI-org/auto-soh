@@ -3,7 +3,7 @@ name = "moirae"
 version = "0.0.1"
 description = "Algorithms for automatic assessment of advanced state of health for batteries"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 keywords = ["batteries", "science", "data science"]
 authors = [
@@ -15,6 +15,7 @@ dependencies = [
     "battery-data-toolkit",
     "pydantic",
     "numpy",
+    "flatten-dict",
     "tqdm"
 ]
 
@@ -31,7 +32,11 @@ test = [
 docs = [
     'sphinx',
     'pydata-sphinx-theme',
-    'sphinx-pydantic'
+    'sphinx-pydantic',
+    'autodoc-pydantic'
+]
+thevenin = [
+    'thevenin@git+https://github.com/ROVI-org/thevenin.git'
 ]
 
 [project.urls]

@@ -44,13 +44,6 @@ necessary to specify a particular storage systems.
     The ``InputQuantities`` and ``OutputQuantities`` classes define
     the required names for the time, current, and voltage.
 
-.. note::
-
-    Moirae's models assume that a positive current corresponds to charging a battery,
-    opposite from the `battery-data-toolkit's choice <https://rovi-org.github.io/battery-data-toolkit/schemas.html>`_,
-    but in line with conventions common for battery modeling.
-
-
 Health Parameters
 -----------------
 
@@ -167,10 +160,23 @@ Changes in the ASOH for a cell are described as :class:`~moirae.models.base.Degr
 Such models provide a function which updates the current state of health provided
 new inputs, transient state, and measurements.
 
+Available Cell Models
++++++++++++++++++++++
+
+Moirae already contains several cell models:
+
+- :class:`~moirae.models.ecm.EquivalentCircuitModel`: A Thevenin circuit model with no additional dependencies beyond those needed for Moirae.
+- :class:`~moirae.models.thevenin.TheveninModel`: A Thevenin model which includes a simple thermal model and is built atop a robust ODE solver.
+  Consult `the documentation for Thevenin <https://rovi-org.github.io/thevenin/>`_ for installation instructions.
+
+The `"Extending Moirae" documentation <extending.html#adding-a-new-cell-model>`_ explains how to add a new model.
+You need not contribute a new Cell Model to Moirae in order for it to work with the estimators
+but we would encourage you to.
+
 .. ::
 
     We still need to....
 
     1. Describe where any parameters for the degredation model come from
     2. Indicate if there are any additional states held by the degradation model
-    3. Provide an index of available Cell and Degredation models
+    3. Provide an index of available ~~Cell~~ and Degredation models

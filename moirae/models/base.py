@@ -48,10 +48,13 @@ ScalarParameter = Annotated[
     np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
+"""Type annotation for parameters which are exactly one value"""
+
 ListParameter = Annotated[
     np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
+"""Type annotation for parameters which can be any number of values"""
 
 
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)

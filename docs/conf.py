@@ -24,10 +24,6 @@ exclude_patterns = ['_build']
 html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
 
-# -- Options for NBSphinx -----------------------------------------------------
-
-nbsphinx_execute = 'never'
-
 # -- API Documentation --------------------------------------------------------
 
 extensions.extend([
@@ -35,12 +31,22 @@ extensions.extend([
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
-    'sphinx-pydantic'
+    'sphinx-pydantic',
+    'sphinxcontrib.autodoc_pydantic'
 ])
+
+autodoc_mock_imports = ["django"]
+
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_settings_show_json = False
 
 autoclass_content = 'both'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'thevenin': ('https://rovi-org.github.io/thevenin/', None),
+    'batdata': ('https://rovi-org.github.io/battery-data-toolkit/', None),
+    'h5py': ('https://docs.h5py.org/en/stable/', None)
 }

@@ -10,7 +10,7 @@ def test_scipy(simple_rint, timeseries_dataset, state_only):
     rint_asoh, rint_state, _, ecm_model = simple_rint
 
     # Truncate the battery dataset
-    timeseries_dataset.raw_data = timeseries_dataset.raw_data.head(32)
+    timeseries_dataset.tables['raw_data'] = timeseries_dataset.tables['raw_data'].head(32)
 
     # Alter the estimated state slightly
     state_0 = rint_state.make_copy(np.array([[0.05, 0.]]))

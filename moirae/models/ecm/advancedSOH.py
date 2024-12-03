@@ -3,6 +3,7 @@ from typing import Tuple, Optional, Union, List
 
 from pydantic import Field
 import numpy as np
+from scipy.integrate import trapezoid
 
 from moirae.models.base import HealthVariable, ScalarParameter
 from .components import (MaxTheoreticalCapacity,
@@ -26,6 +27,31 @@ class ECMASOH(HealthVariable):
     rc_elements: Tuple[RCComponent, ...] = Field(default_factory=tuple, description='Tuple of RC components')
     h0: HysteresisParameters = Field(default=HysteresisParameters(base_values=0.0),
                                      description='Hysteresis component')
+
+    def get_theoretical_energy(self,
+                               soc_limits: Tuple[float, float] = (0., 1.),
+                               temperature: Optional[float] = None) -> Union[float, np.ndarray]:
+        """
+        Function that computes the theoretical energy of the cell in Wh.
+
+        Computes cell energy by integrating Open-Circuit Voltage (OCV) over the supplied state of charge (SOC) ranges.
+        Assumes no energy loss, such as from the resistive or hysteresis elements.
+
+        Args:
+            soc_limits: minimum and maximum SOC limit to be used in the computation of the energy; defaults to (0, 1)
+            temperature: value of temperature (in °C) to be used in the calculation of energy; defaults to None
+
+        Returns:
+            value(s) of maximum theoretical energy as a 2D array of shape (asoh_batch_size, 1)
+        """
+        # Get SOC values to be used in the integration
+        soc_vals = np.linspace(min(soc_limits), max(soc_limits), 100)
+        # Get corresponding OCV
+        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)  # shape (ocv_batch, 1, soc_dim)
+        # Integrate
+        energy = trapezoid(y=ocv_vals, x=soc_vals, axis=-1)  # integrate over the last axis, corresponding to soc_dim
+        # Now, multiply by the charge
+        return energy * self.q_t.amp_hour  # shape (asoh_batch, 1)
 
     @classmethod
     def provide_template(
