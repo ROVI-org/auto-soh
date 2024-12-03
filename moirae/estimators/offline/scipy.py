@@ -15,7 +15,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
             Bounds class, or (min, max) pairs for each element in x, defining the finite lower and
             upper bounds for the optimizing argument of func.
         kwargs: Passed to the minimize function.
-            Refer to the documentation for differential_evolution
+            Refer to the documentation for differential_evolution_
 
     .. _differential_evolution:
         https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.differential_evolution.html
@@ -23,7 +23,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
 
     def __init__(self,
                  objective: BaseLoss,
-                 bounds: Bounds | list[tuple[float, float]] = None,
+                 bounds: Bounds | list[tuple[float, float]],
                  **kwargs):
         self.objective = objective
         self.bounds = bounds
