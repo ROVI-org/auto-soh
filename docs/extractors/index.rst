@@ -51,7 +51,7 @@ Equivalent Circuit Models
 .. toctree::
    :hidden:
 
-    demonstrate-ecm-extractors
+   demonstrate-ecm-extractors
 
 Extracting parameters for a Equivalent Circuit Models (ECM) require several steps, each
 generating parameters for different parts of the model.
