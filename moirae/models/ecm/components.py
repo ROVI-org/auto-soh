@@ -109,6 +109,7 @@ class ReferenceOCV(SOCInterpolatedHealth):
     reference_temperature: ScalarParameter = \
         Field(default=25,
               description='Reference temperature for OCV0. Units: °C')
+    # TODO (wardlt): Should the reference temperature be alongside the temperature dependence?
 
 
 class EntropicOCV(SOCInterpolatedHealth):
@@ -122,7 +123,8 @@ class OpenCircuitVoltage(HealthVariable):
     ocv_ref: ReferenceOCV = \
         Field(description='Reference OCV at specified temperature')
     ocv_ent: EntropicOCV = \
-        Field(description='Entropic OCV to determine temperature dependence')
+        Field(description='Entropic OCV to determine temperature dependence',
+              default_factory=EntropicOCV)
 
     def get_value(self,
                   soc: Union[float, List, np.ndarray],

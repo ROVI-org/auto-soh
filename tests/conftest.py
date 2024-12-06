@@ -6,6 +6,7 @@ from battdat.data import BatteryDataset, CellDataset
 import pandas as pd
 import numpy as np
 
+from battdat.schemas import BatteryMetadata, BatteryDescription
 from moirae.models.ecm import ECMASOH, ECMTransientVector, EquivalentCircuitModel, ECMInput
 from moirae.simulator import Simulator
 
@@ -28,7 +29,7 @@ def make_dataset(simple_rint):
     num_cycles = 2
     charge_time = 1800
     discharge_time = charge_time * 2
-    charge_current = rint_asoh.q_t.value.item() / discharge_time
+    charge_current = rint_asoh.q_t.value.item() / charge_time
     discharge_current = -rint_asoh.q_t.value.item() / discharge_time
     rest_time = 20.
 
@@ -47,7 +48,7 @@ def make_dataset(simple_rint):
         output['test_time'].append(time)
         output['current'].append(current)
         output['voltage'].append(outputs.terminal_voltage.item())
-        output['cycle_number'] = cycle_number
+        output['cycle_number'].append(cycle_number)
 
     for cycle in range(num_cycles):
         for time in np.linspace(start_time, start_time + charge_time, int(charge_time / timestep) + 1):
@@ -71,18 +72,18 @@ def make_dataset(simple_rint):
         start_time += rest_time
 
     raw_data = pd.DataFrame(dict(output))
-    return CellDataset(raw_data=raw_data)
 
+    # Make metadata with a cell capacity
+    metadata = BatteryMetadata(
+        battery=BatteryDescription(nominal_capacity=rint_asoh.q_t.amp_hour)
+    )
 
-dataset = None
+    return CellDataset(raw_data=raw_data, metadata=metadata)
 
 
 @fixture()
 def timeseries_dataset(simple_rint) -> BatteryDataset:
-    global dataset
-    if dataset is None:
-        dataset = make_dataset(simple_rint)
-    return dataset
+    return make_dataset(simple_rint)
 
 
 def test_timeseries(timeseries_dataset):

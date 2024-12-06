@@ -24,6 +24,11 @@ exclude_patterns = ['_build']
 html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
 
+# -- Options for NBSphinx -----------------------------------------------------
+
+extensions.append('nbsphinx')
+nbsphinx_execute = 'never'
+
 # -- API Documentation --------------------------------------------------------
 
 extensions.extend([
