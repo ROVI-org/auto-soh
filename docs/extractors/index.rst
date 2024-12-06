@@ -66,7 +66,7 @@ generating parameters for different parts of the model.
      * Capacity of battery
      * Complete charge and discharge
    - * :class:`~moirae.extractors.ecm.OCVExtractor`
-     * Charge with zero current
+     * Voltage with zero current
      * - Capacity estimate
        - Complete charge and discharge
 

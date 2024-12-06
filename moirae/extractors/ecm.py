@@ -10,7 +10,7 @@ from moirae.models.ecm.components import ReferenceOCV, OpenCircuitVoltage, MaxTh
 
 
 class MaxCapacityExtractor(BaseExtractor):
-    """Estimate the maximum capacity of a battery
+    """Estimate the maximum discharge capacity of a battery
 
     Suggested Data: Low current cycles which sample fully charge or discharge a battery
 

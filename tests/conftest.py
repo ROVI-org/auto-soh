@@ -81,15 +81,9 @@ def make_dataset(simple_rint):
     return CellDataset(raw_data=raw_data, metadata=metadata)
 
 
-dataset = None
-
-
 @fixture()
 def timeseries_dataset(simple_rint) -> BatteryDataset:
-    global dataset
-    if dataset is None:
-        dataset = make_dataset(simple_rint)
-    return dataset
+    return make_dataset(simple_rint)
 
 
 def test_timeseries(timeseries_dataset):
