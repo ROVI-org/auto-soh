@@ -1,12 +1,15 @@
 """Extraction algorithms which gather parameters of an ECM"""
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from scipy.interpolate import LSQUnivariateSpline
+from scipy.integrate import cumulative_trapezoid
 
 from battdat.data import CellDataset
 from battdat.postprocess.integral import CapacityPerCycle
 from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import ReferenceOCV, OpenCircuitVoltage, MaxTheoreticalCapacity
+from moirae.models.ecm.components import Resistance
 
 
 class MaxCapacityExtractor(BaseExtractor):
@@ -127,3 +130,157 @@ class OCVExtractor(BaseExtractor):
             ocv_ref=ReferenceOCV(base_values=knots, soc_pinpoints=self.soc_points,
                                  interpolation_style=self.interpolation_style)
         )
+
+
+class R0Extractor(BaseExtractor):
+    """Estimate the Instantaneous Resistance (R0) of a battery as a function of
+    state of charge (SOC)
+
+    Suggested data: R0 extraction works best when provided with data for a
+    cycle that samples instantaneous changes in current across the entire SOC
+    range (at least a range larger than :attr:`soc_requirement`)
+
+    Algorithm:
+        1. Locate cycle with jumps in current across SOC range
+        2. Assign an SOC to each measurement based on :attr:`capacity`
+        3. Calculate instantanous resistance as dI/dt
+        4. Filter for R0 values with dt below the threshold specified by
+           :attr:`dt_max` and dI above the threshold specified by
+           :attr:`dInorm_min`
+        4. Fit a 1-D smoothing cubic spline for voltage as a function of SOC,
+           placing knots at :attr:`soc_points`.
+        5. Evaluate the spline at SOC points requested by the user,
+           return as a :class:`~moirae.models.ecm.components.Resistance` object
+           using the :attr:`interpolation_style` type of spline.
+
+    Args:
+        soc_points: SOC points at which to extract R0 or (``int``) number of
+        grid points.
+    """
+
+    soc_points: np.ndarray
+    """State of charge points at which to estimate the resistance"""
+    soc_requirement: float
+    """Require that dataset samples at least this fraction of the capacity"""
+    dt_max: float
+    """Max timestep for valid R0 instance"""
+    dInorm_min: float
+    """Min normalized current change for valid R0"""
+
+    def __init__(self,
+                 soc_points: np.ndarray | int = 11,
+                 soc_requirement: float = 0.95,
+                 dt_max: float = 0.02,
+                 dInorm_min: float = 0.1):
+
+        if isinstance(soc_points, int):
+            soc_points = np.linspace(0, 1, soc_points)
+        self.soc_points = np.array(soc_points)
+        self.soc_requirement = soc_requirement
+        self.dt_max = dt_max
+        self.dInorm_min = dInorm_min
+        self.interpolation_style = 'linear'
+
+    def interpolate_R0(self, cycle: pd.DataFrame) -> np.ndarray:
+        """Fit then evaluate a smoothing spline which explains
+        R0 as a function of SOC
+
+        Args:
+            cycle: Cycle to use for fitting the spline
+        Returns:
+            An estimate for the R0 at :attr:`soc_points`
+
+        """
+        # calculate soc throughout cycle
+        cycle = cycle.copy(deep=False)
+        cycle = self.soc_calc(cycle)
+
+        # calculate instantanous resistance at all points
+        cycle['R0_inst'] = np.abs(
+            cycle['voltage'].diff() /
+            cycle['current'].diff())
+
+        # calculate key quantities to filter R0_inst
+        Inorm = cycle['capacity'].max()
+        cycle['dInorm'] = cycle['current'].diff()/Inorm
+        cycle['dt'] = cycle['test_time'].diff()
+
+        # select instantaneous resistance values with
+        # small timesteps and large changes in current
+        sel_t = cycle['dt'] < self.dt_max
+        sel_I = np.abs(cycle['dInorm']) > self.dInorm_min
+        top_R0 = cycle[sel_t*sel_I]
+        top_R0 = top_R0.replace([np.inf, -np.inf], np.nan).dropna()
+        top_R0 = top_R0.sort_values('soc')
+        self.top_R0 = top_R0
+
+        # Evaluate the smoothing spline
+        x_data = top_R0['soc'].values
+        y_data = top_R0['R0_inst'].values
+        t = self.soc_points[1:-1]
+        spline = LSQUnivariateSpline(x_data, y_data, t=t, k=1)
+        self.spline = spline
+
+        return spline(self.soc_points)
+
+    def plot_R0(self, n_plt=100):
+        """Plot R0 vs SOC with Hermite interpolation"""
+        x_plt = np.linspace(0, 1, n_plt)
+        y_plt = self.spline(x_plt[:, None])
+
+        plt.figure(num='instantaneous R0', figsize=(5, 4))
+
+        plt.plot(x_plt, y_plt,
+                 c='k', label='prediction')
+
+        plt.scatter(self.top_R0['soc'], self.top_R0['R0_inst'],
+                    c=self.top_R0['dt'], cmap='viridis')
+
+        plt.xlabel('SOC')
+        plt.ylabel('Instantaneous R0 (Ohms)')
+        plt.legend()
+        plt.colorbar(label='dt (s)')
+        plt.tight_layout()
+        plt.savefig("R0_spline.png")
+        plt.close()
+
+    def extract(self, dataset: CellDataset) -> Resistance:
+        """Extract an estimate for the R0 of a cell
+
+        Args:
+            dataset: Dataset containing time series measurements.
+
+        Returns:
+            An R0 instance with the requested SOC interpolation points,
+        """
+        knots = self.interpolate_R0(dataset.tables['raw_data'])
+        return Resistance(base_values=knots, soc_pinpoints=self.soc_points,
+                          interpolation_style=self.interpolation_style)
+
+    def soc_calc(self, cycle):
+        """Compute accumulated capacity
+        and state of charge"""
+
+        capacity_ = np.array([])
+        p = 0
+        for key, s in cycle.groupby('step_index'):
+            state = s['state'].iloc[0]
+            if state == 'charging' or state == 'discharging':
+                s_cap = cumulative_trapezoid(
+                    s['current'],
+                    s['test_time'],
+                    initial=0)/3600 + p
+                p = s_cap[-1]
+            else:
+                s_cap = np.ones(len(s))*p
+                p = s_cap[-1]
+
+            capacity_ = np.append(capacity_, s_cap)
+
+        capacity_ -= capacity_[0]
+        soc_ = capacity_/capacity_.max()
+
+        cycle['capacity'] = capacity_
+        cycle['soc'] = soc_
+
+        return cycle
