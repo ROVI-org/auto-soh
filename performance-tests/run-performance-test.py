@@ -18,11 +18,13 @@ import yaml
 from moirae.interface.hdf5 import HDF5Writer
 from moirae.estimators.online import OnlineEstimator
 from moirae.models.ecm import EquivalentCircuitModel
+from moirae.models.thevenin import TheveninModel
 from moirae.interface import run_online_estimate
 
 
 _models = {
-    'ecm': EquivalentCircuitModel()
+    'ecm': EquivalentCircuitModel(),
+    'thevenin': TheveninModel()
 }
 
 
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     my_logger.info(f'Estimation completed. Run time {run_time:.2e} s')
 
     # Store the results
-    git_version = run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout
+    git_version = run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     output = {
         'hostname': node(),
         'version': git_version,
@@ -145,4 +147,4 @@ if __name__ == "__main__":
         'run_time': run_time,
     }
     with open('performance-data.jsonl', 'a') as fp:
-        json.dump(output, fp)
+        print(json.dumps(output), file=fp)
