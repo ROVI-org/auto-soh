@@ -35,6 +35,8 @@ class TheveninASOH(HealthVariable):
     """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
     c: Tuple[SOCTempDependentVariable, ...] = Field(default_factory=tuple)
     """Capacitance in all RC elements (C)"""
+    ce: ScalarParameter = 1.
+    """Coulomb efficiency"""
 
     @property
     def num_rc_elements(self) -> int:
