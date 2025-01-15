@@ -1,0 +1,93 @@
+{
+ "updatable": [],
+ "q_t": {
+  "updatable": [],
+  "base_values": [
+   [
+    0.3473476242838598
+   ]
+  ]
+ },
+ "ce": [
+  [
+   1.0
+  ]
+ ],
+ "ocv": {
+  "updatable": [],
+  "ocv_ref": {
+   "updatable": [],
+   "base_values": [
+    [
+     3.072317589,
+     3.321033247678442,
+     3.389279806999756,
+     3.458230961011571,
+     3.5493392256874077,
+     3.6651163387500967,
+     3.797910579259093,
+     3.9396905801520545,
+     4.086010021666667
+    ]
+   ],
+   "soc_pinpoints": null,
+   "interpolation_style": "cubic",
+   "reference_temperature": [
+    [
+     25
+    ]
+   ]
+  },
+  "ocv_ent": {
+   "updatable": [],
+   "base_values": [
+    [
+     0
+    ]
+   ],
+   "soc_pinpoints": null,
+   "interpolation_style": "linear"
+  }
+ },
+ "r0": {
+  "updatable": [],
+  "base_values": [
+   [
+    0.049848752867243704,
+    0.09578928290785382,
+    0.08564950317773737,
+    0.07760070869272347,
+    0.06491388532646165,
+    0.059330604103300356,
+    0.050904968052050546,
+    0.034059751065725466,
+    0.010808211178249762
+   ]
+  ],
+  "soc_pinpoints": null,
+  "interpolation_style": "linear",
+  "reference_temperature": 25.0,
+  "temperature_dependence_factor": [
+   [
+    0
+   ]
+  ]
+ },
+ "c0": null,
+ "rc_elements": [],
+ "h0": {
+  "updatable": [],
+  "base_values": [
+   [
+    0.0
+   ]
+  ],
+  "soc_pinpoints": null,
+  "interpolation_style": "linear",
+  "gamma": [
+   [
+    0.0
+   ]
+  ]
+ }
+}
