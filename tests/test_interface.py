@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import h5py
 from pytest import mark, raises
+import tables as tb
 import numpy as np
 
 from moirae.estimators.online.filters.distributions import MultivariateGaussian
@@ -83,31 +83,21 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
     with raises(ValueError):
         writer.prepare(estimator)
 
-    with h5py.File(h5_path) as f:
-        assert 'state_estimates' in f
-        group = f.get('state_estimates')
+    with tb.open_file(h5_path) as f:
+        assert 'state_estimates' in f.root
+        group = f.root['/state_estimates']
         assert 'per_timestep' in group
-        assert all(x in group.attrs for x in ['write_settings', 'estimator_name'])
+        assert all(x in group._v_attrs for x in ['write_settings', 'estimator_name'])
 
-    # Test with a fixed size
-    h5_path.unlink()
-    with HDF5Writer(hdf5_output=h5_path, resizable=False, per_cycle='full', per_timestep='mean') as writer:
-        assert writer.is_ready
-        with raises(ValueError):
-            writer.prepare(estimator)
-        writer.prepare(estimator, 128, 4)
+        dtype = f.get_node('/state_estimates/per_timestep').dtype
+        assert dtype['state_mean'].shape == (3,)
+        assert 'covariance' not in dtype.fields
+        assert dtype['time'].shape == ()
 
-    with h5py.File(h5_path) as f:
-        assert 'state_estimates' in f
-        group = f.get('state_estimates').get('per_timestep')
-        assert group['state_mean'].shape == (128, 3)
-        assert 'covariance' not in group
-        assert group['time'].shape == (128,)
-
-        group = f.get('state_estimates').get('per_cycle')
-        assert group['state_mean'].shape == (4, 3)
-        assert group['state_covariance'].shape == (4, 3, 3)
-        assert group['time'].shape == (4,)
+        dtype = f.get_node('/state_estimates/per_cycle').dtype
+        assert dtype['state_mean'].shape == (3,)
+        assert dtype['state_covariance'].shape == (3, 3)
+        assert dtype['time'].shape == ()
 
 
 def _make_simple_hf_estimates(simple_rint, what, tmpdir):
@@ -152,34 +142,35 @@ def test_hdf5_write(simple_rint, tmpdir, what, expected_keys):
     h5_path, state_0, state_1 = _make_simple_hf_estimates(simple_rint, what, tmpdir)
 
     # Make sure it's got the desired values
-    with h5py.File(h5_path) as f:
+    with tb.open_file(h5_path) as f:
         # Test the per-step quantities
-        group = f.get('state_estimates')
+        group = f.root['/state_estimates']
         if what == 'none':
             assert 'per_timestep' not in group
         else:
-            my_group = group.get('per_timestep')
+            my_table = group['per_timestep']
+
             # Mean should only be set in the first two rows
-            assert np.allclose(my_group['state_mean'][0, :], state_0.get_mean())
-            assert np.allclose(my_group['state_mean'][1, :], state_1.get_mean())
-            assert np.isnan(my_group['state_mean'][2:, :]).all()
+            assert my_table.shape[0] == 2
+            assert np.allclose(my_table[0]['state_mean'], state_0.get_mean())
+            assert np.allclose(my_table[1]['state_mean'], state_1.get_mean())
 
             # Check the other keys
-            assert set(my_group.keys()) == set(expected_keys + ('time',))
+            dtype = my_table.dtype
+            assert set(dtype.fields) == set(expected_keys + ('time',))
 
             # Check the shapes of the variance
-            if 'state_variance' in my_group:
-                assert my_group['state_variance'].shape[1:] == (3,)
-                assert my_group['output_variance'].shape[1:] == (1,)
+            if 'state_variance' in dtype.fields:
+                assert dtype['state_variance'].shape == (3,)
+                assert dtype['output_variance'].shape == (1,)
 
         # Make sure per_cycle was unaffected, and it only recorded the first state
-        my_group = group.get('per_cycle')
+        my_table = group['per_cycle']
 
-        assert np.allclose(my_group['state_mean'][0, :], state_0.get_mean())
-        assert np.allclose(my_group['state_covariance'][0, :], state_0.get_covariance())
-        assert np.allclose(my_group['time'][0], 0)
-
-        assert np.isnan(my_group['state_mean'][1:, :]).all()
+        assert my_table.shape[0] == 1
+        assert np.allclose(my_table[0]['state_mean'], state_0.get_mean())
+        assert np.allclose(my_table[0]['state_covariance'], state_0.get_covariance())
+        assert np.allclose(my_table[0]['time'], 0)
 
 
 @mark.parametrize('mode', ('path', 'prefab'))
@@ -194,28 +185,28 @@ def test_interface_write(mode, simple_rint, tmpdir, timeseries_dataset):
     if mode == 'path':
         h5_output = h5_path
     else:
-        h5_output = HDF5Writer(hdf5_output=h5_path, resizable=False, per_cycle='full')
+        h5_output = HDF5Writer(hdf5_output=h5_path, per_cycle='full')
 
     # Run the estimation
     _, estimator = run_online_estimate(timeseries_dataset, estimator, hdf5_output=h5_output)
 
-    with h5py.File(h5_path) as f:
-        assert 'state_estimates' in f
-        group = f['state_estimates']
+    with tb.open_file(h5_path) as f:
+        assert 'state_estimates' in f.root
+        group = f.root['state_estimates']
 
         # Test that steps only include the mean
         per_timestep = group['per_timestep']
-        assert set(per_timestep.keys()) == {'time', 'state_mean', 'output_mean'}
+        assert set(per_timestep.dtype.fields) == {'time', 'state_mean', 'output_mean'}
 
         # Test that cycles includes the full version
         per_cycle = group['per_cycle']
-        assert set(per_cycle.keys()) == {'time', 'state_mean', 'state_covariance',
-                                         'output_mean', 'output_covariance'}
+        assert set(per_cycle.dtype.fields) == {'time', 'cycle', 'state_mean', 'state_covariance',
+                                               'output_mean', 'output_covariance'}
 
-        # Ensure the shapes vary depending on prefab or path mode
-        assert per_timestep['time'].shape == (len(timeseries_dataset.raw_data),)
-        if mode == 'prefab':
-            assert per_timestep['time'].maxshape == (len(timeseries_dataset.raw_data),)
+        # Ensure the shape is equal to the data size
+        assert per_timestep.shape == (len(timeseries_dataset.tables['raw_data']) - 1,)
+        assert per_cycle[:]['output_covariance'].shape == \
+               (timeseries_dataset.tables['raw_data']['cycle_number'].max() + 1, 1, 1)
 
 
 @mark.parametrize('what', ('full', 'mean_cov', 'mean_var', 'mean', 'none'))
@@ -249,7 +240,7 @@ def test_h5_open_from_group(simple_rint, tmpdir):
     """Make sure we can read from an already-open file"""
     h5_path, _, _ = _make_simple_hf_estimates(simple_rint, 'none', tmpdir)
 
-    with h5py.File(h5_path) as f:
-        dist_iter = read_state_estimates(f['state_estimates'], per_timestep=False)
+    with tb.open_file(h5_path) as f:
+        dist_iter = read_state_estimates(f.root['state_estimates'], per_timestep=False)
         time, _, _ = next(dist_iter)
         assert np.isclose(time, 0.)
