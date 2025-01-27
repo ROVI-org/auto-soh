@@ -101,11 +101,13 @@ def test_serialization():
     # Now let's say we try to get a value, in which case, the soc_pinpoints are created
     variable.get_value(soc=0.5)
     assert len(variable.soc_pinpoints) == variable.base_values.shape[1], 'Mismatch between pinpoints and base values!'
+    assert np.allclose(re_variable0.get_value(0.5), variable.get_value(soc=0.5)), 'Wrong calculation of value!'
 
     # Ensure the base values get serialized correctly
     varialb_str1 = variable.model_dump_json()
     re_variable1 = SOCInterpolatedHealth.model_validate_json(varialb_str1)
     assert np.allclose(variable.base_values, re_variable1.base_values), 'Wrong recreation of base values!'
+    assert np.allclose(variable.soc_pinpoints, re_variable1.soc_pinpoints), 'Wrong recreation of SOC pinpoints!'
 
     # Now, try pre-defining soc pinpoints
     variable = SOCInterpolatedHealth(base_values=np.arange(10), soc_pinpoints=np.linspace(0, 1, 10))
@@ -115,3 +117,4 @@ def test_serialization():
     varialb_str0 = variable.model_dump_json()
     re_variable0 = SOCInterpolatedHealth.model_validate_json(varialb_str0)
     assert np.allclose(variable.base_values, re_variable0.base_values), 'Wrong recreation of base values!'
+    assert np.allclose(variable.soc_pinpoints, re_variable0.soc_pinpoints), 'Wrong recreationg of SOC pinpoints!'
