@@ -72,6 +72,10 @@ class TheveninModel(CellModel):
             transient_state: TheveninTransient,
             asoh: TheveninASOH
     ) -> TheveninTransient:
+        # Return the current transient state if the time step is zero
+        if np.isclose(new_inputs.time - previous_inputs.time, 0):
+            return transient_state.model_copy(deep=True)
+
         # Initialize the array in which to store output values
         batch_size = max(transient_state.batch_size, asoh.batch_size, new_inputs.batch_size)
         output_array = np.zeros((batch_size, len(transient_state)))
