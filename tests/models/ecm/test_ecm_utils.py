@@ -85,3 +85,33 @@ def test_cube(cubic):
     assert np.isclose(values * values * values,
                       cubic.get_value(values),
                       atol=1e-12).all(), 'Wrong cubic interpolation!'
+
+
+def test_serialization():
+    # Create a variable
+    variable = SOCInterpolatedHealth(base_values=np.arange(10))
+    assert variable.soc_pinpoints is None, 'SOC pinpoints created prematurely!'
+
+    # Make sure the base_values serialize correctly
+    varialb_str0 = variable.model_dump_json()
+    re_variable0 = SOCInterpolatedHealth.model_validate_json(varialb_str0)
+    assert np.allclose(variable.base_values, re_variable0.base_values), 'Wrong recreation of base values!'
+    assert re_variable0.soc_pinpoints is None, 'SOC points where created on serialization'
+
+    # Now let's say we try to get a value, in which case, the soc_pinpoints are created
+    variable.get_value(soc=0.5)
+    assert len(variable.soc_pinpoints) == variable.base_values.shape[1], 'Mismatch between pinpoints and base values!'
+
+    # Ensure the base values get serialized correctly
+    varialb_str1 = variable.model_dump_json()
+    re_variable1 = SOCInterpolatedHealth.model_validate_json(varialb_str1)
+    assert np.allclose(variable.base_values, re_variable1.base_values), 'Wrong recreation of base values!'
+
+    # Now, try pre-defining soc pinpoints
+    variable = SOCInterpolatedHealth(base_values=np.arange(10), soc_pinpoints=np.linspace(0, 1, 10))
+    assert len(variable.soc_pinpoints) == 10, 'SOC pinpoints defined incorrectly!'
+
+    # The usual stuff
+    varialb_str0 = variable.model_dump_json()
+    re_variable0 = SOCInterpolatedHealth.model_validate_json(varialb_str0)
+    assert np.allclose(variable.base_values, re_variable0.base_values), 'Wrong recreation of base values!'

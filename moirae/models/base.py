@@ -56,6 +56,10 @@ ListParameter = Annotated[
 ]
 """Type annotation for parameters which can be any number of values"""
 
+NumpyType = Annotated[
+    np.ndarray, BeforeValidator(np.array), Field(), WrapSerializer(_encode_ndarray, when_used='json-unless-none')
+]
+
 
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
 # TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
