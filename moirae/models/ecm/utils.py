@@ -2,10 +2,10 @@ from typing import List, Optional, Union, Literal, Callable, Iterator
 from numbers import Number
 
 import numpy as np
-from pydantic import Field, field_serializer
+from pydantic import Field
 from scipy.interpolate import interp1d
 
-from moirae.models.base import HealthVariable, ListParameter
+from moirae.models.base import HealthVariable, ListParameter, NumpyType
 
 
 class SOCInterpolatedHealth(HealthVariable):
@@ -13,14 +13,10 @@ class SOCInterpolatedHealth(HealthVariable):
     """
     base_values: ListParameter = \
         Field(default=0, description='Values at specified SOCs')
-    soc_pinpoints: Optional[np.ndarray] = Field(default=None, description='SOC pinpoints for interpolation.')
+    soc_pinpoints: Optional[NumpyType] = Field(default=None, description='SOC pinpoints for interpolation.')
     interpolation_style: Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
                                  'quadratic', 'cubic', 'previous', 'next'] = \
         Field(default='linear', description='Type of interpolation to perform')
-
-    @field_serializer('soc_pinpoints', when_used='json-unless-none')
-    def _serialize_numpy(self, value: np.ndarray):
-        return value.tolist()
 
     def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
         for name, param in super().iter_parameters(updatable_only, recurse):
