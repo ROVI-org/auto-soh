@@ -59,6 +59,7 @@ ListParameter = Annotated[
 NumpyType = Annotated[
     np.ndarray, BeforeValidator(np.array), Field(), WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
+"""Type annotation for a field which is a numpy array but does not requires the batch dimensions used by parameters"""
 
 
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
