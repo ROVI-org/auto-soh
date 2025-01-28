@@ -108,6 +108,10 @@ def test_multiple_steps(asoh):
     assert len(state) == 2 + asoh.num_rc_elements
     assert not np.isclose(state.to_numpy(), 0.).any()  # Including the SOC and RC elements
 
+    # Ensure no errors if the time between timesteps is zero
+    new_state = model.update_transient_state(new_inputs, new_inputs, state, asoh)
+    assert np.allclose(new_state.to_numpy(), state.to_numpy())
+
     # Test charging until the full hour
     pre_inputs = new_inputs
     new_inputs = TheveninInput(current=1., time=3600., t_inf=298.)
