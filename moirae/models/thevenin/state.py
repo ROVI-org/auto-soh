@@ -37,6 +37,10 @@ class TheveninASOH(HealthVariable):
     """Capacitance in all RC elements (C)"""
     ce: ScalarParameter = 1.
     """Coulomb efficiency"""
+    gamma: ScalarParameter = 50.
+    """Hysteresis approach rate"""
+    m_hyst: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=0))
+    """Maximum magnitude of hysteresis (V)"""
 
     @property
     def num_rc_elements(self) -> int:
@@ -57,7 +61,7 @@ class TheveninTransient(GeneralContainer):
     """State of charge for the battery system"""
     temp: ScalarParameter = 298.
     """Temperature of the battery (units: K)"""
-    eta: ListParameter = []
+    eta: ListParameter = ()
     """Overpotential for the RC elements (units: V)"""
 
     @classmethod
