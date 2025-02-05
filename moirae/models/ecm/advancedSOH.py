@@ -96,7 +96,7 @@ class ECMASOH(HealthVariable):
             OCVref = ReferenceOCV(base_values=OCV)
         OCV = OpenCircuitVoltage(ocv_ref=OCVref, ocv_ent=OCVent)
         # H0 prep
-        H0 = HysteresisParameters(base_values=H0, gamma=0.9)
+        H0 = HysteresisParameters(base_values=H0, gamma=50)
 
         # C0 prep
         c0 = None
