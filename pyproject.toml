@@ -9,7 +9,7 @@ keywords = ["batteries", "science", "data science"]
 authors = [
     {name = "Logan Ward", email = "lward@anl.gov"},
     {name = "Victor Venturi", email = "vventuri@anl.gov"},
-    {name = "Noah Paulson", email = "lward@anl.gov"},
+    {name = "Noah Paulson", email = "npaulson@anl.gov"},
 ]
 dependencies = [
     "battery-data-toolkit",
@@ -37,7 +37,7 @@ docs = [
     'nbsphinx'
 ]
 thevenin = [
-    'thevenin@git+https://github.com/ROVI-org/thevenin.git'
+    'thevenin@git+https://github.com/NREL/thevenin'
 ]
 
 [project.urls]

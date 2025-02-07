@@ -154,6 +154,6 @@ class HysteresisParameters(SOCInterpolatedHealth):
     base_values: ListParameter = \
         Field(
             description='Values of maximum hysteresis at specified SOCs. Units: V')
-    gamma: ScalarParameter = Field(default=0.,
+    gamma: ScalarParameter = Field(default=50.,
                                    description='Exponential approach rate. Units: 1/V',
                                    ge=0.)
