@@ -10,8 +10,6 @@ from battdat.schemas import BatteryMetadata, BatteryDescription
 from moirae.models.ecm import ECMASOH, ECMTransientVector, EquivalentCircuitModel, ECMInput
 from moirae.simulator import Simulator
 
-from battdat.io.hdf import HDF5Writer, as_hdf5_object
-
 
 @fixture()
 def simple_rint() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCircuitModel]:
@@ -122,11 +120,11 @@ def make_dataset_hppc(simple_rint):
         It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0]
         It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse]
         It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi]
-    It_profile[f'prepulserest_0pctSOC'] = [trestl, 0]
+    It_profile['prepulserest_0pctSOC'] = [trestl, 0]
     It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse]
     It_profile['midpulserest_0pctSOC'] = [trestmp, 0]
     It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse]
-    
+
     currents = []
     states = []
     tot_time = 0
@@ -134,28 +132,28 @@ def make_dataset_hppc(simple_rint):
     ts = 10  # time step (s)
 
     for ii, (key, value) in enumerate(It_profile.items()):
-        t, I = value
+        t, curr = value
 
         n_ts = np.int32(np.floor(t/ts))  # number of time steps in t
 
-        currents += [I] * n_ts # t
-        step_indices += [ii] * n_ts # t
+        currents += [curr] * n_ts
+        step_indices += [ii] * n_ts
 
-        if I > 0.0001:
+        if curr > 0.0001:
             state = 'charging'
-        elif I < -0.0001:
+        elif curr < -0.0001:
             state = 'discharging'
         else:
             state = 'resting'
 
-        states += [state] * n_ts # t
+        states += [state] * n_ts
         tot_time += t
 
-    timestamps = np.arange(1, tot_time+1, ts) # np.arange(tot_time) + 1
+    timestamps = np.arange(1, tot_time+1, ts)
     timestamps = timestamps.tolist()
 
     # Prepare list of inputs
-    ecm_inputs = [ECMInput(time=time, current=current) \
+    ecm_inputs = [ECMInput(time=time, current=current)
                   for (time, current) in zip(timestamps, currents)]
 
     # Store results
