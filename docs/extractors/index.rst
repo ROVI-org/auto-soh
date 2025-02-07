@@ -29,11 +29,13 @@ and, in some cases, information gathered from other extractors.
 
 .. code-block:: python
 
-    from moirae.extractors.ecm import MaxCapacityExtractor, OCVExtractor
+    from moirae.extractors.ecm import MaxCapacityExtractor, OCVExtractor, R0Extractor
 
     cap = MaxCapacityExtractor().extract(dataset)
-    ex = OCVExtractor(capacity=cap)
-    ocv = ex.extract(dataset)
+    ex_ocv = OCVExtractor(capacity=cap)
+    ocv = ex_ocv.extract(dataset)
+    ex_r0 = R0Extractor(capacity=cap)
+    r0 = ex_r0.extract(dataset)
 
 
 Available Extractors
@@ -69,4 +71,7 @@ generating parameters for different parts of the model.
      * Voltage with zero current
      * - Capacity estimate
        - Complete charge and discharge
-
+   - * :class:`~moirae.extractors.ecm.R0Extractor`
+     * Instantaneous resistance (measured in Ohms) of a battery observed from step changes in current
+     * - Capacity estimate
+       - Step changes in current across various states of charge, measured across a small timestep
