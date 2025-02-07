@@ -32,7 +32,7 @@ def hyst_only() -> Simulator:
 
 @fixture
 def c0_asoh() -> ECMASOH:
-    asoh = ECMASOH.provide_template(has_C0=True, num_RC=0)
+    asoh = ECMASOH.provide_template(has_C0=True, num_RC=0, H0=0.)
     # Remove R0
     asoh.r0.base_values = np.zeros((1, 1))
     # Set CE to known value
