@@ -287,7 +287,7 @@ class R0Extractor(BaseExtractor):
         capacity_ = np.array([])
         p = 0
         for key, s in cycle.groupby('step_index'):
-            state = s['state'].iloc[0].decode('utf-8')
+            state = s['state'].iloc[0]
             if state == 'charging' or state == 'discharging':
                 s_cap = cumulative_trapezoid(
                     s['current'],
