@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from tables import File, Group
+from tables import Group
 from battdat.data import BatteryDataset
 from battdat.streaming import iterate_records_from_file
 
