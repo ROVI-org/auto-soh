@@ -43,7 +43,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     Args:
         hdf5_output: Path to an HDF5 file or group within a file in which to write data
         storage_key: Name of the group within the file to store all states
-        table_options: Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`.
+        table_options: Option used when initializing storage. See :meth:`~pytables.Filters`.
             Default is to use LZF compression.
         per_timestep: Which information to store at each timestep:
             - `full`: All available information about the estimated state
@@ -61,7 +61,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     storage_key: str = 'state_estimates'
     """Name of the group in which to store the estimates. Ignored if :attr:`hdf5_output` is a Group"""
     table_options: Dict[str, Any] = Field(default_factory=lambda: dict(complib='lzo', complevel=5))
-    """Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`"""
+    """Option used when initializing storage. See :class:`~pytables.Filters`"""
 
     # Attributes defining what is written
     per_timestep: OutputType = 'mean'
@@ -113,8 +113,6 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
                 expected_cycles: Optional[int] = None):
         """
         Create the necessary groups and store metadata about the OnlineEstimator
-
-        Additional keyword arguments are passed to :meth:`~h5py.Group.create_dataset`.
 
         Args:
               estimator: Estimator being used to create estimates

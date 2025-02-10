@@ -6,10 +6,10 @@ from typing import Tuple, Union
 from math import isfinite
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from tables import Group
 from battdat.data import BatteryDataset
 from battdat.streaming import iterate_records_from_file
 
@@ -53,7 +53,7 @@ def run_online_estimate(
         estimator: OnlineEstimator,
         pbar: bool = False,
         output_states: bool = True,
-        hdf5_output: Union[Path, str, h5py.Group, HDF5Writer, None] = None,
+        hdf5_output: Union[Path, str, Group, HDF5Writer, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -78,17 +78,18 @@ def run_online_estimate(
     # Determine the number of rows in the dataset and an interator over the dataset
     if isinstance(dataset, BatteryDataset):
         # Ensure raw data are present in the data file
-        if dataset.raw_data is None:
+        if 'raw_data' not in dataset.tables is None:
             raise ValueError('No time series data in the provided dataset')
 
-        num_rows = dataset.raw_data.shape[0]
-        num_cycles = dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0
+        raw_data = dataset.tables['raw_data']
+        num_rows = raw_data.shape[0]
+        num_cycles = raw_data['cycle_number'].max() + 1 if 'cycle_number' in raw_data else 0
 
         def _row_iter(d):
             for _, r in d.iterrows():
                 yield r
 
-        row_iter = _row_iter(dataset.raw_data.reset_index())  # .reset_index to iterate in sort order
+        row_iter = _row_iter(raw_data.reset_index())  # .reset_index to iterate in sort order
     elif isinstance(dataset, (str, Path)):
         with pd.HDFStore(dataset, mode='r') as store:
             num_rows = store.get_storer('raw_data').nrows
@@ -109,7 +110,7 @@ def run_online_estimate(
         output_std = np.zeros((num_rows, estimator.num_output_dimensions))
 
     # Open a H5 output if desired
-    if isinstance(hdf5_output, (str, Path, h5py.Group)):
+    if isinstance(hdf5_output, (str, Path, Group)):
         h5_writer = HDF5Writer(hdf5_output=hdf5_output)
     elif hdf5_output is not None:
         h5_writer = hdf5_output

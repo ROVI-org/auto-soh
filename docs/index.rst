@@ -12,6 +12,7 @@ Source Code: https://github.com/ROVI-org/auto-soh/
    :caption: Contents:
 
    user-guide
+   tutorials/index
    source/modules
    extending
 

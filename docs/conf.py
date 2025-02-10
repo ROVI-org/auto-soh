@@ -51,7 +51,6 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'thevenin': ('https://rovi-org.github.io/thevenin/', None),
+    'thevenin': ('https://thevenin.readthedocs.io/stable/', None),
     'batdata': ('https://rovi-org.github.io/battery-data-toolkit/', None),
-    'h5py': ('https://docs.h5py.org/en/stable/', None)
 }
