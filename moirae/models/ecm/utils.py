@@ -102,6 +102,15 @@ def realistic_fake_ocv(
     return volts
 
 
+def unrealistic_fake_r0(
+        soc_vals: Union[float, np.ndarray]) -> np.ndarray:
+    """
+    Returns not very realistic R0 relationship to SOC
+    """
+    ohms = 0.05*np.ones(np.array(soc_vals).shape)
+    return ohms
+
+
 def hysteresis_solver_const_sign(
         h0: Union[float, np.ndarray],
         M: Union[float, np.ndarray],
