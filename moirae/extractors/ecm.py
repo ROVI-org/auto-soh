@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.isotonic import IsotonicRegression
 from scipy.integrate import cumulative_trapezoid
+from scipy.interpolate import LSQUnivariateSpline
 from battdat.data import CellDataset
 from battdat.postprocess.integral import CapacityPerCycle
 
