@@ -15,6 +15,8 @@ dependencies = [
     "battery-data-toolkit",
     "pydantic",
     "numpy",
+    "scipy",
+    "scikit-learn",
     "flatten-dict",
     "tqdm"
 ]
