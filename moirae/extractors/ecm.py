@@ -1,12 +1,15 @@
 """Extraction algorithms which gather parameters of an ECM"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.interpolate import LSQUnivariateSpline
+from sklearn.isotonic import IsotonicRegression
 from scipy.integrate import cumulative_trapezoid
-
+from scipy.interpolate import LSQUnivariateSpline
 from battdat.data import CellDataset
 from battdat.postprocess.integral import CapacityPerCycle
+
+
 from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import ReferenceOCV, OpenCircuitVoltage, MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance
@@ -67,7 +70,7 @@ class OCVExtractor(BaseExtractor):
                  capacity: float | MaxTheoreticalCapacity,
                  soc_points: np.ndarray | int = 11,
                  soc_requirement: float = 0.95,
-                 interpolation_style: str = 'cubic'):
+                 interpolation_style: str = 'linear'):
         if isinstance(soc_points, int):
             soc_points = np.linspace(0, 1, soc_points)
         self.soc_points = np.array(soc_points)
@@ -109,12 +112,9 @@ class OCVExtractor(BaseExtractor):
         w = 1. / np.clip(np.abs(cycle['current']), a_min=1e-6, a_max=None)
         w /= w.sum()
 
-        # Evaluate the smoothing spline
-        t = self.soc_points[1:-1]
-        spline = LSQUnivariateSpline(
-            cycle['soc'].values, cycle['voltage'].values, w=w, t=t
-        )
-        return spline(self.soc_points)
+        # Fit then evaluate a monotonic function
+        model = IsotonicRegression(out_of_bounds='clip').fit(cycle['soc'], cycle['voltage'], sample_weight=w)
+        return model.predict(self.soc_points)
 
     def extract(self, dataset: CellDataset) -> OpenCircuitVoltage:
         """Extract an estimate for the OCV of a cell
