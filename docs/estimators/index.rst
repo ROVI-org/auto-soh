@@ -50,7 +50,7 @@ First construct an objective function for the optimizer, which requires
 
     loss = MeanSquaredLoss(
         cell_model=ecm,
-        state=state,
+        transient_state=state,
         asoh=asoh,
         observations=dataset
     )
@@ -60,7 +60,7 @@ any options related to how that optimizer functions.
 
 .. code-block:: python
 
-    scipy = ScipyMinimizer(loss, method='Nedler-Mead')
+    scipy = ScipyMinimizer(loss, method='Nelder-Mead')
 
 Using an Estimator
 ++++++++++++++++++
