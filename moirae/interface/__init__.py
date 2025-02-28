@@ -15,10 +15,11 @@ from battdat.streaming import iterate_records_from_file
 
 from moirae.estimators.online import OnlineEstimator
 from moirae.interface.hdf5 import HDF5Writer
-from moirae.models.base import InputQuantities, OutputQuantities
+from moirae.models.base import InputQuantities, OutputQuantities, CellModel, HealthVariable, GeneralContainer
 from moirae.models.ecm import ECMInput, ECMMeasurement
+from moirae.simulator import Simulator
 
-__all__ = ['row_to_inputs', 'run_online_estimate']
+__all__ = ['row_to_inputs', 'run_online_estimate', 'run_model']
 
 
 def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
@@ -150,3 +151,42 @@ def run_online_estimate(
             )
         )
     return output, estimator
+
+
+def run_model(
+        model: CellModel,
+        dataset: BatteryDataset,
+        asoh: HealthVariable,
+        state_0: GeneralContainer
+) -> pd.DataFrame:
+    """Run a cell model following data provided by a :class:`~battdat.data.BatteryDataset`
+
+    Args:
+        model: Model describing the cell
+        dataset: Observations of current and voltage used when running th emodel
+        asoh: Parameters for the cell
+        state_0: Starting state for the model
+    Returns:
+        Outputs from the model as a function of time
+    """
+
+    # Init the simulation runner
+    raw_data = dataset.tables['raw_data']
+    simulator = Simulator(
+        cell_model=model,
+        asoh=asoh,
+        transient_state=state_0,
+        initial_input=row_to_inputs(raw_data.iloc[0])[0],
+        keep_history=False
+    )
+
+    # Init the output array
+    init_outputs = simulator.measurement
+    output = np.zeros((len(raw_data), len(init_outputs)))
+    output[0, :] = init_outputs.to_numpy()[0, :]
+
+    for i, (_, row) in enumerate(raw_data.iloc[1:].iterrows()):
+        inputs, _ = row_to_inputs(row)
+        _, outputs = simulator.step(inputs)
+        output[i + 1, :] = outputs.to_numpy()[0, :]
+    return pd.DataFrame(output, columns=init_outputs.all_names)
