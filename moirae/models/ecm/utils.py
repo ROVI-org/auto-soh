@@ -147,7 +147,6 @@ def hysteresis_solver_const_sign(
         Hysteresis value at the end of the time interval
     """
     assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
-    h0 = np.clip(h0, -M, M)
     exp_factor = kappa * dt  # shape (broadcasted_batch_size, 1)
     exp_factor = exp_factor * (i0 + (0.5 * alpha * dt))
     # Now, flip the sign depending if current is positive in the interval
