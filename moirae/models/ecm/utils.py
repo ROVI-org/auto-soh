@@ -28,6 +28,7 @@ class SOCInterpolatedHealth(HealthVariable):
         """
         Interpolate values. If soc_pinpoints have not been set, assume
         internal_parameters are evenly spread on an SOC interval [0,1].
+
         """
         if self.soc_pinpoints is None:
             self.soc_pinpoints = np.linspace(0, 1, self.base_values.shape[-1])
@@ -146,6 +147,7 @@ def hysteresis_solver_const_sign(
         Hysteresis value at the end of the time interval
     """
     assert i0 * (i0 + (alpha * dt)) >= 0, 'Current flips sign in interval dt!!'
+    h0 = np.clip(h0, -M, M)
     exp_factor = kappa * dt  # shape (broadcasted_batch_size, 1)
     exp_factor = exp_factor * (i0 + (0.5 * alpha * dt))
     # Now, flip the sign depending if current is positive in the interval
