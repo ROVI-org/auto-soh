@@ -28,6 +28,7 @@ class SOCInterpolatedHealth(HealthVariable):
         """
         Interpolate values. If soc_pinpoints have not been set, assume
         internal_parameters are evenly spread on an SOC interval [0,1].
+
         """
         if self.soc_pinpoints is None:
             self.soc_pinpoints = np.linspace(0, 1, self.base_values.shape[-1])
