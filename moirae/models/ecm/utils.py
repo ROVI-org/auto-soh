@@ -84,7 +84,7 @@ class SOCInterpolatedHealth(HealthVariable):
         Returns:
             2D array where first dimension is the batch and second is the SOC values.
         """
-        soc = np.array(soc, copy=False)  # Ensure it's an array, but don't copy it
+        soc = np.asarray(soc)  # Ensure it's an array, but don't copy it
         if soc.ndim == 0:
             return soc[None, None]
         elif soc.ndim == 1:
