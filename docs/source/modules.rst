@@ -13,3 +13,4 @@ API documentation for each module
    models
    interface
    simulator
+   version
