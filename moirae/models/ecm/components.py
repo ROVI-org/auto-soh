@@ -28,7 +28,7 @@ class MaxTheoreticalCapacity(HealthVariable):
         self.base_values = amp_seconds / 3600.
 
     @property
-    def amp_hour(self) -> float:
+    def amp_hour(self) -> np.ndarray:
         """
         Returns capacity in Amp-hour, as it was initialized.
         """
