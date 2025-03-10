@@ -22,7 +22,7 @@ Components (``moirae.models.thevenin.components``)
    :undoc-members:
    :show-inheritance:
 
-Inputs and Outputs (``moirae.models.thevenin.ins_and_outs``)
+Inputs and Outputs (``moirae.models.thevenin.ins_outs``)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.models.thevenin.ins_outs
