@@ -99,16 +99,13 @@ def run_online_estimate(
     else:
         raise ValueError(f'Unrecognized data type: {type(dataset)}')
 
-    # Update the initial inputs for the
-    initial_input, _ = row_to_inputs(next(row_iter))
-    estimator._u = initial_input
-
     # Initialize the output arrays
     if output_states:
-        state_mean = np.zeros((num_rows, estimator.num_state_dimensions))
-        state_std = np.zeros((num_rows, estimator.num_state_dimensions))
-        output_mean = np.zeros((num_rows, estimator.num_output_dimensions))
-        output_std = np.zeros((num_rows, estimator.num_output_dimensions))
+        # num_rows - 1 because we do not record the first step
+        state_mean = np.zeros((num_rows - 1, estimator.num_state_dimensions))
+        state_std = np.zeros((num_rows - 1, estimator.num_state_dimensions))
+        output_mean = np.zeros((num_rows - 1, estimator.num_output_dimensions))
+        output_std = np.zeros((num_rows - 1, estimator.num_output_dimensions))
 
     # Open a H5 output if desired
     if isinstance(hdf5_output, (str, Path, Group)):
@@ -123,6 +120,10 @@ def run_online_estimate(
         # Prepare given the available data
         if hdf5_output is not None:
             h5_writer.prepare(estimator=estimator, expected_steps=num_rows, expected_cycles=num_cycles)
+
+        # Update the inputs using the first step
+        initial_input, _ = row_to_inputs(next(row_iter))
+        estimator._u = initial_input
 
         for i, row in tqdm(
                 enumerate(row_iter), total=num_rows, disable=not pbar,

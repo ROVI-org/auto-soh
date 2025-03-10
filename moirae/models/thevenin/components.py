@@ -58,7 +58,12 @@ class SOCTempPolynomialVariable(SOCTempDependentVariable):
     """A parameter where the dependence on SOC and temperature are described by polynomial
 
     The temperature-dependence is described by a polynomial centered on a reference temperature,
-    :math:`f(T) = c_0 + c_1 (T - T_{ref}) + ...`
+    :math:`f_T(T) = c_0 + c_1 (T - T_{ref}) + ...`
+
+    The SOC-dependence is described by a polynomial as well,
+    :math:`f_{SOC}(soc) = c_0 + c_1 * soc + ...`
+
+    The two are added to express dependence in both: :math:`f(T, SOC) = f_T(T) + f_{SOC}(SOC)`
     """
 
     # TODO (wardlt): We define a constant parameter in both polynomials. Maybe set one have an assumed constant of zero

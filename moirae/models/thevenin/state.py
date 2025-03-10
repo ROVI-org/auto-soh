@@ -2,7 +2,7 @@
 import numpy as np
 from typing import Tuple
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 
 from moirae.models.base import HealthVariable, ScalarParameter, GeneralContainer, ListParameter
 from moirae.models.thevenin.components import (
@@ -15,6 +15,7 @@ class TheveninASOH(HealthVariable):
 
     These parameters match the parameters required to build a :class:`thevenin.Model`.
     """
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     # Default parameters from: test_model.py in thevenin
     capacity: ScalarParameter = 1.
