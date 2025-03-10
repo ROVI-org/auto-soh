@@ -28,6 +28,7 @@ class SOCInterpolatedHealth(HealthVariable):
         """
         Interpolate values. If soc_pinpoints have not been set, assume
         internal_parameters are evenly spread on an SOC interval [0,1].
+
         """
         if self.soc_pinpoints is None:
             self.soc_pinpoints = np.linspace(0, 1, self.base_values.shape[-1])
@@ -100,6 +101,15 @@ def realistic_fake_ocv(
     volts += y_off
     volts = volts.astype(float)
     return volts
+
+
+def unrealistic_fake_r0(
+        soc_vals: Union[float, np.ndarray]) -> np.ndarray:
+    """
+    Returns not very realistic R0 relationship to SOC
+    """
+    ohms = 0.05*np.ones(np.array(soc_vals).shape)
+    return ohms
 
 
 def hysteresis_solver_const_sign(

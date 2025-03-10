@@ -8,7 +8,6 @@ dependencies:
   # Basics
   - tqdm
   - matplotlib
-  - h5py
   - pytables
 
   # Thevenin

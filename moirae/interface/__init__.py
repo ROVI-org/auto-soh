@@ -6,19 +6,20 @@ from typing import Tuple, Union
 from math import isfinite
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from tables import Group
 from battdat.data import BatteryDataset
 from battdat.streaming import iterate_records_from_file
 
 from moirae.estimators.online import OnlineEstimator
 from moirae.interface.hdf5 import HDF5Writer
-from moirae.models.base import InputQuantities, OutputQuantities
+from moirae.models.base import InputQuantities, OutputQuantities, CellModel, HealthVariable, GeneralContainer
 from moirae.models.ecm import ECMInput, ECMMeasurement
+from moirae.simulator import Simulator
 
-__all__ = ['row_to_inputs', 'run_online_estimate']
+__all__ = ['row_to_inputs', 'run_online_estimate', 'run_model']
 
 
 def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
@@ -53,7 +54,7 @@ def run_online_estimate(
         estimator: OnlineEstimator,
         pbar: bool = False,
         output_states: bool = True,
-        hdf5_output: Union[Path, str, h5py.Group, HDF5Writer, None] = None,
+        hdf5_output: Union[Path, str, Group, HDF5Writer, None] = None,
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -78,17 +79,18 @@ def run_online_estimate(
     # Determine the number of rows in the dataset and an interator over the dataset
     if isinstance(dataset, BatteryDataset):
         # Ensure raw data are present in the data file
-        if dataset.raw_data is None:
+        if 'raw_data' not in dataset.tables is None:
             raise ValueError('No time series data in the provided dataset')
 
-        num_rows = dataset.raw_data.shape[0]
-        num_cycles = dataset.raw_data['cycle_number'].max() + 1 if 'cycle_number' in dataset.raw_data else 0
+        raw_data = dataset.tables['raw_data']
+        num_rows = raw_data.shape[0]
+        num_cycles = raw_data['cycle_number'].max() + 1 if 'cycle_number' in raw_data else 0
 
         def _row_iter(d):
             for _, r in d.iterrows():
                 yield r
 
-        row_iter = _row_iter(dataset.raw_data.reset_index())  # .reset_index to iterate in sort order
+        row_iter = _row_iter(raw_data.reset_index())  # .reset_index to iterate in sort order
     elif isinstance(dataset, (str, Path)):
         with pd.HDFStore(dataset, mode='r') as store:
             num_rows = store.get_storer('raw_data').nrows
@@ -109,7 +111,7 @@ def run_online_estimate(
         output_std = np.zeros((num_rows, estimator.num_output_dimensions))
 
     # Open a H5 output if desired
-    if isinstance(hdf5_output, (str, Path, h5py.Group)):
+    if isinstance(hdf5_output, (str, Path, Group)):
         h5_writer = HDF5Writer(hdf5_output=hdf5_output)
     elif hdf5_output is not None:
         h5_writer = hdf5_output
@@ -149,3 +151,42 @@ def run_online_estimate(
             )
         )
     return output, estimator
+
+
+def run_model(
+        model: CellModel,
+        dataset: BatteryDataset,
+        asoh: HealthVariable,
+        state_0: GeneralContainer
+) -> pd.DataFrame:
+    """Run a cell model following data provided by a :class:`~battdat.data.BatteryDataset`
+
+    Args:
+        model: Model describing the cell
+        dataset: Observations of current and voltage used when running th emodel
+        asoh: Parameters for the cell
+        state_0: Starting state for the model
+    Returns:
+        Outputs from the model as a function of time
+    """
+
+    # Init the simulation runner
+    raw_data = dataset.tables['raw_data']
+    simulator = Simulator(
+        cell_model=model,
+        asoh=asoh,
+        transient_state=state_0,
+        initial_input=row_to_inputs(raw_data.iloc[0])[0],
+        keep_history=False
+    )
+
+    # Init the output array
+    init_outputs = simulator.measurement
+    output = np.zeros((len(raw_data), len(init_outputs)))
+    output[0, :] = init_outputs.to_numpy()[0, :]
+
+    for i, (_, row) in enumerate(raw_data.iloc[1:].iterrows()):
+        inputs, _ = row_to_inputs(row)
+        _, outputs = simulator.step(inputs)
+        output[i + 1, :] = outputs.to_numpy()[0, :]
+    return pd.DataFrame(output, columns=init_outputs.all_names)

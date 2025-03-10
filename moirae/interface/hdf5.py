@@ -43,7 +43,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     Args:
         hdf5_output: Path to an HDF5 file or group within a file in which to write data
         storage_key: Name of the group within the file to store all states
-        table_options: Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`.
+        table_options: Option used when initializing storage. See :meth:`~pytables.Filters`.
             Default is to use LZF compression.
         per_timestep: Which information to store at each timestep:
             - `full`: All available information about the estimated state
@@ -56,12 +56,12 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     """
 
     # Attributes defining where and how to write
-    hdf5_output: Union[Path, str, tb.Group] = Field(exclude=True)
+    hdf5_output: Union[Path, str, tb.File] = Field(exclude=True)
     """File or already-open HDF5 file in which to store data"""
     storage_key: str = 'state_estimates'
-    """Name of the group in which to store the estimates. Ignored if :attr:`hdf5_output` is a Group"""
+    """Name of the group in which to store the estimates"""
     table_options: Dict[str, Any] = Field(default_factory=lambda: dict(complib='lzo', complevel=5))
-    """Option used when initializing storage. See :meth:`~h5py.Group.create_dataset`"""
+    """Option used when initializing storage. See :class:`~pytables.Filters`"""
 
     # Attributes defining what is written
     per_timestep: OutputType = 'mean'
@@ -76,22 +76,19 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
     """Handle to the group being written to"""
     _table_map: Dict[str, tb.Table] = PrivateAttr(default_factory=dict)
     """Map of the currently-open tables"""
-    position: Optional[int] = None
-    """Index of the next step to be written"""
 
     def __enter__(self):
         """Open the file and store the group in which to write data"""
-        if not isinstance(self.hdf5_output, tb.Group):
+        if not isinstance(self.hdf5_output, tb.File):
             self._file_handle = tb.open_file(self.hdf5_output, mode='a')
-            self._group_handle = self._file_handle.create_group('/', self.storage_key)
         else:
-            self._group_handle = self.hdf5_output
-        self.position = 0  # TODO (wardlt): Support re-opening files for writing phase
+            self._file_handle = self.hdf5_output
+        self._group_handle = self._file_handle.create_group('/', self.storage_key)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Close the file and stop being ready to write"""
-        if self._file_handle is not None:
+        if not isinstance(self.hdf5_output, tb.File):
             self._file_handle.close()
             self._file_handle = None
         self._group_handle = None
@@ -113,8 +110,6 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
                 expected_cycles: Optional[int] = None):
         """
         Create the necessary groups and store metadata about the OnlineEstimator
-
-        Additional keyword arguments are passed to :meth:`~h5py.Group.create_dataset`.
 
         Args:
               estimator: Estimator being used to create estimates
@@ -176,8 +171,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._check_if_ready()
 
         # Write the column to the appropriate part of the HDF5 file
-        # TODO (wardlt): Introduce a batched write implementation.
-        for ind, what, where in [(self.position, self.per_timestep, 'per_timestep'),
+        for ind, what, where in [(0, self.per_timestep, 'per_timestep'),
                                  (int(cycle), self.per_cycle, 'per_cycle')]:
             # Determine if we must write
             if what == "none":
@@ -199,9 +193,6 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             for k, v in to_insert.items():
                 row[k] = v
             my_table.append(row)
-
-        # Increment the step position
-        self.position += 1
 
 
 def read_state_estimates(data_path: Union[str, Path, tb.Group],

@@ -6,7 +6,7 @@ import numpy as np
 
 from moirae.estimators.online.filters.distributions import MultivariateGaussian
 from moirae.estimators.online.joint import JointEstimator
-from moirae.interface import run_online_estimate
+from moirae.interface import run_online_estimate, run_model
 from moirae.interface.hdf5 import HDF5Writer, read_state_estimates
 from moirae.models.ecm import EquivalentCircuitModel
 
@@ -244,3 +244,15 @@ def test_h5_open_from_group(simple_rint, tmpdir):
         dist_iter = read_state_estimates(f.root['state_estimates'], per_timestep=False)
         time, _, _ = next(dist_iter)
         assert np.isclose(time, 0.)
+
+
+def test_run_model(simple_rint, timeseries_dataset):
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    measurements = run_model(
+        model=ecm,
+        dataset=timeseries_dataset,
+        asoh=rint_asoh,
+        state_0=rint_transient
+    )
+    assert 'terminal_voltage' in measurements.columns
+    assert len(measurements) == len(timeseries_dataset.tables['raw_data'])

@@ -1,6 +1,6 @@
 [project]
 name = "moirae"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Algorithms for automatic assessment of advanced state of health for batteries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,9 +15,15 @@ dependencies = [
     "battery-data-toolkit",
     "pydantic",
     "numpy",
+    "scipy",
+    "scikit-learn",
     "flatten-dict",
     "tqdm"
 ]
+
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["moirae*"]
@@ -42,3 +48,5 @@ thevenin = [
 
 [project.urls]
 repository = "https://github.com/rovi-org/auto-soh"
+
+[tool.setuptools_scm]
