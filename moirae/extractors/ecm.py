@@ -8,7 +8,7 @@ from scipy.integrate import cumulative_trapezoid
 from battdat.data import CellDataset
 from battdat.postprocess.integral import CapacityPerCycle
 from moirae.extractors.base import BaseExtractor
-from moirae.models.ecm.components import ReferenceOCV, OpenCircuitVoltage, MaxTheoreticalCapacity
+from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance
 
 
@@ -22,6 +22,7 @@ class MaxCapacityExtractor(BaseExtractor):
            using :class:`~battdat.postprocess.integral.CapacityPerCycle`.
         2. Find the maximum capacity over all provided cycles
     """
+
     def extract(self, data: CellDataset) -> MaxTheoreticalCapacity:
         # Access or compute cycle-level capacity
         cycle_stats = data.tables.get('cycle_stats')
@@ -87,8 +88,8 @@ class OCVExtractor(BaseExtractor):
         # Ensure at least one cycle samples capacities within
         sampled_soc = data.tables['cycle_stats']['capacity_charge'].max() / self.capacity
         if sampled_soc < self.soc_requirement:
-            raise ValueError(f'Dataset must sample {self.soc_requirement*100:.1f}% of SOC.'
-                             f' Only sampled {sampled_soc*100:.1f}%')
+            raise ValueError(f'Dataset must sample {self.soc_requirement * 100:.1f}% of SOC.'
+                             f' Only sampled {sampled_soc * 100:.1f}%')
 
     def interpolate_ocv(self, cycle: pd.DataFrame) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains voltage as a function of SOC and current
@@ -127,8 +128,8 @@ class OCVExtractor(BaseExtractor):
         """
         knots = self.interpolate_ocv(dataset.tables['raw_data'])
         return OpenCircuitVoltage(
-            ocv_ref=ReferenceOCV(base_values=knots, soc_pinpoints=self.soc_points,
-                                 interpolation_style=self.interpolation_style)
+            ocv_ref=SOCInterpolatedHealth(base_values=knots, soc_pinpoints=self.soc_points,
+                                          interpolation_style=self.interpolation_style)
         )
 
 
@@ -194,8 +195,8 @@ class R0Extractor(BaseExtractor):
         # Ensure at least one cycle samples capacities within
         sampled_soc = data.tables['cycle_stats']['capacity_charge'].max() / self.capacity
         if sampled_soc < self.soc_requirement:
-            raise ValueError(f'Dataset must sample {self.soc_requirement*100:.1f}% of SOC.'
-                             f' Only sampled {sampled_soc*100:.1f}%')
+            raise ValueError(f'Dataset must sample {self.soc_requirement * 100:.1f}% of SOC.'
+                             f' Only sampled {sampled_soc * 100:.1f}%')
 
     def interpolate_r0(self, cycle: pd.DataFrame) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains
@@ -218,14 +219,14 @@ class R0Extractor(BaseExtractor):
 
         # calculate key quantities to filter R0_inst
         Inorm = cycle['capacity'].max()
-        cycle['dInorm'] = cycle['current'].diff()/Inorm
+        cycle['dInorm'] = cycle['current'].diff() / Inorm
         cycle['dt'] = cycle['test_time'].diff()
 
         # select instantaneous resistance values with
         # small timesteps and large changes in current
         sel_t = cycle['dt'] <= self.dt_max
         sel_I = np.abs(cycle['dInorm']) >= self.dInorm_min
-        top_r0 = cycle[sel_t*sel_I]
+        top_r0 = cycle[sel_t * sel_I]
         top_r0 = top_r0.replace([np.inf, -np.inf], np.nan).dropna()
         top_r0 = top_r0.sort_values('soc')
 
@@ -292,16 +293,16 @@ class R0Extractor(BaseExtractor):
                 s_cap = cumulative_trapezoid(
                     s['current'],
                     s['test_time'],
-                    initial=0)/3600 + p
+                    initial=0) / 3600 + p
                 p = s_cap[-1]
             else:
-                s_cap = np.ones(len(s))*p
+                s_cap = np.ones(len(s)) * p
                 p = s_cap[-1]
 
             capacity_ = np.append(capacity_, s_cap)
 
         capacity_ -= capacity_[0]
-        soc_ = capacity_/capacity_.max()
+        soc_ = capacity_ / capacity_.max()
 
         cycle['capacity'] = capacity_
         cycle['soc'] = soc_

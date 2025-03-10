@@ -103,28 +103,13 @@ class RCComponent(HealthVariable):
         return r * c
 
 
-class ReferenceOCV(SOCInterpolatedHealth):
-    base_values: ListParameter = \
-        Field(description='Values of reference OCV at specified SOCs. Units: V')
-    reference_temperature: ScalarParameter = \
-        Field(default=25,
-              description='Reference temperature for OCV0. Units: °C')
-    # TODO (wardlt): Should the reference temperature be alongside the temperature dependence?
-
-
-class EntropicOCV(SOCInterpolatedHealth):
-    base_values: ListParameter = \
-        Field(
-            default=0,
-            description='Values of entropic OCV term at specified SOCs. Units: V/°C')
-
-
 class OpenCircuitVoltage(HealthVariable):
-    ocv_ref: ReferenceOCV = \
-        Field(description='Reference OCV at specified temperature')
-    ocv_ent: EntropicOCV = \
-        Field(description='Entropic OCV to determine temperature dependence',
-              default_factory=EntropicOCV)
+    ocv_ref: SOCInterpolatedHealth = \
+        Field(description='Reference OCV at specified temperature. Units V')
+    ocv_ent: SOCInterpolatedHealth = \
+        Field(0, description='Entropic OCV to determine temperature dependence. Units: V/C',)
+    reference_temperature: ScalarParameter = \
+        Field(default=25, description='Reference temperature for OCV0. Units: C')
 
     def get_value(self,
                   soc: Union[float, List, np.ndarray],
@@ -135,7 +120,7 @@ class OpenCircuitVoltage(HealthVariable):
         """
         ocv = self.ocv_ref.get_value(soc=soc)
         if temp is not None:
-            T_ref = self.ocv_ref.reference_temperature
+            T_ref = self.reference_temperature
             delta_T = temp - T_ref
             ocv += delta_T * self.ocv_ent.get_value(soc=soc)
         return ocv
