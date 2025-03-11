@@ -118,11 +118,11 @@ class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
 
         # Determine batch size of the output, prepare outputs
         scale_batch = self.scaling_coeffs.shape[0]
-        inter_batch = interpolated.shape[0]
+        inter_batch = self.base_values.shape[0]
         soc_batch = soc.shape[0]
 
         batch_size = max(scale_batch, inter_batch)
-        if inter_batch < batch_size:
+        if inter_batch != batch_size:
             assert inter_batch == 1, 'Inter batch should be either 1 or equal to the batch size'
             output = np.tile(interpolated, (batch_size, 1, 1))
         else:
