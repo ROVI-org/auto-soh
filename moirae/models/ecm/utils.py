@@ -4,6 +4,7 @@ from numbers import Number
 import numpy as np
 from pydantic import Field
 from scipy.interpolate import interp1d
+from numpy.polynomial.legendre import Legendre
 
 from moirae.models.base import HealthVariable, ListParameter, NumpyType
 
@@ -39,6 +40,7 @@ class SOCInterpolatedHealth(HealthVariable):
                         fill_value='extrapolate')
         return func
 
+    # TODO (wardlt): We might only use the diagonal terms from the output, maybe simplify by not computing off-diagonal
     def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
         """
         Computes value(s) at given SOC(s).
@@ -52,22 +54,13 @@ class SOCInterpolatedHealth(HealthVariable):
 
         Args:
             soc: Values at which to compute the property
-            broadcast_batch: flag to determine whether to broadcast as much as possible. If True, it will try to match
-            SOC batches with internal batches and remove superfluous dimensions; defaults to True
         Returns:
-            Interpolated values
+            Interpolated values as a 3D with dimensions (batch_size, soc_batch_size, soc_points)
         """
         # Determine which case we're dealing with
-        soc = np.array(soc)
-        soc_shape = soc.shape
-        soc_batch_size = 1
-        soc_dim = 1 if len(soc_shape) == 0 else soc_shape[0]  # taking care of 0 or 1D cases
-        if len(soc_shape) > 3:
-            raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc_shape}!')
-        if len(soc_shape) == 2:
-            soc_batch_size = soc.shape[0]
-            soc_dim = soc.shape[1]
-        internal_batch_size = self.batch_size
+        soc = self._adjust_soc_shape(soc)
+        internal_batch_size = self.base_values.shape[0]
+        soc_batch_size, soc_dim = soc.shape
 
         # Special case: no interpolation
         if self.base_values.shape[-1] == 1:
@@ -83,6 +76,69 @@ class SOCInterpolatedHealth(HealthVariable):
 
         # Now, the y array has shape (internal_batch, soc_batch, soc_dim).
         return y
+
+    def _adjust_soc_shape(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
+        """Adjust the SOC from a user-provided shape to 2D array
+
+        Args:
+            soc: SOC, as provided by user
+        Returns:
+            2D array where first dimension is the batch and second is the SOC values.
+        """
+        soc = np.asarray(soc)  # Ensure it's an array, but don't copy it
+        if soc.ndim == 0:
+            return soc[None, None]
+        elif soc.ndim == 1:
+            return soc[None, :]
+        elif soc.ndim == 2:
+            return soc
+        else:
+            raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc.shape}!')
+
+
+class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
+    """SOC interpolated health with scaling factors to adjust the shape of the curve
+
+    Scaling factors adjust the shape produced from the interpolation by an additive
+    or multiplicative factor which varies as a function of SOC.
+    The scaling factor is described using
+    `Legendre polynomials <https://en.m.wikipedia.org/wiki/Legendre_polynomials>`_
+    defined over the region of [0, 1].
+    """
+
+    scaling_coeffs: ListParameter
+    """Coefficients of a Legendre polynomial used to adjust the interpolation"""
+    additive: bool = True
+    """Whether to add or multiply interpolated value with the scaling factor"""
+
+    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
+        # Evaluate the interpolated values
+        soc = self._adjust_soc_shape(soc)
+        interpolated = super().get_value(soc)
+
+        # Determine batch size of the output, prepare outputs
+        scale_batch = self.scaling_coeffs.shape[0]
+        inter_batch = self.base_values.shape[0]
+        soc_batch = soc.shape[0]
+
+        batch_size = max(scale_batch, inter_batch)
+        if inter_batch != batch_size:
+            assert inter_batch == 1, 'Inter batch should be either 1 or equal to the batch size'
+            output = np.tile(interpolated, (batch_size, 1, 1))
+        else:
+            output = interpolated
+
+        # Apply the scaling factors for each batch member
+        for b in range(batch_size):
+            # % is a shortcut which gets either the correct batch index for batched data,
+            #  and 1 for data which are not batched. It works
+            scaler = Legendre(coef=self.scaling_coeffs[b % scale_batch, :])
+            scaling_amount = scaler(soc[b % soc_batch, :])
+            if self.additive:
+                output[b, b % soc_batch, :] += scaling_amount
+            else:
+                output[b, b % soc_batch, :] *= 1 + scaling_amount
+        return output
 
 
 def realistic_fake_ocv(
@@ -108,7 +164,7 @@ def unrealistic_fake_r0(
     """
     Returns not very realistic R0 relationship to SOC
     """
-    ohms = 0.05*np.ones(np.array(soc_vals).shape)
+    ohms = 0.05 * np.ones(np.array(soc_vals).shape)
     return ohms
 
 
