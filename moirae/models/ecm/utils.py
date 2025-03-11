@@ -40,6 +40,7 @@ class SOCInterpolatedHealth(HealthVariable):
                         fill_value='extrapolate')
         return func
 
+    # TODO (wardlt): We might only use the diagonal terms from the output, maybe simplify by not computing off-diagonal
     def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
         """
         Computes value(s) at given SOC(s).

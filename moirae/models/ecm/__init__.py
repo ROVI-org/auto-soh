@@ -97,7 +97,7 @@ class EquivalentCircuitModel(CellModel):
         hyst_kp1 = transient_state.hyst.copy()  # shape (hyst_batch, 1)
         # Needed parameters
         M = asoh.h0.get_value(soc=soc_k)  # shape (h0_batch, soc_batch, 1)
-        # Recall that, if charging, than M has to be >0, but, if dischargin, it
+        # Recall that, if charging, than M has to be >0, but, if discharging, it
         # has to be <0. The easiest way to check for that is to multiply by the
         # current and divide by its absolute value
         M = M * current_k  # shape (h0_batch, trans_batch, 1)
@@ -198,7 +198,7 @@ class EquivalentCircuitModel(CellModel):
         hyst = transient_state.hyst  # shape (hyst_batch, 1)
         Vt = Vt + hyst  # shape (asoh_batch_size, trans_batch_size, 1)
 
-        # We operate under the assumption that the the A-SOH and the transient batch sizes are broadcastable
+        # We operate under the assumption that the A-SOH and the transient batch sizes are broadcastable
         if Vt.shape[0] == Vt.shape[1]:
             Vt = np.diagonal(Vt, axis1=0, axis2=1)  # shape (1, batch_size) [idk why numpy puts diagonal dim at the end]
             Vt = Vt.T

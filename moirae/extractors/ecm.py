@@ -48,9 +48,9 @@ class OCVExtractor(BaseExtractor):
         2. Assign an SOC to each measurement based on :attr:`capacity`
         3. Assign a weights to each point based on :math:`1 / max(\\left| current \\right|, 1e-6)`.
            Normalize weights such that they sum to 1.
-        4. Fit a 1-D smoothing cubic spline for voltage as a function of SOC,
-           placing knots at :attr:`soc_points`.
-        5. Evaluate the spline at SOC points requested by the user,
+        4. Fit an `isotonic regressor <https://scikit-learn.org/stable/modules/isotonic.html#isotonic>`_
+           to the weighted data.
+        5. Evaluate the regression at SOC points requested by the user,
            return as a :class:`~moirae.models.ecm.components.OpenCircuitVoltage` object
            using the :attr:`interpolation_style` type of spline.
 
@@ -148,9 +148,9 @@ class R0Extractor(BaseExtractor):
         4. Filter for R0 values with dt below the threshold specified by
            :attr:`dt_max` and dI above the threshold specified by
            :attr:`dInorm_min`
-        4. Fit a 1-D smoothing cubic spline for voltage as a function of SOC,
+        5. Fit a 1-D smoothing cubic spline for voltage as a function of SOC,
            placing knots at :attr:`soc_points`.
-        5. Evaluate the spline at SOC points requested by the user,
+        6. Evaluate the spline at SOC points requested by the user,
            return as a :class:`~moirae.models.ecm.components.Resistance` object
            using the :attr:`interpolation_style` type of spline.
 

@@ -104,10 +104,12 @@ class RCComponent(HealthVariable):
 
 
 class OpenCircuitVoltage(HealthVariable):
+    """An open circuit voltage that is dependent on state of charge and temperature"""
     ocv_ref: SOCInterpolatedHealth = \
         Field(description='Reference OCV at specified temperature. Units V')
     ocv_ent: SOCInterpolatedHealth = \
-        Field(0, description='Entropic OCV to determine temperature dependence. Units: V/C',)
+        Field(default_factory=lambda: SOCInterpolatedHealth(base_values=0.),
+              description='Entropic OCV to determine temperature dependence. Units: V/C')
     reference_temperature: ScalarParameter = \
         Field(default=25, description='Reference temperature for OCV0. Units: C')
 
