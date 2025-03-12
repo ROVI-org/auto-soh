@@ -82,9 +82,11 @@ def test_quad(quadratic):
 
 def test_cube(cubic):
     values = np.random.rand(100)
-    assert np.isclose(values * values * values,
-                      cubic.get_value(values),
+    result = cubic.get_value(values)
+    assert np.isclose(values * values * values, result,
                       atol=1e-12).all(), 'Wrong cubic interpolation!'
+    cached_result = cubic.get_value(values)
+    assert np.allclose(result, cached_result)
 
 
 def test_serialization():
