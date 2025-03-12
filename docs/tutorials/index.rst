@@ -8,3 +8,4 @@ key types of activities supported by Moirae.
    :maxdepth: 2
 
    ecm-to-online-estimation
+   defining-complex-soc-dependence
