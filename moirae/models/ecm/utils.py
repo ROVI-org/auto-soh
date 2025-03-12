@@ -56,7 +56,8 @@ class SOCInterpolatedHealth(HealthVariable):
                         kind=self.interpolation_style,
                         bounds_error=False,
                         fill_value='extrapolate')
-        self._ppoly_cache = (self.soc_pinpoints.copy(), self.base_values.copy(), func)
+        if self.interpolation_style not in {'linear', 'nearest', 'nearest-up'}:  # Don't cache lazy models
+            self._ppoly_cache = (self.soc_pinpoints.copy(), self.base_values.copy(), func)
         return func
 
     def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
