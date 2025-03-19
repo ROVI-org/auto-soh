@@ -1,8 +1,6 @@
 """Extraction algorithms which gather parameters of an ECM"""
-
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.isotonic import IsotonicRegression
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import LSQUnivariateSpline
@@ -234,7 +232,6 @@ class R0Extractor(BaseExtractor):
         tol = 0.01
         diffs = top_r0['soc'].diff().abs() <= tol
         top_r0 = top_r0[~diffs]
-        self.top_r0 = top_r0
 
         # Evaluate the smoothing spline
         x_data = top_r0['soc'].values
@@ -242,30 +239,7 @@ class R0Extractor(BaseExtractor):
         t = self.soc_points[1:-1]
 
         spline = LSQUnivariateSpline(x_data, y_data, t=t, k=1)
-        self.spline = spline
-
         return spline(self.soc_points)
-
-    def plot_r0(self, n_plt=100):
-        """Plot R0 vs SOC with Hermite interpolation"""
-        x_plt = np.linspace(0, 1, n_plt)
-        y_plt = self.spline(x_plt[:, None])
-
-        plt.figure(num='instantaneous R0', figsize=(5, 4))
-
-        plt.plot(x_plt, y_plt,
-                 c='k', label='prediction')
-
-        plt.scatter(self.top_R0['soc'], self.top_R0['R0_inst'],
-                    c=self.top_R0['dt'], cmap='viridis')
-
-        plt.xlabel('SOC')
-        plt.ylabel('Instantaneous R0 (Ohms)')
-        plt.legend()
-        plt.colorbar(label='dt (s)')
-        plt.tight_layout()
-        plt.savefig("R0_spline.png")
-        plt.close()
 
     def extract(self, dataset: CellDataset) -> Resistance:
         """Extract an estimate for the R0 of a cell
@@ -277,7 +251,6 @@ class R0Extractor(BaseExtractor):
             An R0 instance with the requested SOC interpolation points,
         """
         knots = self.interpolate_r0(dataset.tables['raw_data'])
-
         return Resistance(base_values=knots, soc_pinpoints=self.soc_points,
                           interpolation_style=self.interpolation_style)
 
