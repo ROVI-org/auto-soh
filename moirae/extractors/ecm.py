@@ -2,11 +2,9 @@
 import numpy as np
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
-from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import LSQUnivariateSpline
 from battdat.data import CellDataset
-from battdat.postprocess.integral import CapacityPerCycle
-
+from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 
 from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
@@ -208,7 +206,10 @@ class R0Extractor(BaseExtractor):
         """
         # calculate soc throughout cycle
         cycle = cycle.copy(deep=False)
-        cycle = self.soc_calc(cycle)
+        if 'cycle_capacity' not in cycle.columns:
+            StateOfCharge().enhance(cycle)
+        cycle['soc'] = (cycle['cycle_capacity'] - cycle['cycle_capacity'].min()) / \
+                       (cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min())
 
         # calculate instantanous resistance at all points
         cycle['r0_inst'] = np.abs(
@@ -216,7 +217,7 @@ class R0Extractor(BaseExtractor):
             cycle['current'].diff())
 
         # calculate key quantities to filter R0_inst
-        Inorm = cycle['capacity'].max()
+        Inorm = cycle['cycle_capacity'].max() - cycle['cycle_capacity']
         cycle['dInorm'] = cycle['current'].diff() / Inorm
         cycle['dt'] = cycle['test_time'].diff()
 
@@ -250,34 +251,8 @@ class R0Extractor(BaseExtractor):
         Returns:
             An R0 instance with the requested SOC interpolation points,
         """
+
+        # Compute the capacity integrates if not available
         knots = self.interpolate_r0(dataset.tables['raw_data'])
         return Resistance(base_values=knots, soc_pinpoints=self.soc_points,
                           interpolation_style=self.interpolation_style)
-
-    def soc_calc(self, cycle):
-        """Compute accumulated capacity
-        and state of charge"""
-
-        capacity_ = np.array([])
-        p = 0
-        for key, s in cycle.groupby('step_index'):
-            state = s['state'].iloc[0]
-            if state == 'charging' or state == 'discharging':
-                s_cap = cumulative_trapezoid(
-                    s['current'],
-                    s['test_time'],
-                    initial=0) / 3600 + p
-                p = s_cap[-1]
-            else:
-                s_cap = np.ones(len(s)) * p
-                p = s_cap[-1]
-
-            capacity_ = np.append(capacity_, s_cap)
-
-        capacity_ -= capacity_[0]
-        soc_ = capacity_ / capacity_.max()
-
-        cycle['capacity'] = capacity_
-        cycle['soc'] = soc_
-
-        return cycle
