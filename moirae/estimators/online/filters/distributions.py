@@ -59,6 +59,21 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         """
         raise NotImplementedError('Please implement in child class!')
 
+    @abstractmethod
+    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
+        r"""
+        Computes the log-likelihood of the data, that is, :math:`\log(P(\mathcal{D}|\theta))`, where :math:`\mathcal{D}`
+        is the data and :math:`\theta` are the parameters of the distribution
+
+        Args:
+            data: value(s) whose log-likelihood we would like to compute, where the first axis corresponds to the batch
+                dimension of the data, and the second, to the dimension of the datapoint
+
+        Returns:
+            log likelihood of data provided
+        """
+        raise NotImplementedError('Please implement in child class!')
+
 
 class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True):
     """
@@ -105,6 +120,9 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
             return DeltaDistribution(mean=transformed_mean)
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
+
+    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
+        return np.where(np.all(data == self.mean, axis=1), 0., -np.inf)
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
@@ -183,3 +201,15 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         transformed_cov = conversion_operator.transform_covariance(covariance=self.get_covariance(),
                                                                    pivot=self.get_mean())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
+
+    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
+        # Compute the constant prefactor first
+        prefactor = -(0.5 * self.num_dimensions) * np.log(2 * np.pi)
+        prefactor -= 0.5 * np.log(np.linalg.det(self.covariance))
+
+        # Now, the "main part". Recall that the first dimension of the data is the batch, so the transpose operations
+        # needs to be performed carefully
+        dist_from_mean = data - self.mean
+        log_likelihood = np.diag(np.matmul(np.matmul(dist_from_mean, np.linalg.inv(self.covariance)), dist_from_mean.T))
+
+        return (prefactor - (0.5 * log_likelihood)).squeeze()
