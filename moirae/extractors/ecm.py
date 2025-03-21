@@ -217,7 +217,7 @@ class R0Extractor(BaseExtractor):
             cycle['current'].diff())
 
         # calculate key quantities to filter R0_inst
-        Inorm = cycle['cycle_capacity'].max() - cycle['cycle_capacity']
+        Inorm = cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min()
         cycle['dInorm'] = cycle['current'].diff() / Inorm
         cycle['dt'] = cycle['test_time'].diff()
 
