@@ -125,7 +125,7 @@ def _make_simple_hf_estimates(simple_rint, what, tmpdir):
         # Write two states to the file
         writer.append_step(0., 0, estimator.state, example_output)
 
-        new_state = estimator.state.copy(deep=True)
+        new_state = estimator.state.model_copy(deep=True)
         new_state.mean = estimator.state.get_mean() + 0.1
         writer.append_step(1., 0, new_state, example_output)
     return h5_path, estimator.state, new_state
