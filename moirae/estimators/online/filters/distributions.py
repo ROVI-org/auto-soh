@@ -5,6 +5,7 @@ from typing_extensions import Self
 
 import numpy as np
 from scipy.linalg import block_diag
+from scipy.stats import multivariate_normal
 from pydantic import Field, field_validator, model_validator, BaseModel
 
 from .conversions import ConversionOperator
@@ -60,7 +61,7 @@ class MultivariateRandomDistribution(BaseModel, arbitrary_types_allowed=True):
         raise NotImplementedError('Please implement in child class!')
 
     @abstractmethod
-    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
+    def compute_log_likelihood(self, data: np.ndarray) -> np.ndarray:
         r"""
         Computes the log-likelihood of the data, that is, :math:`\log(P(\mathcal{D}|\theta))`, where :math:`\mathcal{D}`
         is the data and :math:`\theta` are the parameters of the distribution
@@ -121,8 +122,8 @@ class DeltaDistribution(MultivariateRandomDistribution, validate_assignment=True
         transformed_mean = conversion_operator.transform_samples(samples=self.get_mean())
         return DeltaDistribution(mean=transformed_mean)
 
-    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
-        return np.where(np.all(data == self.mean, axis=1), 0., -np.inf)
+    def compute_log_likelihood(self, data: np.ndarray) -> np.ndarray:
+        return np.sum(np.where(np.isclose(data, self.mean), 0., -np.inf), axis=1)
 
 
 class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=True):
@@ -202,14 +203,5 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
                                                                    pivot=self.get_mean())
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
 
-    def compute_log_likelihook(self, data: np.ndarray) -> np.ndarray:
-        # Compute the constant prefactor first
-        prefactor = -(0.5 * self.num_dimensions) * np.log(2 * np.pi)
-        prefactor -= 0.5 * np.log(np.linalg.det(self.covariance))
-
-        # Now, the "main part". Recall that the first dimension of the data is the batch, so the transpose operations
-        # needs to be performed carefully
-        dist_from_mean = data - self.mean
-        log_likelihood = np.diag(np.matmul(np.matmul(dist_from_mean, np.linalg.inv(self.covariance)), dist_from_mean.T))
-
-        return (prefactor - (0.5 * log_likelihood)).squeeze()
+    def compute_log_likelihood(self, data: np.ndarray) -> np.ndarray:
+        return multivariate_normal.logpdf(x=data, mean=self.mean, cov=self.covariance)

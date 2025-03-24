@@ -74,7 +74,7 @@ def test_log_likelihood():
 
     # Delta
     delta = DeltaDistribution(mean=np.array([5., 6.]))
-    delta_log_like = delta.compute_log_likelihook(data=data)
+    delta_log_like = delta.compute_log_likelihood(data=data)
     expected = -np.inf * np.ones(len(data))
     expected[1] = 0.
     assert np.allclose(delta_log_like, expected), \
@@ -86,7 +86,7 @@ def test_log_likelihood():
     ind_gauss = MultivariateGaussian(mean=mean, covariance=cov)
     # Create a similar one with scipy stats
     mv_ind_gauss = multivariate_normal(mean=mean, cov=cov)
-    ind_log_like = ind_gauss.compute_log_likelihook(data=data)
+    ind_log_like = ind_gauss.compute_log_likelihood(data=data)
     assert np.allclose(ind_log_like[1], -np.log(2 * np.pi)), f'Unexpected likelihood for the mean: {ind_log_like[1]}!'
     assert ind_log_like[0] == ind_log_like[-1], f'Independent Gaussian likelihood not symmetric: {ind_log_like}'
     assert np.allclose(ind_log_like, np.log(mv_ind_gauss.pdf(data))), f'{mv_ind_gauss.pdf(data)}'
@@ -95,7 +95,7 @@ def test_log_likelihood():
     ind_gauss = MultivariateGaussian(mean=mean, covariance=cov)
     # Create a similar one with scipy stats
     mv_cor_gauss = multivariate_normal(mean=mean, cov=cov)
-    cor_log_like = ind_gauss.compute_log_likelihook(data=data)
+    cor_log_like = ind_gauss.compute_log_likelihood(data=data)
     mean_likelihood = -np.log(2 * np.pi) - (0.5 * np.log(1.75))
     assert np.allclose(cor_log_like[1], mean_likelihood), f'Unexpected likelihood for the mean: {cor_log_like[1]}!'
     assert cor_log_like[0] == cor_log_like[-1], f'Correlated Gaussian likelihood not symmetric: {cor_log_like}'
