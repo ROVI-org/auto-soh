@@ -1,3 +1,6 @@
+"""Base class for all loss function.
+
+In separate file to make easily findable and as protection against circular imports"""
 from functools import cached_property
 
 import numpy as np

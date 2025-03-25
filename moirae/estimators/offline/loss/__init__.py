@@ -5,7 +5,8 @@ import numpy as np
 
 from scipy.stats import rv_continuous
 from battdat.data import BatteryDataset
-from moirae.estimators.offline.loss._base import BaseLoss
+from ._base import BaseLoss
+from ._meta import AdditiveLoss
 
 from moirae.interface import row_to_inputs
 from moirae.models.base import CellModel, HealthVariable, GeneralContainer
@@ -94,5 +95,5 @@ class PriorLoss(BaseLoss):
 
 
 __all__ = [
-    'BaseLoss', 'MeanSquaredLoss', 'PriorLoss'
+    'BaseLoss', 'MeanSquaredLoss', 'PriorLoss', 'AdditiveLoss'
 ]
