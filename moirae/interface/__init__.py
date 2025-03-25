@@ -37,7 +37,7 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
     use_temp = 'temperature' in row and isfinite(row['temperature'])
     # TODO (wardlt): Remove hard code from ECM when we're ready (maybe a "from_batdata" to the model class?)
     inputs = ECMInput(
-        time=row['test_time'],
+        time=row['time'],
         current=row['current'],
         temperature=row['temperature'] if use_temp else default_temperature
     )
