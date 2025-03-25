@@ -34,6 +34,14 @@ class BaseLoss:
                  asoh: HealthVariable,
                  transient_state: GeneralContainer,
                  observations: BatteryDataset):
+        """
+
+        Args:
+            cell_model: Model that describes battery physics
+            asoh: Initial guesses for ASOH parameter values
+            transient_state: Initial guesses for transient state
+            observations: Observations of battery performance
+        """
         self.cell_model = cell_model
         self.asoh = asoh.model_copy(deep=True)
         self.state = transient_state.model_copy(deep=True)

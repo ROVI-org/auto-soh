@@ -29,7 +29,9 @@ First construct an objective function for the optimizer, which requires
 1. The :class:`~moirae.models.base.CellModel` defining system physics
 2. A starting guess for the transient state
 3. A starting guess for the state of health
-4. The observation data as a :class:`~batdata.data.BatteryDataset`
+4. The observation data as a :class:`~battdat.data.BatteryDataset`
+
+Objective functions are available in the :mod:`moirae.estimators.offline.loss` module.
 
 .. code-block:: python
 

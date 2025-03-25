@@ -8,6 +8,9 @@ class AdditiveLoss(BaseLoss):
     """Loss function which combines multiple loss functions
 
     Supply a list of loss functions and weights for each.
+
+    Args:
+        losses: List of loss functions, defined as pairs of (weight, loss) values
     """
 
     def __init__(self, losses: list[tuple[float, BaseLoss]]):
