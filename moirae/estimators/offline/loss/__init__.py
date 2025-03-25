@@ -61,6 +61,24 @@ class PriorLoss(BaseLoss):
 
     Supply priors as a scipy :class:`~scipy.stats.rv_continuous` distribution
     that defines the :meth:`~scipy.stats.rv_continuous.logpdf` method.
+
+    For example, setting priors for the hysteresis parameter of an ECM
+    and no priors for the ASOH parameters.
+
+    .. code-block:: python
+
+       from scipy.stats import norm
+
+       hy_dist = norm(loc=0, scale=0.1)
+       prior_loss = PriorLoss(
+           transient_priors={'hyst': hy_dist},
+           asoh_priors={},
+           cell_model=ecm_model,
+           asoh=init_asoh,
+           transient_state=int_state,
+           observations=timeseries_dataset
+       )
+
     """
 
     def __init__(self,
