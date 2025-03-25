@@ -35,5 +35,5 @@ class ScipyMinimizer(OfflineEstimator):
         )
 
         # Assemble the output
-        states, asoh = self.objective.x_to_state(result.x[None, :])
+        states, asoh = self.objective.x_to_state(result.x[None, :], inplace=False)
         return states, asoh, result
