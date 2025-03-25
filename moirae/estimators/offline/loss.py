@@ -1,5 +1,7 @@
 """Interfaces that evaluate the fitness of a set of battery state parameters
 provided as a NumPy array."""
+from functools import cached_property
+
 import numpy as np
 from battdat.data import BatteryDataset
 
@@ -38,6 +40,29 @@ class BaseLoss:
         self.state = transient_state.model_copy(deep=True)
         self.observations = observations
 
+    @cached_property
+    def num_states(self) -> int:
+        """Number of output variables which correspond to transient states"""
+        return len(self.state)
+
+    def x_to_state(self, x: np.ndarray, inplace: bool = True) -> tuple[GeneralContainer, HealthVariable]:
+        """Copy batch of parameters into ASOH and state classes
+
+        Args:
+            x: Batch of parameters
+            inplace: Whether to edit the copies of ASOH and state held by the loss function,
+                or return a copy
+        """
+        states = x[:, :self.num_states]
+        asoh = x[:, self.num_states:]
+
+        if inplace:
+            self.state.from_numpy(states)
+            self.asoh.update_parameters(asoh)
+            return self.state, self.asoh
+        else:
+            return self.state.make_copy(states), self.asoh.make_copy(asoh)
+
     # TODO (wardlt): Consider passing the ASOH parameters through somewhere else
     def get_x0(self) -> np.ndarray:
         """Generate an initial guess
@@ -71,9 +96,7 @@ class MeanSquaredLoss(BaseLoss):
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         # Translate input parameters to state and ASOH parameters
-        n_states = len(self.state)
-        state_x = self.state.make_copy(x[:, :n_states])
-        asoh_x = self.asoh.make_copy(x[:, n_states:])
+        state_x, asoh_x = self.x_to_state(x, inplace=True)
 
         # Build a simulator
         raw_data = self.observations.tables['raw_data']
@@ -95,7 +118,7 @@ class MeanSquaredLoss(BaseLoss):
         pred_y[0, :] = y.to_numpy()
 
         # Run the forward model
-        for i, (_, row) in enumerate(self.observations.raw_data.iloc[1:].iterrows()):
+        for i, (_, row) in enumerate(self.observations.tables['raw_data'].iloc[1:].iterrows()):
             new_in, new_out = row_to_inputs(row)
             _, pred_out = sim.step(new_in)
 
