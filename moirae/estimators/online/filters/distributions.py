@@ -204,4 +204,4 @@ class MultivariateGaussian(MultivariateRandomDistribution, validate_assignment=T
         return MultivariateGaussian(mean=transformed_mean, covariance=transformed_cov)
 
     def compute_log_likelihood(self, data: np.ndarray) -> np.ndarray:
-        return multivariate_normal.logpdf(x=data, mean=self.mean, cov=self.covariance)
+        return multivariate_normal.logpdf(x=data, mean=self.mean, cov=self.covariance, allow_singular=True)
