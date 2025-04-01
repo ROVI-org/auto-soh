@@ -21,6 +21,16 @@ def simple_rint() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCirc
             EquivalentCircuitModel())
 
 
+@fixture()
+def ecm_rc() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCircuitModel]:
+    """Get the parameters which define an uncharged, single rc-element ecm model"""
+
+    return (ECMASOH.provide_template(has_C0=False, num_RC=1, H0=0.0),
+            ECMTransientVector.provide_template(has_C0=False, num_RC=1),
+            ECMInput(time=0., current=0.),
+            EquivalentCircuitModel())
+
+
 def make_dataset(simple_rint):
     rint_asoh, x, y, ecm_model = simple_rint
 
@@ -90,9 +100,9 @@ def test_timeseries(timeseries_dataset):
     timeseries_dataset.validate()
 
 
-def make_dataset_hppc(simple_rint):
+def make_dataset_hppc(model_and_params, ts=10):
 
-    asoh, x, y, ecm_model = simple_rint
+    asoh, x, y, ecm_model = model_and_params
 
     simulator = Simulator(
         cell_model=EquivalentCircuitModel(), asoh=asoh,
@@ -129,7 +139,6 @@ def make_dataset_hppc(simple_rint):
     states = []
     tot_time = 0
     step_indices = []
-    ts = 10  # time step (s)
 
     for ii, (key, value) in enumerate(It_profile.items()):
         t, curr = value
@@ -175,17 +184,26 @@ def make_dataset_hppc(simple_rint):
         battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour)
     )
 
-    # CellDataset(
-    #     raw_data=raw_data, metadata=metadata).to_hdf(
-    #         '../../docs/extractors/files/hppc.h5', complevel=9)
+    CellDataset(
+        raw_data=raw_data, metadata=metadata).to_hdf(
+            '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
 
     return CellDataset(raw_data=raw_data, metadata=metadata)
 
 
 @fixture()
 def timeseries_dataset_hppc(simple_rint) -> BatteryDataset:
-    return make_dataset_hppc(simple_rint)
+    return make_dataset_hppc(simple_rint, ts=10)
 
 
 def test_timeseries_hppc(timeseries_dataset_hppc):
     timeseries_dataset_hppc.validate()
+
+
+@fixture()
+def timeseries_dataset_hppc_rc(ecm_rc) -> BatteryDataset:
+    return make_dataset_hppc(ecm_rc, ts=1)
+
+
+def test_timeseries_dataset_hppc_rc(timeseries_dataset_hppc_rc):
+    timeseries_dataset_hppc_rc.validate()
