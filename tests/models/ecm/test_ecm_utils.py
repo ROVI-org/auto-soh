@@ -1,8 +1,8 @@
 """ Testing ECM utils """
 import numpy as np
-from pytest import fixture
+from pytest import fixture, mark
 
-from moirae.models.ecm.utils import SOCInterpolatedHealth
+from moirae.models.ecm.utils import SOCInterpolatedHealth, ScaledSOCInterpolatedHealth
 
 
 @fixture
@@ -82,9 +82,11 @@ def test_quad(quadratic):
 
 def test_cube(cubic):
     values = np.random.rand(100)
-    assert np.isclose(values * values * values,
-                      cubic.get_value(values),
+    result = cubic.get_value(values)
+    assert np.isclose(values * values * values, result,
                       atol=1e-12).all(), 'Wrong cubic interpolation!'
+    cached_result = cubic.get_value(values)
+    assert np.allclose(result, cached_result)
 
 
 def test_serialization():
@@ -117,4 +119,36 @@ def test_serialization():
     varialb_str0 = variable.model_dump_json()
     re_variable0 = SOCInterpolatedHealth.model_validate_json(varialb_str0)
     assert np.allclose(variable.base_values, re_variable0.base_values), 'Wrong recreation of base values!'
-    assert np.allclose(variable.soc_pinpoints, re_variable0.soc_pinpoints), 'Wrong recreationg of SOC pinpoints!'
+    assert np.allclose(variable.soc_pinpoints, re_variable0.soc_pinpoints), 'Wrong recreation of SOC pinpoints!'
+
+
+@mark.parametrize('inter_batch,scale_batch,additive',
+                  [(1, 1, True), (1, 2, True), (2, 1, True), (2, 2, True),
+                   (2, 2, False)])
+def test_scaling(inter_batch, scale_batch, additive):
+    """Test the SOC interpolation with a Legendre scaling factor"""
+
+    # Make the scaling tool
+    soc = np.linspace(0, 1, 9)
+    inter_values = np.linspace(0, 1, 10)[None, :] * (np.arange(inter_batch) + 1)[:, None]
+    scaling_values = np.array([[0.001]]) * (np.arange(scale_batch) + 1)[:, None]
+    unscaled = SOCInterpolatedHealth(base_values=inter_values)
+    scaled = ScaledSOCInterpolatedHealth(
+        base_values=inter_values,
+        scaling_coeffs=scaling_values,
+        additive=additive
+    )
+
+    # Check the basics: shape and that _something_ changed
+    scaled_val = scaled.get_value(soc)
+    unscaled_val = unscaled.get_value(soc)
+    assert not np.allclose(scaled_val, unscaled_val)
+    assert scaled_val.shape == (max(inter_batch, scale_batch), 1, 9)
+
+    # Check the changed amount
+    if additive:
+        assert np.allclose(scaled_val[0, :, :] - unscaled_val[0, :, :], 0.001)
+        if scale_batch == 2:
+            assert np.allclose(scaled_val[1, :, :] - unscaled_val[1 % inter_batch, :, :], 0.002)
+    else:
+        assert np.allclose(scaled_val[0, :, 1:] / unscaled_val[0, :, 1:], 1.001)

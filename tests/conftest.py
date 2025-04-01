@@ -85,7 +85,7 @@ def make_dataset(simple_rint):
 
     # Make metadata with a cell capacity
     metadata = BatteryMetadata(
-        battery=BatteryDescription(nominal_capacity=rint_asoh.q_t.amp_hour)
+        battery=BatteryDescription(nominal_capacity=rint_asoh.q_t.amp_hour.item())
     )
 
     return CellDataset(raw_data=raw_data, metadata=metadata)
@@ -181,7 +181,7 @@ def make_dataset_hppc(model_and_params, ts=10):
 
     # Make metadata with a cell capacity
     metadata = BatteryMetadata(
-        battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour)
+        battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
     )
 
     CellDataset(

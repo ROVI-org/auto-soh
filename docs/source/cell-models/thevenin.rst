@@ -6,8 +6,8 @@ Thevenin (``moirae.models.thevenin``)
    :undoc-members:
    :show-inheritance:
 
-Transient and State of Health (``moirae.models.thevenin.transient``)
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Transient and State of Health (``moirae.models.thevenin.state``)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.models.thevenin.state
    :members:
@@ -22,7 +22,7 @@ Components (``moirae.models.thevenin.components``)
    :undoc-members:
    :show-inheritance:
 
-Inputs and Outputs (``moirae.models.thevenin.ins_and_outs``)
+Inputs and Outputs (``moirae.models.thevenin.ins_outs``)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.models.thevenin.ins_outs

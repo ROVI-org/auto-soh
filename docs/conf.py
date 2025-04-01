@@ -40,7 +40,7 @@ extensions.extend([
     'sphinxcontrib.autodoc_pydantic'
 ])
 
-autodoc_mock_imports = ["django"]
+autodoc_mock_imports = ["thevenin"]
 
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_settings_show_json = False
@@ -51,6 +51,7 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'thevenin': ('https://thevenin.readthedocs.io/stable/', None),
-    'batdata': ('https://rovi-org.github.io/battery-data-toolkit/', None),
+    'battdat': ('https://rovi-org.github.io/battery-data-toolkit/', None),
 }

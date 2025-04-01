@@ -48,7 +48,7 @@ def test_interface(simple_rint, timeseries_dataset, estimator):
     # Run then make sure it returns the proper data types
     state_mean, estimator = run_online_estimate(timeseries_dataset, estimator)
     assert state_mean.shape == (
-        len(timeseries_dataset.raw_data),
+        len(timeseries_dataset.raw_data) - 1,  # The first step is not recorded
         estimator.num_state_dimensions * 2 + estimator.num_output_dimensions * 2
     )
 
@@ -65,7 +65,7 @@ def test_interface_stream(simple_rint, timeseries_dataset, tmpdir):
     h5_path = str(Path(tmpdir) / 'example.h5')
     timeseries_dataset.to_hdf(h5_path)
     state_mean, estimator = run_online_estimate(h5_path, estimator, hdf5_output=Path(tmpdir) / 'estimates.h5')
-    assert state_mean.shape[0] == len(timeseries_dataset.raw_data)
+    assert state_mean.shape[0] == len(timeseries_dataset.raw_data) - 1
 
 
 def test_hdf5_writer_init(simple_rint, tmpdir):
@@ -125,7 +125,7 @@ def _make_simple_hf_estimates(simple_rint, what, tmpdir):
         # Write two states to the file
         writer.append_step(0., 0, estimator.state, example_output)
 
-        new_state = estimator.state.copy(deep=True)
+        new_state = estimator.state.model_copy(deep=True)
         new_state.mean = estimator.state.get_mean() + 0.1
         writer.append_step(1., 0, new_state, example_output)
     return h5_path, estimator.state, new_state
