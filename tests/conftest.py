@@ -184,9 +184,9 @@ def make_dataset_hppc(model_and_params, ts=10):
         battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
     )
 
-    CellDataset(
-        raw_data=raw_data, metadata=metadata).to_hdf(
-            '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
+    # CellDataset(
+    #     raw_data=raw_data, metadata=metadata).to_hdf(
+    #         '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
 
     return CellDataset(raw_data=raw_data, metadata=metadata)
 
