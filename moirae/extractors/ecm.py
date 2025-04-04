@@ -2,12 +2,6 @@
 import numpy as np
 import pandas as pd
 
-
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-
 from sklearn.isotonic import IsotonicRegression
 from scipy.interpolate import LSQUnivariateSpline
 from scipy.optimize import differential_evolution
@@ -345,7 +339,7 @@ class RCExtractor(BaseExtractor):
             raise ValueError(f'Dataset rests must sample {self.soc_requirement*100:.1f}% of SOC.'
                              f' Only sampled {sampled_soc*100:.1f}%')
 
-    def interpolate_rc(self, data: CellDataset) -> np.ndarray:  # cycle: pd.DataFrame) -> np.ndarray:
+    def interpolate_rc(self, data: CellDataset) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains
         RC values as a function of SOC
 
@@ -374,6 +368,7 @@ class RCExtractor(BaseExtractor):
 
                 res = differential_evolution(
                     self._error, bounds, popsize=120, vectorized=True,
+                    updating='deferred',
                     args=(rest['step_data'], rest['indx_rest'],
                           rest['t_rest'], rest['state']))
 
@@ -383,10 +378,6 @@ class RCExtractor(BaseExtractor):
                     # Ti = Ti/Ti+1 * Ti+1
                     params_fit[2*i_rc+1] *= params_fit[2*(i_rc+1) + 1]
 
-                rest['params'] = params_fit
-                rest['outname'] = f"{np.round(rest['soc'], 2)}soc"
-                self._plot_exp(rest)
-
                 # transform trace A/T parameters into RC parameters
                 params_rc = params_fit.copy()
                 for i_rc in range(self.n_rc):
@@ -395,9 +386,6 @@ class RCExtractor(BaseExtractor):
 
                     RCs[f'R{i_rc+1}'].append(params_rc[2*i_rc])
                     RCs[f'C{i_rc+1}'].append(params_rc[2*i_rc+1])
-
-                    print(f"Iprev: {rest['Iprev']}, R{i_rc+1}:{params_rc[2*i_rc]}")
-                    print(f"T{i_rc+1}:{params_fit[2*i_rc+1]}, C{i_rc+1}:{params_rc[2*i_rc+1]}")
 
         # Evaluate the smoothing spline for each element of each RC pair
         t = self.soc_points[1:-1]
@@ -413,7 +401,7 @@ class RCExtractor(BaseExtractor):
 
         return splines_eval
 
-    def _extract_rests(self, data: CellDataset) -> np.ndarray:  #  , cycle: pd.DataFrame):
+    def _extract_rests(self, data: CellDataset) -> np.ndarray:
         """Extract the relevant time-series segments for fitting RC elements
 
         Args:
@@ -422,13 +410,10 @@ class RCExtractor(BaseExtractor):
             A list of relevant rest segments with associated soc, rest indices
             rest times, and the state and average current of the previous step
         """
-
-        # self.check_data(data)
-
         if data.tables.get('cycle_stats') is None or 'capacity_charge' not in data.tables['cycle_stats'].columns:
             CapacityPerCycle().add_summaries(data)
 
-        cycle = data.tables['raw_data'] #  cycle.copy(deep=False)
+        cycle = data.tables['raw_data']
         cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
         grp = cycle.groupby('step_index')
@@ -462,7 +447,6 @@ class RCExtractor(BaseExtractor):
                 state = 'di'
             else:
                 step_data_prev = step_data.copy()
-                print('no charging or discharing in previous step\n')
                 continue
 
             step_data_chdi = step_data.loc[sel]
@@ -509,38 +493,20 @@ class RCExtractor(BaseExtractor):
         Returns:
             An tuple of RC instances with the requested SOC interpolation points
         """
-        # npset = params.shape[0]
-
-        # print(f'params.shape: {params.shape}')
-
         params = params.T
 
         npset = params.shape[0]
-
-        # print(f'params.T.shape: {params.shape}')
 
         As = params[None, ..., 0::2]
         Ts = params[None, ..., 1::2]
         for i_rc in np.arange(self.n_rc-1)[::-1]:
             Ts[..., i_rc] *= Ts[..., i_rc+1]
 
-        # print(f'As.shape: {As.shape}, Ts.shape: {Ts.shape}')
-
-        # As = params[0::2]
-        # Ts = params[1::2]
-        # for i_rc in np.arange(self.n_rc-1)[::-1]:
-        #     Ts[i_rc] *= Ts[i_rc+1]
-
         t = np.array(t_fitseg) - np.array(t_fitseg)[0]
         t = t[..., None]
 
-        # print(f't.shape: {t.shape}')
-
         res = cycle_data['voltage'][indx_fitseg[-1]]
-        # res *= np.ones((t.size, npset))
         res = np.tile(res, (t.size, npset))
-
-        # print(f'res.shape: {res.shape}')
 
         if state == 'di':
             for i_rc in range(self.n_rc):
@@ -553,76 +519,11 @@ class RCExtractor(BaseExtractor):
         ref = cycle_data['voltage'][indx_fitseg]
         ref = np.array(ref)[:, None]
 
-        # print(f'ref.shape: {ref.shape}')
-
         err = np.sum((ref-res)**2, axis=0)
 
         err[np.isnan(err)] = np.inf
 
-        # print(f"err.shape: {err.shape}")
-
-        return err # np.sum(err)
-
-    def _exp_model_rest(self, params, cycle_data, indx_fitseg,
-                        t_fitseg):
-
-        # use to account for cases when only single exp plotted
-        n_rc = np.int8(len(params)/2)
-        As = params[0::2]
-        Ts = params[1::2]
-
-        t = t_fitseg - np.array(t_fitseg)[0]
-
-        res = cycle_data['voltage'][indx_fitseg[-1]]*np.ones(t.shape)
-
-        if cycle_data['current'][indx_fitseg[0]-1] < 0:
-            for i_rc in range(n_rc):
-                res -= As[i_rc]*np.exp(-t/Ts[i_rc])
-
-        elif cycle_data['current'][indx_fitseg[0]-1] > 0:
-            for i_rc in range(n_rc):
-                res += As[i_rc]*np.exp(-t/Ts[i_rc])
-
-        return res
-
-    def _plot_exp(self, D):
-
-        plt.figure(num='exp-plot', figsize=(5, 4), dpi=200)
-        t0 = D['t_rest'].min()
-        t_plt = np.linspace(0, D['t_rest'].max() - D['t_rest'].min(), 100)
-
-        # plot and label individual A/T exponential models
-        cs = sns.color_palette('tab10')
-
-        exp_plt = D['step_data']['voltage'][D['indx_rest']]
-        plt.plot(D['t_rest']-t0, exp_plt, 'r.', label='experiment')
-
-        for i_rc in range(self.n_rc):
-
-            params = D['params'][2*i_rc:2*i_rc+2]
-
-            res = self._exp_model_rest(
-                params, D['step_data'], D['indx_rest'],
-                t_plt)
-
-            plt.plot(t_plt, res, ls='-', lw=2, color=cs[i_rc], alpha=1,
-                     label=f"A{i_rc}: {np.round(params[0], 3)}, " +
-                           f"T{i_rc}: {np.round(params[1], 1)}")
-
-        # plot and label bi-exponential model
-        res = self._exp_model_rest(
-            D['params'], D['step_data'], D['indx_rest'],
-            t_plt)
-        plt.plot(t_plt, res, ls=':', lw=1.5, color='k', alpha=0.8,
-                 label="full model")
-
-        plt.legend()
-        plt.xlabel('time (s)')
-        plt.ylabel('voltage (V)')
-
-        plt.tight_layout()
-        plt.savefig(f"{D['outname']}_exp-plot.png")
-        plt.close()
+        return err
 
     def extract(self, dataset: CellDataset) -> Tuple[RCComponent, ...]:
         """Extract an estimate for the RC elements of a cell
@@ -635,7 +536,7 @@ class RCExtractor(BaseExtractor):
         """
 
         # knotsl: list of tuples of interpolated R and C values
-        knotsl = self.interpolate_rc(dataset)  # .tables['raw_data'])
+        knotsl = self.interpolate_rc(dataset)
 
         RCcomps = tuple()
         for knots in knotsl:

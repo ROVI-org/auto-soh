@@ -100,7 +100,7 @@ def test_timeseries(timeseries_dataset):
     timeseries_dataset.validate()
 
 
-def make_dataset_hppc(model_and_params, ts=10):
+def make_dataset_hppc(model_and_params):
 
     asoh, x, y, ecm_model = model_and_params
 
@@ -112,30 +112,30 @@ def make_dataset_hppc(model_and_params, ts=10):
 
     # define key parameters of HPPC cycle
     tch = 36000  # charge time for 100pct DOD charge (s)
-    Ich = asoh.q_t.value.item() / tch  # charge current
-    tsch = 500
+    Ich = asoh.q_t.value.item() / tch  # charge current (A)
+    tsch = 500  # charge timestep (s)
     tpulse = 10  # pulse time (s)
     Ipulse = 5  # pulse current (A)
-    tspulse = 0.1
+    tspulse = 0.1  # pulse timestep (s)
     trestmp = 40  # mid-pulse rest (s)
-    tsrestmp = 1
-    trestlinit0 = 10
-    tsrestlinit0 = 0.1
-    trestlinit1 = 50
-    tsrestlinit1 = 1
+    tsrestmp = 1  # mid-pulse rest timestep (s)
+    trestlinit0 = 10  # 0th initial long rest time (s)
+    tsrestlinit0 = 0.1  # 0th initial long rest timestep (s)
+    trestlinit1 = 50  # 1st initial long rest time (s)
+    tsrestlinit1 = 1  # 1st initial long rest timestep (s)
     trestl = 3600-trestlinit0-trestlinit1  # long rest (s)
-    tsrestl = 10
+    tsrestl = 10  # long rest timestep (s)
     Idi = Ich  # discharge current (A)
     tdi = 3600  # discharge time (s)
-    tsdi = 10
+    tsdi = 10  # discharge timestep (s)
 
     # generate current time profiles for simulation input
     It_profile = {
         'cc_ch_100pctDoD': [tch, Ich, tsch],
         }
     for soc in np.arange(10, 101, 10)[::-1]:
-        It_profile[f'prepulserestinit0_{soc}pctSOC'] = [trestlinit0, 0, tsrestlinit0] 
-        It_profile[f'prepulserestinit1_{soc}pctSOC'] = [trestlinit1, 0, tsrestlinit1] 
+        It_profile[f'prepulserestinit0_{soc}pctSOC'] = [trestlinit0, 0, tsrestlinit0]
+        It_profile[f'prepulserestinit1_{soc}pctSOC'] = [trestlinit1, 0, tsrestlinit1]
         It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0, tsrestl]
         It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse, tspulse]
         It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0, tsrestmp]
@@ -176,104 +176,10 @@ def make_dataset_hppc(model_and_params, ts=10):
 
         tot_time += t
 
+        # we don't want to change the step count between initial segments
+        # of an existing step where the only change is the timestep
         if 'init' not in key:
             step_c += 1
-
-    # timestamps = np.arange(1, tot_time+1, ts)
-    # timestamps = timestamps.tolist()
-
-    # Prepare list of inputs
-    ecm_inputs = [ECMInput(time=time, current=current)
-                  for (time, current) in zip(timestamps, currents)]
-
-    # Store results
-    measurements = simulator.evolve(ecm_inputs)
-    voltage = [measure.terminal_voltage.item() for measure in measurements]
-
-    raw_data = pd.DataFrame({
-        'test_time': timestamps,
-        'current': currents,
-        'voltage': voltage,
-        'cycle_number': np.ones((len(voltage),)),
-        'step_index': step_indices,
-        'state': states
-        }
-    )
-
-    raw_data.to_csv('test.csv')
-
-    # Make metadata with a cell capacity
-    metadata = BatteryMetadata(
-        battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
-    )
-
-    # CellDataset(
-    #     raw_data=raw_data, metadata=metadata).to_hdf(
-    #         '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
-
-    return CellDataset(raw_data=raw_data, metadata=metadata)
-
-
-def make_dataset_hppc_orig(model_and_params, ts=10):
-
-    asoh, x, y, ecm_model = model_and_params
-
-    simulator = Simulator(
-        cell_model=EquivalentCircuitModel(), asoh=asoh,
-        initial_input=ECMInput(),
-        transient_state=ECMTransientVector.from_asoh(asoh),
-        keep_history=True)
-
-    # define key parameters of HPPC cycle
-    tch = 36000  # charge time for 100pct DOD charge (s)
-    Ich = asoh.q_t.value.item() / tch  # charge current
-    tpulse = 10  # pulse time (s)
-    Ipulse = 5  # pulse current (A)
-    trestmp = 40  # mid-pulse rest (s)
-    trestl = 3600  # long rest (s)
-    Idi = Ich  # discharge current (A)
-    tdi = 3600  # discharge time (s)
-
-    # generate current time profiles for simulation input
-    It_profile = {
-        'cc_ch_100pctDoD': [tch, Ich],
-        }
-    for soc in np.arange(10, 101, 10)[::-1]:
-        It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0]
-        It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse]
-        It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0]
-        It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse]
-        It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi]
-    It_profile['prepulserest_0pctSOC'] = [trestl, 0]
-    It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse]
-    It_profile['midpulserest_0pctSOC'] = [trestmp, 0]
-    It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse]
-
-    currents = []
-    states = []
-    tot_time = 0
-    step_indices = []
-
-    for ii, (key, value) in enumerate(It_profile.items()):
-        t, curr = value
-
-        n_ts = np.int32(np.floor(t/ts))  # number of time steps in t
-
-        currents += [curr] * n_ts
-        step_indices += [ii] * n_ts
-
-        if curr > 0.0001:
-            state = 'charging'
-        elif curr < -0.0001:
-            state = 'discharging'
-        else:
-            state = 'resting'
-
-        states += [state] * n_ts
-        tot_time += t
-
-    timestamps = np.arange(1, tot_time+1, ts)
-    timestamps = timestamps.tolist()
 
     # Prepare list of inputs
     ecm_inputs = [ECMInput(time=time, current=current)
@@ -307,7 +213,7 @@ def make_dataset_hppc_orig(model_and_params, ts=10):
 
 @fixture()
 def timeseries_dataset_hppc(simple_rint) -> BatteryDataset:
-    return make_dataset_hppc(simple_rint, ts=10)
+    return make_dataset_hppc(simple_rint)
 
 
 def test_timeseries_hppc(timeseries_dataset_hppc):
@@ -316,7 +222,7 @@ def test_timeseries_hppc(timeseries_dataset_hppc):
 
 @fixture()
 def timeseries_dataset_hppc_rc(ecm_rc) -> BatteryDataset:
-    return make_dataset_hppc(ecm_rc, ts=1)
+    return make_dataset_hppc(ecm_rc)
 
 
 def test_timeseries_dataset_hppc_rc(timeseries_dataset_hppc_rc):

@@ -196,9 +196,7 @@ def unrealistic_fake_rc(
     """
     ohms = 0.005*np.ones(np.array(soc_vals).shape)
     farads = 2500*np.ones(np.array(soc_vals).shape)
-    return((ohms, farads), (ohms, 4*farads))
-
-    # return ((ohms, farads))
+    return ((ohms, farads), (ohms, 4*farads))
 
 
 def hysteresis_solver_const_sign(

@@ -114,12 +114,6 @@ class ECMASOH(HealthVariable):
                                       temperature_dependence_factor=0.0025)
                     RC_C = Capacitance(base_values=2500*(i_rc+1)**2)
                     RCcomps += (RCComponent(r=RC_R, c=RC_C),)
-
-                # RC_R = Resistance(base_values=0.01,
-                #                   temperature_dependence_factor=0.0025)
-                # RC_C = Capacitance(base_values=2500)
-                # RCcomps = tuple(RCComponent(r=RC_R.model_copy(), c=RC_C.model_copy()).model_copy()
-                #                 for _ in range(num_RC))
             else:
                 if len(RC) != num_RC:
                     raise ValueError('Amount of RC information provided does not '

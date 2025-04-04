@@ -33,8 +33,6 @@ def test_spline_fit(rc_dataset, rc_extractor):
 
     expected_rc = unrealistic_fake_rc(rc_extractor.soc_points)
 
-    print(rc_points)
-
     for ii in range(2):
 
         Rdiff = f'R{ii} max diff: {np.abs(rc_points[ii][0] - expected_rc[ii][0]).max():.2e}'
@@ -42,12 +40,6 @@ def test_spline_fit(rc_dataset, rc_extractor):
 
         Cdiff = f'C{ii} max diff: {np.abs(rc_points[ii][1] - expected_rc[ii][1]).max():.2e}'
         assert np.allclose(rc_points[ii][1], expected_rc[ii][1], atol=5e2), Cdiff
-
-    # Rdiff = f'R max diff: {np.abs(rc_points[0][0] - expected_rc[0]).max():.2e}'
-    # assert np.allclose(rc_points[0][0], expected_rc[0], rtol=5e-2), Rdiff
-
-    # Cdiff = f'C max diff: {np.abs(rc_points[0][1] - expected_rc[1]).max():.2e}'
-    # assert np.allclose(rc_points[0][1], expected_rc[1], rtol=5e-2), Cdiff
 
 
 def test_full(rc_dataset, rc_extractor):
@@ -57,6 +49,3 @@ def test_full(rc_dataset, rc_extractor):
         print(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1])
         assert np.isclose(rcs[ii].get_value(0.)[0], unrealistic_fake_rc(0.)[ii][0].item(), atol=1e-3)
         assert np.isclose(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1].item(), atol=5e2)
-
-    # assert np.isclose(rcs[0].get_value(0.)[0], unrealistic_fake_rc(0.)[0], rtol=5e-2)
-    # assert np.isclose(rcs[0].get_value(0.)[1], unrealistic_fake_rc(0.)[1], rtol=5e-2)
