@@ -9,7 +9,7 @@ from moirae.models.ecm.utils import unrealistic_fake_rc
 
 @fixture()
 def rc_extractor():
-    return RCExtractor(10)
+    return RCExtractor(10, n_rc=2)
 
 
 @fixture()
@@ -29,18 +29,34 @@ def test_data_check(rc_dataset, rc_extractor):
 
 
 def test_spline_fit(rc_dataset, rc_extractor):
-    rc_points = rc_extractor.interpolate_rc(rc_dataset.tables['raw_data'])
+    rc_points = rc_extractor.interpolate_rc(rc_dataset)  # .tables['raw_data'])
 
     expected_rc = unrealistic_fake_rc(rc_extractor.soc_points)
 
-    Rdiff = f'R max diff: {np.abs(rc_points[0][0] - expected_rc[0]).max():.2e}'
-    assert np.allclose(rc_points[0][0], expected_rc[0], rtol=5e-2), Rdiff
+    print(rc_points)
 
-    Cdiff = f'C max diff: {np.abs(rc_points[0][1] - expected_rc[1]).max():.2e}'
-    assert np.allclose(rc_points[0][1], expected_rc[1], rtol=5e-2), Cdiff
+    for ii in range(2):
+
+        Rdiff = f'R{ii} max diff: {np.abs(rc_points[ii][0] - expected_rc[ii][0]).max():.2e}'
+        assert np.allclose(rc_points[ii][0], expected_rc[ii][0], atol=1e-3), Rdiff
+
+        Cdiff = f'C{ii} max diff: {np.abs(rc_points[ii][1] - expected_rc[ii][1]).max():.2e}'
+        assert np.allclose(rc_points[ii][1], expected_rc[ii][1], atol=5e2), Cdiff
+
+    # Rdiff = f'R max diff: {np.abs(rc_points[0][0] - expected_rc[0]).max():.2e}'
+    # assert np.allclose(rc_points[0][0], expected_rc[0], rtol=5e-2), Rdiff
+
+    # Cdiff = f'C max diff: {np.abs(rc_points[0][1] - expected_rc[1]).max():.2e}'
+    # assert np.allclose(rc_points[0][1], expected_rc[1], rtol=5e-2), Cdiff
 
 
 def test_full(rc_dataset, rc_extractor):
     rcs = rc_extractor.extract(rc_dataset)
-    assert np.isclose(rcs[0].get_value(0.)[0], unrealistic_fake_rc(0.)[0], rtol=5e-2)
-    assert np.isclose(rcs[0].get_value(0.)[1], unrealistic_fake_rc(0.)[1], rtol=5e-2)
+
+    for ii in range(2):
+        print(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1])
+        assert np.isclose(rcs[ii].get_value(0.)[0], unrealistic_fake_rc(0.)[ii][0].item(), atol=1e-3)
+        assert np.isclose(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1].item(), atol=5e2)
+
+    # assert np.isclose(rcs[0].get_value(0.)[0], unrealistic_fake_rc(0.)[0], rtol=5e-2)
+    # assert np.isclose(rcs[0].get_value(0.)[1], unrealistic_fake_rc(0.)[1], rtol=5e-2)

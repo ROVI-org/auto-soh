@@ -1,11 +1,19 @@
 """Extraction algorithms which gather parameters of an ECM"""
 import numpy as np
 import pandas as pd
+
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
 from sklearn.isotonic import IsotonicRegression
 from scipy.interpolate import LSQUnivariateSpline
 from scipy.optimize import differential_evolution
 from battdat.data import CellDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
+from typing import Tuple
 
 from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
@@ -278,10 +286,18 @@ class RCExtractor(BaseExtractor):
            using the :attr:`interpolation_style` type of spline.
 
     Args:
+        capacity: Best estimate for capacity of the cell (Amp-hours)
         soc_points: SOC points at which to extract R0 or (``int``) number of
         grid points.
+        soc_requirement: Require that dataset samples at least this fraction
+        of the capacity
+        n_rc: Number of RC couples in the ECM
+        min_rest: Minimum required rest duration in seconds
+        max_rest_I: Maximum current expected during a rest period (Amps)
     """
 
+    capacity: float
+    """Best estimate for capacity of the cell"""
     soc_points: np.ndarray
     """State of charge points at which to estimate the resistance"""
     soc_requirement: float
@@ -290,13 +306,16 @@ class RCExtractor(BaseExtractor):
     """Number of RC couples in the ECM"""
     min_rest: float
     """Minimum required rest duration in seconds"""
+    max_rest_I: float
+    """Maximum current expected during a rest period (Amps)"""
 
     def __init__(self,
                  capacity: float | MaxTheoreticalCapacity,
                  soc_points: np.ndarray | int = 11,
                  soc_requirement: float = 0.95,
                  n_rc: int = 1,
-                 min_rest: float = 600):
+                 min_rest: float = 600,
+                 max_rest_I: float = None):
 
         if isinstance(soc_points, int):
             soc_points = np.linspace(0, 1, soc_points)
@@ -305,6 +324,9 @@ class RCExtractor(BaseExtractor):
         self.soc_requirement = soc_requirement
         self.n_rc = n_rc
         self.min_rest = min_rest
+        if max_rest_I is None:
+            max_rest_I = self.capacity/100
+        self.max_rest_I = max_rest_I
         self.interpolation_style = 'linear'
 
     def check_data(self, data: CellDataset):
@@ -316,14 +338,14 @@ class RCExtractor(BaseExtractor):
             CapacityPerCycle().add_summaries(data)
 
         # Check if the rests sample a sufficient soc range
-        rests = self._extract_rests(data.tables['raw_data'])
+        rests = self._extract_rests(data)
         rest_socs = np.array([item['soc'] for item in rests])
         sampled_soc = rest_socs.max() - rest_socs.min()
         if sampled_soc < self.soc_requirement:
             raise ValueError(f'Dataset rests must sample {self.soc_requirement*100:.1f}% of SOC.'
                              f' Only sampled {sampled_soc*100:.1f}%')
 
-    def interpolate_rc(self, cycle: pd.DataFrame) -> np.ndarray:
+    def interpolate_rc(self, data: CellDataset) -> np.ndarray:  # cycle: pd.DataFrame) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains
         RC values as a function of SOC
 
@@ -333,7 +355,7 @@ class RCExtractor(BaseExtractor):
             An estimate for all RC parameters at :attr:`soc_points`
 
         """
-        rests = self._extract_rests(cycle)
+        rests = self._extract_rests(data)
 
         RCs = {'soc': []}
         for i_rc in range(self.n_rc):
@@ -348,10 +370,10 @@ class RCExtractor(BaseExtractor):
 
                 bounds = np.zeros((2*self.n_rc, 2))
                 bounds[:, 1] = 1
-                bounds[:, -1] = 1000
+                bounds[-1, 1] = 1000
 
                 res = differential_evolution(
-                    self._error, bounds,
+                    self._error, bounds, popsize=120, vectorized=True,
                     args=(rest['step_data'], rest['indx_rest'],
                           rest['t_rest'], rest['state']))
 
@@ -361,6 +383,10 @@ class RCExtractor(BaseExtractor):
                     # Ti = Ti/Ti+1 * Ti+1
                     params_fit[2*i_rc+1] *= params_fit[2*(i_rc+1) + 1]
 
+                rest['params'] = params_fit
+                rest['outname'] = f"{np.round(rest['soc'], 2)}soc"
+                self._plot_exp(rest)
+
                 # transform trace A/T parameters into RC parameters
                 params_rc = params_fit.copy()
                 for i_rc in range(self.n_rc):
@@ -369,6 +395,9 @@ class RCExtractor(BaseExtractor):
 
                     RCs[f'R{i_rc+1}'].append(params_rc[2*i_rc])
                     RCs[f'C{i_rc+1}'].append(params_rc[2*i_rc+1])
+
+                    print(f"Iprev: {rest['Iprev']}, R{i_rc+1}:{params_rc[2*i_rc]}")
+                    print(f"T{i_rc+1}:{params_fit[2*i_rc+1]}, C{i_rc+1}:{params_rc[2*i_rc+1]}")
 
         # Evaluate the smoothing spline for each element of each RC pair
         t = self.soc_points[1:-1]
@@ -384,7 +413,7 @@ class RCExtractor(BaseExtractor):
 
         return splines_eval
 
-    def _extract_rests(self, cycle: pd.DataFrame):
+    def _extract_rests(self, data: CellDataset) -> np.ndarray:  #  , cycle: pd.DataFrame):
         """Extract the relevant time-series segments for fitting RC elements
 
         Args:
@@ -394,7 +423,12 @@ class RCExtractor(BaseExtractor):
             rest times, and the state and average current of the previous step
         """
 
-        cycle = cycle.copy(deep=False)
+        # self.check_data(data)
+
+        if data.tables.get('cycle_stats') is None or 'capacity_charge' not in data.tables['cycle_stats'].columns:
+            CapacityPerCycle().add_summaries(data)
+
+        cycle = data.tables['raw_data'] #  cycle.copy(deep=False)
         cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
         grp = cycle.groupby('step_index')
@@ -406,7 +440,7 @@ class RCExtractor(BaseExtractor):
 
             Iavg = step_data['current'].mean()
             Istd = step_data['current'].std()
-            if np.abs(Iavg) > 0.1 or Istd > 0.1:
+            if np.abs(Iavg) > self.max_rest_I or Istd > self.max_rest_I:
                 step_data_prev = step_data.copy()
                 continue
 
@@ -475,37 +509,122 @@ class RCExtractor(BaseExtractor):
         Returns:
             An tuple of RC instances with the requested SOC interpolation points
         """
+        # npset = params.shape[0]
+
+        # print(f'params.shape: {params.shape}')
+
+        params = params.T
+
         npset = params.shape[0]
 
-        As = params[0::2]
-        Ts = params[1::2]
+        # print(f'params.T.shape: {params.shape}')
+
+        As = params[None, ..., 0::2]
+        Ts = params[None, ..., 1::2]
         for i_rc in np.arange(self.n_rc-1)[::-1]:
-            Ts[i_rc] *= Ts[i_rc+1]
+            Ts[..., i_rc] *= Ts[..., i_rc+1]
+
+        # print(f'As.shape: {As.shape}, Ts.shape: {Ts.shape}')
+
+        # As = params[0::2]
+        # Ts = params[1::2]
+        # for i_rc in np.arange(self.n_rc-1)[::-1]:
+        #     Ts[i_rc] *= Ts[i_rc+1]
 
         t = np.array(t_fitseg) - np.array(t_fitseg)[0]
         t = t[..., None]
 
+        # print(f't.shape: {t.shape}')
+
         res = cycle_data['voltage'][indx_fitseg[-1]]
-        res *= np.ones((t.size, npset))
+        # res *= np.ones((t.size, npset))
+        res = np.tile(res, (t.size, npset))
+
+        # print(f'res.shape: {res.shape}')
 
         if state == 'di':
             for i_rc in range(self.n_rc):
-                res -= As[i_rc]*np.exp(-t/Ts[i_rc])
+                res -= As[..., i_rc]*np.exp(-t/Ts[..., i_rc])
 
         elif state == 'ch':
             for i_rc in range(self.n_rc):
-                res += As[i_rc]*np.exp(-t/Ts[i_rc])
+                res += As[..., i_rc]*np.exp(-t/Ts[..., i_rc])
 
         ref = cycle_data['voltage'][indx_fitseg]
         ref = np.array(ref)[:, None]
+
+        # print(f'ref.shape: {ref.shape}')
 
         err = np.sum((ref-res)**2, axis=0)
 
         err[np.isnan(err)] = np.inf
 
-        return np.sum(err)
+        # print(f"err.shape: {err.shape}")
 
-    def extract(self, dataset: CellDataset) -> Resistance:
+        return err # np.sum(err)
+
+    def _exp_model_rest(self, params, cycle_data, indx_fitseg,
+                        t_fitseg):
+
+        # use to account for cases when only single exp plotted
+        n_rc = np.int8(len(params)/2)
+        As = params[0::2]
+        Ts = params[1::2]
+
+        t = t_fitseg - np.array(t_fitseg)[0]
+
+        res = cycle_data['voltage'][indx_fitseg[-1]]*np.ones(t.shape)
+
+        if cycle_data['current'][indx_fitseg[0]-1] < 0:
+            for i_rc in range(n_rc):
+                res -= As[i_rc]*np.exp(-t/Ts[i_rc])
+
+        elif cycle_data['current'][indx_fitseg[0]-1] > 0:
+            for i_rc in range(n_rc):
+                res += As[i_rc]*np.exp(-t/Ts[i_rc])
+
+        return res
+
+    def _plot_exp(self, D):
+
+        plt.figure(num='exp-plot', figsize=(5, 4), dpi=200)
+        t0 = D['t_rest'].min()
+        t_plt = np.linspace(0, D['t_rest'].max() - D['t_rest'].min(), 100)
+
+        # plot and label individual A/T exponential models
+        cs = sns.color_palette('tab10')
+
+        exp_plt = D['step_data']['voltage'][D['indx_rest']]
+        plt.plot(D['t_rest']-t0, exp_plt, 'r.', label='experiment')
+
+        for i_rc in range(self.n_rc):
+
+            params = D['params'][2*i_rc:2*i_rc+2]
+
+            res = self._exp_model_rest(
+                params, D['step_data'], D['indx_rest'],
+                t_plt)
+
+            plt.plot(t_plt, res, ls='-', lw=2, color=cs[i_rc], alpha=1,
+                     label=f"A{i_rc}: {np.round(params[0], 3)}, " +
+                           f"T{i_rc}: {np.round(params[1], 1)}")
+
+        # plot and label bi-exponential model
+        res = self._exp_model_rest(
+            D['params'], D['step_data'], D['indx_rest'],
+            t_plt)
+        plt.plot(t_plt, res, ls=':', lw=1.5, color='k', alpha=0.8,
+                 label="full model")
+
+        plt.legend()
+        plt.xlabel('time (s)')
+        plt.ylabel('voltage (V)')
+
+        plt.tight_layout()
+        plt.savefig(f"{D['outname']}_exp-plot.png")
+        plt.close()
+
+    def extract(self, dataset: CellDataset) -> Tuple[RCComponent, ...]:
         """Extract an estimate for the RC elements of a cell
 
         Args:
@@ -516,7 +635,7 @@ class RCExtractor(BaseExtractor):
         """
 
         # knotsl: list of tuples of interpolated R and C values
-        knotsl = self.interpolate_rc(dataset.tables['raw_data'])
+        knotsl = self.interpolate_rc(dataset)  # .tables['raw_data'])
 
         RCcomps = tuple()
         for knots in knotsl:

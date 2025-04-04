@@ -25,8 +25,8 @@ def simple_rint() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCirc
 def ecm_rc() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCircuitModel]:
     """Get the parameters which define an uncharged, single rc-element ecm model"""
 
-    return (ECMASOH.provide_template(has_C0=False, num_RC=1, H0=0.0),
-            ECMTransientVector.provide_template(has_C0=False, num_RC=1),
+    return (ECMASOH.provide_template(has_C0=False, num_RC=2, H0=0.0),
+            ECMTransientVector.provide_template(has_C0=False, num_RC=2),
             ECMInput(time=0., current=0.),
             EquivalentCircuitModel())
 
@@ -101,6 +101,120 @@ def test_timeseries(timeseries_dataset):
 
 
 def make_dataset_hppc(model_and_params, ts=10):
+
+    asoh, x, y, ecm_model = model_and_params
+
+    simulator = Simulator(
+        cell_model=EquivalentCircuitModel(), asoh=asoh,
+        initial_input=ECMInput(),
+        transient_state=ECMTransientVector.from_asoh(asoh),
+        keep_history=True)
+
+    # define key parameters of HPPC cycle
+    tch = 36000  # charge time for 100pct DOD charge (s)
+    Ich = asoh.q_t.value.item() / tch  # charge current
+    tsch = 500
+    tpulse = 10  # pulse time (s)
+    Ipulse = 5  # pulse current (A)
+    tspulse = 0.1
+    trestmp = 40  # mid-pulse rest (s)
+    tsrestmp = 1
+    trestlinit0 = 10
+    tsrestlinit0 = 0.1
+    trestlinit1 = 50
+    tsrestlinit1 = 1
+    trestl = 3600-trestlinit0-trestlinit1  # long rest (s)
+    tsrestl = 10
+    Idi = Ich  # discharge current (A)
+    tdi = 3600  # discharge time (s)
+    tsdi = 10
+
+    # generate current time profiles for simulation input
+    It_profile = {
+        'cc_ch_100pctDoD': [tch, Ich, tsch],
+        }
+    for soc in np.arange(10, 101, 10)[::-1]:
+        It_profile[f'prepulserestinit0_{soc}pctSOC'] = [trestlinit0, 0, tsrestlinit0] 
+        It_profile[f'prepulserestinit1_{soc}pctSOC'] = [trestlinit1, 0, tsrestlinit1] 
+        It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0, tsrestl]
+        It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse, tspulse]
+        It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0, tsrestmp]
+        It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse, tspulse]
+        It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi, tsdi]
+    It_profile['prepulserestinit0_0pctSOC'] = [trestlinit0, 0, tsrestlinit0]
+    It_profile['prepulserestinit1_0pctSOC'] = [trestlinit1, 0, tsrestlinit1]
+    It_profile['prepulserest_0pctSOC'] = [trestl, 0, tsrestl]
+    It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse, tspulse]
+    It_profile['midpulserest_0pctSOC'] = [trestmp, 0, tsrestmp]
+    It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse, tspulse]
+
+    currents = [Ich]
+    states = ['charging']
+    tot_time = 0
+    step_indices = [0]
+    timestamps = [0]
+    step_c = 0
+
+    for ii, (key, value) in enumerate(It_profile.items()):
+        t, curr, ts = value
+
+        n_ts = np.int32(np.floor(t/ts))  # number of time steps in t
+
+        currents += [curr] * n_ts
+        step_indices += [step_c] * n_ts
+
+        if curr > 0.0001:
+            state = 'charging'
+        elif curr < -0.0001:
+            state = 'discharging'
+        else:
+            state = 'resting'
+
+        states += [state] * n_ts
+
+        timestamps += list(tot_time + np.arange(ts, t+ts, ts))
+
+        tot_time += t
+
+        if 'init' not in key:
+            step_c += 1
+
+    # timestamps = np.arange(1, tot_time+1, ts)
+    # timestamps = timestamps.tolist()
+
+    # Prepare list of inputs
+    ecm_inputs = [ECMInput(time=time, current=current)
+                  for (time, current) in zip(timestamps, currents)]
+
+    # Store results
+    measurements = simulator.evolve(ecm_inputs)
+    voltage = [measure.terminal_voltage.item() for measure in measurements]
+
+    raw_data = pd.DataFrame({
+        'test_time': timestamps,
+        'current': currents,
+        'voltage': voltage,
+        'cycle_number': np.ones((len(voltage),)),
+        'step_index': step_indices,
+        'state': states
+        }
+    )
+
+    raw_data.to_csv('test.csv')
+
+    # Make metadata with a cell capacity
+    metadata = BatteryMetadata(
+        battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
+    )
+
+    # CellDataset(
+    #     raw_data=raw_data, metadata=metadata).to_hdf(
+    #         '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
+
+    return CellDataset(raw_data=raw_data, metadata=metadata)
+
+
+def make_dataset_hppc_orig(model_and_params, ts=10):
 
     asoh, x, y, ecm_model = model_and_params
 
