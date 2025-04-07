@@ -5,8 +5,7 @@ from pytest import fixture
 from moirae.models.ecm import ECMASOH
 from moirae.models.ecm.components import (MaxTheoreticalCapacity,
                                           Resistance,
-                                          ReferenceOCV,
-                                          EntropicOCV,
+                                          SOCInterpolatedHealth,
                                           OpenCircuitVoltage)
 from moirae.models.ecm.utils import realistic_fake_ocv
 
@@ -44,8 +43,8 @@ def test_energy():
     # Prepare fields for A-SOH
     qt = MaxTheoreticalCapacity(base_values=10.)
     r0 = Resistance(base_values=1.)
-    ocv_ref = ReferenceOCV(base_values=np.ones(11))
-    ocv_ent = EntropicOCV(base_values=np.zeros(11))
+    ocv_ref = SOCInterpolatedHealth(base_values=np.ones(11))
+    ocv_ent = SOCInterpolatedHealth(base_values=np.zeros(11))
     ocv = OpenCircuitVoltage(ocv_ref=ocv_ref, ocv_ent=ocv_ent)
     asoh = ECMASOH(q_t=qt, ce=1, ocv=ocv, r0=r0)
 
@@ -79,7 +78,7 @@ def test_energy():
     asoh.mark_updatable(name='ocv.ocv_ent.base_values')
     asoh.update_parameters(names=('ocv.ocv_ent.base_values',), values=np.ones(11)[None, :])
     # For a temperature 1 degree above the reference temperature, this should add an energy of Qt Wh
-    temp = asoh.ocv.ocv_ref.reference_temperature + 1
+    temp = asoh.ocv.reference_temperature + 1
     expected += asoh.q_t.amp_hour
     computed = asoh.get_theoretical_energy(temperature=temp)
     assert len(computed.shape) == 2, f'Computed energy is not 2D, but has shape {computed.shape}'

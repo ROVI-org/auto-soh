@@ -62,7 +62,8 @@ calling the :meth:`~moirae.interface.hdf5.HDF5Writer.prepare` method providing a
         writer.prepare(estimator)
 
 The ``prepare`` option records details about the estimator, such as its name and how the cell physics is being modeled,
-then creates the `"Datasets" <https://docs.h5py.org/en/stable/high/dataset.html>`_ that will store the time and values of each state.
+then creates a single Table `"Datasets" <https://www.pytables.org/usersguide/tutorials.html#creating-a-new-table>`_
+that will store the time and values of each state.
 
 Write states to the file incrementally by calling :meth:`~moirae.interface.hdf5.HDF5Writer.append_step`.
 
@@ -76,25 +77,26 @@ The resultant data may not be available in the output HDF5 file until after the 
 .. warning::
 
     Moirae currently supports writing to an HDF5 file only once.
-    The states cannot be edited after exiting the ``with`` block.
+    The states cannot be appended to after exiting the ``with`` block.
 
 Reading Estimates from HDF5
 ---------------------------
 
-Moirae writes the states estimated by an online estimator to different `"Groups" <https://docs.h5py.org/en/stable/high/group.html>`_
-within an HDF5 file.
+Moirae writes the states estimated by an online estimator to an HDF5 group that
+contains a Table for the per-timestep and per-cycle states.
 
-Metadata about the online estimation process and the estimates, whether per timestep or cycle, are all stored in a group
-named ``state_estimates``.
+The group is named ``state_estimates`` and metadata are its attributes
 Metadata are listed as attributes.
 
 .. code-block:: python
 
-    with h5py.File('states.hdf5') as f:
-        assert 'state_estimates' in f
-        group = f['state_estimates']
-        print(f'Estimates were performed by a {group.attrs["estimator_name"]}'
-              f' with physics described by a {group.attrs["cell_model"]}')
+    import tables as tb
+
+    with tb.open_file('states.hdf5') as f:
+        assert 'state_estimates' in f.root
+        group = f.root['state_estimates']
+        print(f'Estimates were performed by a {group._v_attrs["estimator_name"]}'
+              f' with physics described by a {group._v_attrs["cell_model"]}')
 
 The attributes stored by Moirae include:
 
@@ -107,19 +109,23 @@ The attributes stored by Moirae include:
 - ``initial_asoh``: Initial estimate of the cell health parameters
 - ``initial_transient_state``: Initial estimate of the cell transient state
 
-The values of the estimates at each timestep and the first step in each cycle are stored in ``per_timestep`` and ``per_cycle`` subgroups, respectively.
+The values of the estimates at each timestep and the first step in each cycle are stored in ``per_timestep`` and ``per_cycle`` Tables, respectively.
+Each table is a list of data points with `structured data types <https://numpy.org/doc/stable/user/basics.rec.html>`_.
 The information in each varies depending on the choice of what to write.
 
 .. code-block:: python
 
-    with h5py.File('states.hdf5') as f:
+    with tb.open_file('states.hdf5') as f:
+        group = f.root['state_estimates']
+
         # Access the mean of all states for the first step of the first cycle
-        per_cycle = group.get('per_cycle')
-        per_cycle['mean'][0, :]
+        per_cycle = group['per_cycle']
+        print(f'Per cycle statistics: {per_cycle.dtype.fields}')
+        per_cycle[0]['mean']
 
         # Access the standard deviation of the first state for all time steps
-        per_cycle = group.get('per_timestep')
-        per_cycle['covariance'][:, 0, 0]
+        per_step = group['per_timestep']
+        per_step[:]['covariance'][0, 0]  # [row][field][index]
 
 Moirae provides a utility function, :meth:`~moirae.interface.hdf5.read_state_estimates`, to read the
 distributions from the file sequentially as :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.

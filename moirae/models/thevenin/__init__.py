@@ -41,13 +41,15 @@ class TheveninModel(CellModel):
             params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal}
             for scalar, value in [
                 ('soc0', transient.soc), ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
-                ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm)
+                ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm), ('ce', asoh.ce),
+                ('gamma', asoh.gamma),
             ]:
                 params[scalar] = value[b % value.shape[0], 0]
 
             # Add the SOC and series resistors as functions where we pin the batch ID to the appropriate value
             params['ocv'] = partial(asoh.ocv, batch_id=b)
             params['R0'] = partial(asoh.r[0], batch_id=b)
+            params['M_hyst'] = partial(asoh.m_hyst, batch_id=b)
 
             # Append the RC elements
             for r in range(params['num_RC_pairs']):
@@ -72,6 +74,10 @@ class TheveninModel(CellModel):
             transient_state: TheveninTransient,
             asoh: TheveninASOH
     ) -> TheveninTransient:
+        # Return the current transient state if the time step is zero
+        if np.isclose(new_inputs.time - previous_inputs.time, 0):
+            return transient_state.model_copy(deep=True)
+
         # Initialize the array in which to store output values
         batch_size = max(transient_state.batch_size, asoh.batch_size, new_inputs.batch_size)
         output_array = np.zeros((batch_size, len(transient_state)))

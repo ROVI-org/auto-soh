@@ -6,6 +6,7 @@ from battdat.data import BatteryDataset, CellDataset
 import pandas as pd
 import numpy as np
 
+from battdat.schemas import BatteryMetadata, BatteryDescription
 from moirae.models.ecm import ECMASOH, ECMTransientVector, EquivalentCircuitModel, ECMInput
 from moirae.simulator import Simulator
 
@@ -28,7 +29,7 @@ def make_dataset(simple_rint):
     num_cycles = 2
     charge_time = 1800
     discharge_time = charge_time * 2
-    charge_current = rint_asoh.q_t.value.item() / discharge_time
+    charge_current = rint_asoh.q_t.value.item() / charge_time
     discharge_current = -rint_asoh.q_t.value.item() / discharge_time
     rest_time = 20.
 
@@ -47,7 +48,7 @@ def make_dataset(simple_rint):
         output['test_time'].append(time)
         output['current'].append(current)
         output['voltage'].append(outputs.terminal_voltage.item())
-        output['cycle_number'] = cycle_number
+        output['cycle_number'].append(cycle_number)
 
     for cycle in range(num_cycles):
         for time in np.linspace(start_time, start_time + charge_time, int(charge_time / timestep) + 1):
@@ -71,19 +72,120 @@ def make_dataset(simple_rint):
         start_time += rest_time
 
     raw_data = pd.DataFrame(dict(output))
-    return CellDataset(raw_data=raw_data)
 
+    # Make metadata with a cell capacity
+    metadata = BatteryMetadata(
+        battery=BatteryDescription(nominal_capacity=rint_asoh.q_t.amp_hour.item())
+    )
 
-dataset = None
+    return CellDataset(raw_data=raw_data, metadata=metadata)
 
 
 @fixture()
 def timeseries_dataset(simple_rint) -> BatteryDataset:
-    global dataset
-    if dataset is None:
-        dataset = make_dataset(simple_rint)
-    return dataset
+    return make_dataset(simple_rint)
 
 
 def test_timeseries(timeseries_dataset):
     timeseries_dataset.validate()
+
+
+def make_dataset_hppc(simple_rint):
+
+    asoh, x, y, ecm_model = simple_rint
+
+    simulator = Simulator(
+        cell_model=EquivalentCircuitModel(), asoh=asoh,
+        initial_input=ECMInput(),
+        transient_state=ECMTransientVector.from_asoh(asoh),
+        keep_history=True)
+
+    # define key parameters of HPPC cycle
+    tch = 36000  # charge time for 100pct DOD charge (s)
+    Ich = asoh.q_t.value.item() / tch  # charge current
+    tpulse = 10  # pulse time (s)
+    Ipulse = 5  # pulse current (A)
+    trestmp = 40  # mid-pulse rest (s)
+    trestl = 3600  # long rest (s)
+    Idi = Ich  # discharge current (A)
+    tdi = 3600  # discharge time (s)
+
+    # generate current time profiles for simulation input
+    It_profile = {
+        'cc_ch_100pctDoD': [tch, Ich],
+        }
+    for soc in np.arange(10, 101, 10)[::-1]:
+        It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0]
+        It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse]
+        It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0]
+        It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse]
+        It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi]
+    It_profile['prepulserest_0pctSOC'] = [trestl, 0]
+    It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse]
+    It_profile['midpulserest_0pctSOC'] = [trestmp, 0]
+    It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse]
+
+    currents = []
+    states = []
+    tot_time = 0
+    step_indices = []
+    ts = 10  # time step (s)
+
+    for ii, (key, value) in enumerate(It_profile.items()):
+        t, curr = value
+
+        n_ts = np.int32(np.floor(t/ts))  # number of time steps in t
+
+        currents += [curr] * n_ts
+        step_indices += [ii] * n_ts
+
+        if curr > 0.0001:
+            state = 'charging'
+        elif curr < -0.0001:
+            state = 'discharging'
+        else:
+            state = 'resting'
+
+        states += [state] * n_ts
+        tot_time += t
+
+    timestamps = np.arange(1, tot_time+1, ts)
+    timestamps = timestamps.tolist()
+
+    # Prepare list of inputs
+    ecm_inputs = [ECMInput(time=time, current=current)
+                  for (time, current) in zip(timestamps, currents)]
+
+    # Store results
+    measurements = simulator.evolve(ecm_inputs)
+    voltage = [measure.terminal_voltage.item() for measure in measurements]
+
+    raw_data = pd.DataFrame({
+        'test_time': timestamps,
+        'current': currents,
+        'voltage': voltage,
+        'cycle_number': np.ones((len(voltage),)),
+        'step_index': step_indices,
+        'state': states
+        }
+    )
+
+    # Make metadata with a cell capacity
+    metadata = BatteryMetadata(
+        battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
+    )
+
+    # CellDataset(
+    #     raw_data=raw_data, metadata=metadata).to_hdf(
+    #         '../../docs/extractors/files/hppc.h5', complevel=9)
+
+    return CellDataset(raw_data=raw_data, metadata=metadata)
+
+
+@fixture()
+def timeseries_dataset_hppc(simple_rint) -> BatteryDataset:
+    return make_dataset_hppc(simple_rint)
+
+
+def test_timeseries_hppc(timeseries_dataset_hppc):
+    timeseries_dataset_hppc.validate()

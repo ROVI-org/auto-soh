@@ -10,11 +10,9 @@ from .components import (MaxTheoreticalCapacity,
                          Resistance,
                          Capacitance,
                          RCComponent,
-                         ReferenceOCV,
-                         EntropicOCV,
                          OpenCircuitVoltage,
                          HysteresisParameters)
-from .utils import realistic_fake_ocv
+from .utils import realistic_fake_ocv, SOCInterpolatedHealth
 
 
 class ECMASOH(HealthVariable):
@@ -87,16 +85,16 @@ class ECMASOH(HealthVariable):
         # R0 prep
         R0 = Resistance(base_values=R0, temperature_dependence_factor=0.0025)
         # OCV prep
-        OCVent = EntropicOCV(base_values=0.005)
+        OCVent = SOCInterpolatedHealth(base_values=0.005)
         if OCV is None:
             socs = np.linspace(0, 1, 20)
-            OCVref = ReferenceOCV(base_values=realistic_fake_ocv(socs),
-                                  interpolation_style='cubic')
+            OCVref = SOCInterpolatedHealth(base_values=realistic_fake_ocv(socs),
+                                           interpolation_style='cubic')
         else:
-            OCVref = ReferenceOCV(base_values=OCV)
+            OCVref = SOCInterpolatedHealth(base_values=OCV)
         OCV = OpenCircuitVoltage(ocv_ref=OCVref, ocv_ent=OCVent)
         # H0 prep
-        H0 = HysteresisParameters(base_values=H0, gamma=0.9)
+        H0 = HysteresisParameters(base_values=H0, gamma=50)
 
         # C0 prep
         c0 = None
@@ -113,7 +111,7 @@ class ECMASOH(HealthVariable):
                 RC_R = Resistance(base_values=0.01,
                                   temperature_dependence_factor=0.0025)
                 RC_C = Capacitance(base_values=2500)
-                RCcomps = tuple(RCComponent(r=RC_R, c=RC_C).model_copy()
+                RCcomps = tuple(RCComponent(r=RC_R.model_copy(), c=RC_C.model_copy()).model_copy()
                                 for _ in range(num_RC))
             else:
                 if len(RC) != num_RC:

@@ -7,8 +7,10 @@ API documentation for each module
    :maxdepth: 2
    :caption: Contents:
 
+   extractors
    online
    offline
    models
    interface
    simulator
+   version

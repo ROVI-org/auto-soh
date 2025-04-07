@@ -2,7 +2,7 @@
 import numpy as np
 from typing import Tuple
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 
 from moirae.models.base import HealthVariable, ScalarParameter, GeneralContainer, ListParameter
 from moirae.models.thevenin.components import (
@@ -15,6 +15,7 @@ class TheveninASOH(HealthVariable):
 
     These parameters match the parameters required to build a :class:`thevenin.Model`.
     """
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     # Default parameters from: test_model.py in thevenin
     capacity: ScalarParameter = 1.
@@ -35,6 +36,12 @@ class TheveninASOH(HealthVariable):
     """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
     c: Tuple[SOCTempDependentVariable, ...] = Field(default_factory=tuple)
     """Capacitance in all RC elements (C)"""
+    ce: ScalarParameter = 1.
+    """Coulomb efficiency"""
+    gamma: ScalarParameter = 50.
+    """Hysteresis approach rate"""
+    m_hyst: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=0))
+    """Maximum magnitude of hysteresis (V)"""
 
     @property
     def num_rc_elements(self) -> int:
@@ -55,7 +62,7 @@ class TheveninTransient(GeneralContainer):
     """State of charge for the battery system"""
     temp: ScalarParameter = 298.
     """Temperature of the battery (units: K)"""
-    eta: ListParameter = []
+    eta: ListParameter = ()
     """Overpotential for the RC elements (units: V)"""
 
     @classmethod

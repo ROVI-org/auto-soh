@@ -11,10 +11,8 @@ Source Code: https://github.com/ROVI-org/auto-soh/
    :maxdepth: 2
    :caption: Contents:
 
-   system-models
-   simulator
-   estimators/index
-   toolkit
+   user-guide
+   tutorials/index
    source/modules
    extending
 
