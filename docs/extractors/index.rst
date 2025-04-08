@@ -75,3 +75,10 @@ generating parameters for different parts of the model.
      * Instantaneous resistance (measured in Ohms) of a battery observed from step changes in current
      * - Capacity estimate
        - Step changes in current across various states of charge, measured across a small timestep
+   - * :class:`~moirae.extractors.ecm.RCExtractor`
+     * Resistance (measured in Ohms) and Capacitance (measured in Farads) of RC couples observed from post-charge and discharge rests
+     * - Capacity estimate
+       - Voltage relaxation from a sufficiently long post-charge or post-discharge rest
+
+
+

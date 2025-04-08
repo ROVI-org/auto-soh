@@ -189,6 +189,16 @@ def unrealistic_fake_r0(
     return ohms
 
 
+def unrealistic_fake_rc(
+        soc_vals: Union[float, np.ndarray]) -> np.ndarray:
+    """
+    Returns not very realistic RC element relationships to SOC
+    """
+    ohms = 0.005*np.ones(np.array(soc_vals).shape)
+    farads = 2500*np.ones(np.array(soc_vals).shape)
+    return ((ohms, farads), (ohms, 4*farads))
+
+
 def hysteresis_solver_const_sign(
         h0: Union[float, np.ndarray],
         M: Union[float, np.ndarray],

@@ -21,6 +21,16 @@ def simple_rint() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCirc
             EquivalentCircuitModel())
 
 
+@fixture()
+def ecm_rc() -> Tuple[ECMASOH, ECMTransientVector, ECMInput, EquivalentCircuitModel]:
+    """Get the parameters which define an uncharged, single rc-element ecm model"""
+
+    return (ECMASOH.provide_template(has_C0=False, num_RC=2, H0=0.0),
+            ECMTransientVector.provide_template(has_C0=False, num_RC=2),
+            ECMInput(time=0., current=0.),
+            EquivalentCircuitModel())
+
+
 def make_dataset(simple_rint):
     rint_asoh, x, y, ecm_model = simple_rint
 
@@ -90,9 +100,9 @@ def test_timeseries(timeseries_dataset):
     timeseries_dataset.validate()
 
 
-def make_dataset_hppc(simple_rint):
+def make_dataset_hppc(model_and_params):
 
-    asoh, x, y, ecm_model = simple_rint
+    asoh, x, y, ecm_model = model_and_params
 
     simulator = Simulator(
         cell_model=EquivalentCircuitModel(), asoh=asoh,
@@ -102,42 +112,56 @@ def make_dataset_hppc(simple_rint):
 
     # define key parameters of HPPC cycle
     tch = 36000  # charge time for 100pct DOD charge (s)
-    Ich = asoh.q_t.value.item() / tch  # charge current
+    Ich = asoh.q_t.value.item() / tch  # charge current (A)
+    tsch = 500  # charge timestep (s)
     tpulse = 10  # pulse time (s)
     Ipulse = 5  # pulse current (A)
+    tspulse = 0.1  # pulse timestep (s)
     trestmp = 40  # mid-pulse rest (s)
-    trestl = 3600  # long rest (s)
+    tsrestmp = 1  # mid-pulse rest timestep (s)
+    trestlinit0 = 10  # 0th initial long rest time (s)
+    tsrestlinit0 = 0.1  # 0th initial long rest timestep (s)
+    trestlinit1 = 50  # 1st initial long rest time (s)
+    tsrestlinit1 = 1  # 1st initial long rest timestep (s)
+    trestl = 3600-trestlinit0-trestlinit1  # long rest (s)
+    tsrestl = 10  # long rest timestep (s)
     Idi = Ich  # discharge current (A)
     tdi = 3600  # discharge time (s)
+    tsdi = 10  # discharge timestep (s)
 
     # generate current time profiles for simulation input
     It_profile = {
-        'cc_ch_100pctDoD': [tch, Ich],
+        'cc_ch_100pctDoD': [tch, Ich, tsch],
         }
     for soc in np.arange(10, 101, 10)[::-1]:
-        It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0]
-        It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse]
-        It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0]
-        It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse]
-        It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi]
-    It_profile['prepulserest_0pctSOC'] = [trestl, 0]
-    It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse]
-    It_profile['midpulserest_0pctSOC'] = [trestmp, 0]
-    It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse]
+        It_profile[f'prepulserestinit0_{soc}pctSOC'] = [trestlinit0, 0, tsrestlinit0]
+        It_profile[f'prepulserestinit1_{soc}pctSOC'] = [trestlinit1, 0, tsrestlinit1]
+        It_profile[f'prepulserest_{soc}pctSOC'] = [trestl, 0, tsrestl]
+        It_profile[f'pulse_di_{soc}pctSOC'] = [tpulse, Ipulse, tspulse]
+        It_profile[f'midpulserest_{soc}pctSOC'] = [trestmp, 0, tsrestmp]
+        It_profile[f'pulse_ch_{soc}pctSOC'] = [tpulse, -Ipulse, tspulse]
+        It_profile[f'cc_di_{soc}pctSOC'] = [tdi, -Idi, tsdi]
+    It_profile['prepulserestinit0_0pctSOC'] = [trestlinit0, 0, tsrestlinit0]
+    It_profile['prepulserestinit1_0pctSOC'] = [trestlinit1, 0, tsrestlinit1]
+    It_profile['prepulserest_0pctSOC'] = [trestl, 0, tsrestl]
+    It_profile['pulse_ch_0pctSOC'] = [tpulse, Ipulse, tspulse]
+    It_profile['midpulserest_0pctSOC'] = [trestmp, 0, tsrestmp]
+    It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse, tspulse]
 
-    currents = []
-    states = []
+    currents = [Ich]
+    states = ['charging']
     tot_time = 0
-    step_indices = []
-    ts = 10  # time step (s)
+    step_indices = [0]
+    timestamps = [0]
+    step_c = 0
 
     for ii, (key, value) in enumerate(It_profile.items()):
-        t, curr = value
+        t, curr, ts = value
 
         n_ts = np.int32(np.floor(t/ts))  # number of time steps in t
 
         currents += [curr] * n_ts
-        step_indices += [ii] * n_ts
+        step_indices += [step_c] * n_ts
 
         if curr > 0.0001:
             state = 'charging'
@@ -147,10 +171,15 @@ def make_dataset_hppc(simple_rint):
             state = 'resting'
 
         states += [state] * n_ts
+
+        timestamps += list(tot_time + np.arange(ts, t+ts, ts))
+
         tot_time += t
 
-    timestamps = np.arange(1, tot_time+1, ts)
-    timestamps = timestamps.tolist()
+        # we don't want to change the step count between initial segments
+        # of an existing step where the only change is the timestep
+        if 'init' not in key:
+            step_c += 1
 
     # Prepare list of inputs
     ecm_inputs = [ECMInput(time=time, current=current)
@@ -177,7 +206,7 @@ def make_dataset_hppc(simple_rint):
 
     # CellDataset(
     #     raw_data=raw_data, metadata=metadata).to_hdf(
-    #         '../../docs/extractors/files/hppc.h5', complevel=9)
+    #         '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
 
     return CellDataset(raw_data=raw_data, metadata=metadata)
 
@@ -189,3 +218,12 @@ def timeseries_dataset_hppc(simple_rint) -> BatteryDataset:
 
 def test_timeseries_hppc(timeseries_dataset_hppc):
     timeseries_dataset_hppc.validate()
+
+
+@fixture()
+def timeseries_dataset_hppc_rc(ecm_rc) -> BatteryDataset:
+    return make_dataset_hppc(ecm_rc)
+
+
+def test_timeseries_dataset_hppc_rc(timeseries_dataset_hppc_rc):
+    timeseries_dataset_hppc_rc.validate()
