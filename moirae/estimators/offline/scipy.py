@@ -43,9 +43,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
         )
 
         # Assemble the output
-        num_states = len(self.objective.state)
-        states = self.objective.state.make_copy(result.x[None, :num_states])
-        asoh = self.objective.asoh.make_copy(result.x[None, num_states:])
+        states, asoh = self.objective.x_to_state(result.x[None, :], inplace=False)
         return states, asoh, result
 
 
