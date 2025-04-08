@@ -9,7 +9,7 @@ from moirae.models.base import HealthVariable, ListParameter, ScalarParameter, G
 from moirae.models.utils import NoDegradation
 
 
-class SubHeathVariable(HealthVariable):
+class SubHealthVariable(HealthVariable):
     """A sub-variable example used for testing"""
 
     x: ScalarParameter = -1.
@@ -21,16 +21,16 @@ class ExampleHealthVariable(HealthVariable):
     a: ScalarParameter = 1.
     """A parameter"""
     b: ListParameter = Field(default_factory=lambda: [2., 3.])
-    c: SubHeathVariable = Field(default_factory=SubHeathVariable)
-    d: tuple[SubHeathVariable, ...] = Field(default_factory=tuple)
-    e: dict[str, SubHeathVariable] = Field(default_factory=dict)
+    c: SubHealthVariable = Field(default_factory=SubHealthVariable)
+    d: tuple[SubHealthVariable, ...] = Field(default_factory=tuple)
+    e: dict[str, SubHealthVariable] = Field(default_factory=dict)
 
 
 @fixture
 def example_hv() -> ExampleHealthVariable:
     return ExampleHealthVariable(
-        d=(SubHeathVariable(x=0), SubHeathVariable(x=-2)),
-        e={'first': SubHeathVariable(x=1)}
+        d=(SubHealthVariable(x=0), SubHealthVariable(x=-2)),
+        e={'first': SubHealthVariable(x=1)}
     )
 
 
@@ -229,6 +229,16 @@ def test_mark_updatable(example_hv):
     assert example_hv.d[0].updatable == {'x'}
 
 
+def test_mark_nonexistent_unpdatable(example_hv):
+    """Fail if the variable does not exist"""
+
+    with raises(ValueError, match='not_a_field'):
+        example_hv.mark_updatable('not_a_field')
+
+    with raises(ValueError, match='not_a_field in health variable SubHealthVariable'):
+        example_hv.mark_updatable('d.0.not_a_field')
+
+
 def test_batched_match():
     """Explore the effects of batching using a linear model as an example"""
 
@@ -363,7 +373,6 @@ def test_json(example_hv):
 
 
 def test_make_copy():
-
     class MyContainer(GeneralContainer):
         x: ScalarParameter
         y: ListParameter

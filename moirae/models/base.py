@@ -216,6 +216,9 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
 
         for n, m in zip(*self._get_model_chain(name)):
+            if n not in m.model_fields:
+                raise ValueError(f'Failed to mark {name}. '
+                                 f'No such parameter {n} in health variable {m.__class__.__name__}')
             m.updatable.add(n)
 
     def _iter_over_submodels(self) -> Iterator['HealthVariable']:
