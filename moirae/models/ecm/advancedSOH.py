@@ -12,7 +12,8 @@ from .components import (MaxTheoreticalCapacity,
                          RCComponent,
                          OpenCircuitVoltage,
                          HysteresisParameters)
-from .utils import realistic_fake_ocv, SOCInterpolatedHealth
+from moirae.models.components.soc import SOCInterpolatedHealth
+from .utils import realistic_fake_ocv
 
 
 class ECMASOH(HealthVariable):

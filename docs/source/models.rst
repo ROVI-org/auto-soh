@@ -14,6 +14,13 @@ Base Classes (``moirae.models.base``)
    :members:
    :show-inheritance:
 
+Base Classes (``moirae.models.components``)
+-------------------------------------------
+
+.. automodule:: moirae.models.components
+   :members:
+   :show-inheritance:
+
 
 Cell Models
 ------------

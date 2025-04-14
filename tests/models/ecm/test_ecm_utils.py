@@ -2,7 +2,7 @@
 import numpy as np
 from pytest import fixture, mark
 
-from moirae.models.ecm.utils import SOCInterpolatedHealth, ScaledSOCInterpolatedHealth
+from moirae.models.components.soc import SOCInterpolatedHealth, ScaledSOCInterpolatedHealth
 
 
 @fixture

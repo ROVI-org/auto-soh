@@ -23,7 +23,7 @@ Components (``moirae.models.thevenin.components``)
    :show-inheritance:
 
 Inputs and Outputs (``moirae.models.thevenin.ins_outs``)
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.models.thevenin.ins_outs
    :members:
