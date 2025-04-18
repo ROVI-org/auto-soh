@@ -36,7 +36,7 @@ class BaseCellWrapper(ModelWrapper, ABC):
     Base link between the :class:`~moirae.model.base.CellModel` and the numpy-only interface of
     the filter implementations.
 
-    Attributes provide access to the ASOH and transient state employed in the last call of the previous model.
+    Attributes provide access to the ASOH, transient state, and inputs employed in the last call of the model.
 
     Args:
         cell_model: Model which defines the physics of the system being modeled
