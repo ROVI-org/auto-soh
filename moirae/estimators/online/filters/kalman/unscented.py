@@ -88,6 +88,7 @@ class UnscentedKalmanFilter(BaseFilter):
         covariance_process_noise: covariance of process noise (default = 1.0e-8 * identity)
         covariance_sensor_noise: covariance of sensor noise as (default = 1.0e-8 * identity)
     """
+
     def __init__(self,
                  model: ModelWrapper,
                  initial_hidden: MultivariateGaussian,
@@ -163,7 +164,6 @@ class UnscentedKalmanFilter(BaseFilter):
     def step(self,
              new_controls: MultivariateRandomDistribution,
              measurements: DeltaDistribution,
-             **kwargs
              ) -> Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:
         """
         Steps the UKF
@@ -171,7 +171,6 @@ class UnscentedKalmanFilter(BaseFilter):
         Args:
             new_controls: new control variables
             measurements: new measurements
-            **kwargs: keyword arguments to be given to the model
 
         Returns:
             Predicted output based on model evolution, as well as corrected hidden state
@@ -179,13 +178,12 @@ class UnscentedKalmanFilter(BaseFilter):
         # Step 0: build Sigma points
         sigma_pts = self.build_sigma_points()
         # Step 1: perform estimation update
-        x_k_minus, y_k, cov_xy = self.estimation_update(sigma_pts=sigma_pts, new_controls=new_controls, **kwargs)
+        x_k_minus, y_k, cov_xy = self.estimation_update(sigma_pts=sigma_pts, new_controls=new_controls)
         # Step 2: correction step, adjust hidden states based on new measurement
-        self.correction_update(x_k_minus=x_k_minus, y_hat=y_k, cov_xy=cov_xy, y=measurements, **kwargs)
+        self.correction_update(x_k_minus=x_k_minus, y_hat=y_k, cov_xy=cov_xy, y=measurements)
         # Don't forget to update the internal control!
         self.controls = new_controls.model_copy(deep=True)
-        # Return
-        return (self.hidden.model_copy(deep=True), y_k.model_copy(deep=True))
+        return self.hidden.model_copy(deep=True), y_k.model_copy(deep=True)
 
     def build_sigma_points(self) -> np.ndarray:
         """
@@ -231,30 +229,6 @@ class UnscentedKalmanFilter(BaseFilter):
         v_hid = sigma_pts[:, (2 * dim):].copy()
         return x_hid, w_hid, v_hid
 
-    def _evolve_hidden(self,
-                       hidden_states: np.ndarray,
-                       new_controls: MultivariateRandomDistribution,
-                       **kwargs) -> np.ndarray:
-        """
-        Function used to evolve the hidden states obtained from the Sigma points
-
-        Args:
-            hidden_states: array of hidden states from breaking of the Sigma points
-            new_controls: new control variables to be given to the model
-
-        Returns:
-            - x_update: updated hidden states
-        """
-        # Get old control
-        u_old = self.controls.model_copy(deep=True)
-
-        # Update hidden states
-        x_update = self.model.update_hidden_states(hidden_states=hidden_states,
-                                                   previous_controls=u_old.get_mean(),
-                                                   new_controls=new_controls.get_mean(),
-                                                   **kwargs)
-        return x_update
-
     def _assemble_unscented_estimate(self, samples: np.ndarray) -> Dict:
         """
         Function that takes a collection of samples (either updated hidden states (evolved from the Sigma points) and
@@ -270,25 +244,6 @@ class UnscentedKalmanFilter(BaseFilter):
                                                                   mean_weights=self.mean_weights,
                                                                   cov_weights=self.cov_weights)
         return unscented_info
-
-    def _predict_outputs(self,
-                         updated_hidden_states: np.ndarray,
-                         controls: MultivariateRandomDistribution,
-                         **kwargs) -> np.ndarray:
-        """
-        Function to predict outputs from evolved Sigma points.
-
-        Args:
-            updated_hidden_states: numpy array of the updated hidden states (includes process noise already)
-            controls: control to be used for predicting outpus
-            **kwargs: keyword arguments that are given to the model
-
-        Returns:
-            y_preds: predicted outputs based on provided hidden states and control
-        """
-        y_preds = self.model.predict_measurement(hidden_states=updated_hidden_states,
-                                                 controls=controls.get_mean(), **kwargs)
-        return y_preds
 
     def estimation_update(self,
                           sigma_pts: np.ndarray,
@@ -311,15 +266,20 @@ class UnscentedKalmanFilter(BaseFilter):
         x_hid, w_hid, v_hid = self._break_sigma_pts(sigma_pts=sigma_pts)
 
         # Step 1b: evolve hidden states based on the model and the previous input
-        x_updated = self._evolve_hidden(hidden_states=x_hid, new_controls=new_controls, **kwargs)
+        mean_control = new_controls.get_mean()
+        x_updated = self.model.update_hidden_states(
+            hidden_states=x_hid,
+            new_controls=mean_control,
+            previous_controls=self.controls.get_mean()
+        )
         # Don't forget to include process noise!
         x_updated += w_hid
         # Assemble x_k_minus
         x_k_minus_info = self._assemble_unscented_estimate(samples=x_updated)
         x_k_minus = MultivariateGaussian.model_validate(x_k_minus_info)
 
-        # Step 1c: use updated hidden states to predict outpus
-        y_preds = self._predict_outputs(updated_hidden_states=x_updated, controls=new_controls, **kwargs)
+        # Step 1c: use updated hidden states to predict outputs
+        y_preds = self.model.predict_measurement(x_updated, mean_control)
         # Don't forget to include sensor noise!
         y_preds += v_hid
         # Assemble y_hat
