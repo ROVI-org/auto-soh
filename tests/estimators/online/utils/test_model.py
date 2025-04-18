@@ -20,5 +20,5 @@ def test_dual_wrapper(simple_rint):
     deg_wrap = DegradationModelWrapper(cell_model=ecm, asoh=rint_asoh, transients=rint_transient, inputs=rint_inputs)
     assert deg_wrap.num_hidden_dimensions == 10
     assert deg_wrap.num_output_dimensions == 1
-    new_asoh = deg_wrap._convert_hidden_to_asoh(hidden_states=np.arange(1, 11))
-    assert np.allclose(new_asoh.get_parameters(), np.arange(1, 11).reshape((1, -1)))
+    deg_wrap._update_hidden_asoh(hidden_states=np.arange(1, 11))
+    assert np.allclose(deg_wrap.asoh.get_parameters(), np.arange(1, 11).reshape((1, -1)))

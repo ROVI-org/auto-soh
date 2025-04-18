@@ -46,7 +46,7 @@ class JointEstimator(OnlineEstimator):
 
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
         joint_state = self.state
-        estimated_asoh, estimated_transient = self.joint_model.create_cell_model_inputs(
+        estimated_asoh, estimated_transient = self.joint_model.update_cell_inputs(
             hidden_states=np.atleast_2d(joint_state.get_mean()))
         return estimated_transient, estimated_asoh
 
