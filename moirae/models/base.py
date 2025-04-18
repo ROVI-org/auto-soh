@@ -45,13 +45,15 @@ def _encode_ndarray(value: np.ndarray, handler) -> List:
 
 
 ScalarParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
+    np.ndarray,
+    BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 """Type annotation for parameters which are exactly one value"""
 
 ListParameter = Annotated[
-    np.ndarray, BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
+    np.ndarray,
+    BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
 """Type annotation for parameters which can be any number of values"""
@@ -403,7 +405,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             model = models[-1]
             attr = my_names[-1]
             cur_value = getattr(model, attr)
-            num_params = np.size(cur_value)
+            num_params = cur_value.shape[1]  # Get the number of parameters
 
             # Get the parameters to use
             end = pos + num_params

@@ -46,9 +46,9 @@ class JointEstimator(OnlineEstimator):
 
     def get_estimated_state(self) -> Tuple[GeneralContainer, HealthVariable]:
         joint_state = self.state
-        estimated_asoh, estimated_transient = self.joint_model.create_cell_model_inputs(
-            hidden_states=np.atleast_2d(joint_state.get_mean()))
-        return estimated_transient, estimated_asoh
+        self.joint_model.update_cell_inputs(np.atleast_2d(joint_state.get_mean()))
+        return (self.joint_model.transients.model_copy(deep=True),
+                self.joint_model.asoh.model_copy(deep=True))
 
     def step(self, inputs: InputQuantities, measurements: OutputQuantities) -> \
             Tuple[MultivariateRandomDistribution, MultivariateRandomDistribution]:

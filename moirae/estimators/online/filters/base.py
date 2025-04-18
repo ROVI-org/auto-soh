@@ -21,7 +21,7 @@ class ModelWrapperConverters(TypedDict):
                 'output_conversion_operator': IdentityConversionOperator()}
 
 
-class ModelWrapper():
+class ModelWrapper:
     """
     Base class that dictates how a model has to be wrapped to interface with the filters
 
@@ -45,7 +45,7 @@ class ModelWrapper():
         self.hidden_conversion = hidden_conversion_operator.model_copy(deep=True)
         self.control_conversion = control_conversion_operator.model_copy(deep=True)
         self.output_conversion = output_conversion_operator.model_copy(deep=True)
-        # TODO (wardlt): Figure out if we want to modify such the conversions are applied the base class.
+        # TODO (wardlt): Figure out if we want to apply such conversions in the base class.
         #  Will reduce opportunities for mistakes in subclasses. General strategy would be to apply converters
         #  in `predict_measurement` and `update_hidden_states` in base class, and have the subclass-specific
         #  logic implemented in a new function (e.g., `_predict_measurement`) that is called by the base class.
