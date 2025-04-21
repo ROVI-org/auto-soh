@@ -71,11 +71,11 @@ class TheveninModel(CellModel):
         # The value of each member of the transient or ASOH is a 2D array with the first dimension either 1
         #  or batch_size. The % signs below are a short syntax for either using the same value for all batches
         #  (anything mod 1 is 0) or the appropriate member of the batch
-        params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal, 'soc0': 0.}
+        params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal}
         for scalar, value in [
             ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
             ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm), ('ce', asoh.ce),
-            ('gamma', asoh.gamma),
+            ('gamma', asoh.gamma), ('soc0', transient.soc)
         ]:
             params[scalar] = value[batch_id % value.shape[0], 0]
 
