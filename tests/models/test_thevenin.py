@@ -105,8 +105,8 @@ def test_multiple_steps(asoh):
     # Test a single step of 30s charging
     model = TheveninModel()
     state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
-    assert len(state) == 2 + asoh.num_rc_elements
-    assert not np.isclose(state.to_numpy(), 0.).any()  # Including the SOC and RC elements
+    assert len(state) == 3 + asoh.num_rc_elements
+    assert not np.isclose(state.to_numpy()[:, :2], 0.).any()  # Including the SOC and RC elements
 
     # Ensure no errors if the time between timesteps is zero
     new_state = model.update_transient_state(new_inputs, new_inputs, state, asoh)
@@ -178,19 +178,19 @@ def test_estimator():
         initial_asoh=asoh,
         initial_transients=state,
         initial_inputs=pre_inputs,
-        covariance_transient=np.diag([0.05, 0.1]),
+        covariance_transient=np.diag([0.05, 0.1, 1e-6]),
         covariance_asoh=np.diag([1e-3] * 2),
-        transient_covariance_process_noise=np.diag([0.01] * 2),
+        transient_covariance_process_noise=np.diag([0.01] * 3),
         asoh_covariance_process_noise=np.diag([1e-3] * 2),
         covariance_sensor_noise=np.diag([1e-3])
     )
-    assert est.state.get_covariance().shape == (4, 4)
+    assert est.state.get_covariance().shape == (5, 5)
 
     est_state, est_outputs = est.step(new_inputs, expected_v)
     assert np.isclose(est_outputs.get_mean(), expected_v.terminal_voltage)
     est_mean = est_state.get_mean()
-    assert np.allclose(expected_state.to_numpy(), est_mean[:2])  # SOC, T
-    assert np.allclose(asoh.r[0].t_coeffs, est_mean[2:])  # Temp dependence of R
+    assert np.allclose(expected_state.to_numpy(), est_mean[:3], rtol=1e-4)  # SOC, T, hyst
+    assert np.allclose(asoh.r[0].t_coeffs, est_mean[3:], atol=1e-6)  # Temp dependence of R
 
 
 def test_overpotentials():

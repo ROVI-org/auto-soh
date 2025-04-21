@@ -3,10 +3,10 @@ import numpy as np
 from functools import partial
 from typing import Iterator
 
-from thevenin import Model, Experiment
+from thevenin import Prediction, TransientState
 
 from ..base import CellModel, InputQuantities, OutputQuantities
-from .state import TheveninASOH, TheveninTransient
+from moirae.models.thevenin.state import TheveninASOH, TheveninTransient
 from .ins_outs import TheveninInput
 
 
@@ -21,51 +21,82 @@ class TheveninModel(CellModel):
     def __init__(self, isothermal: bool = False):
         self.isothermal = isothermal
         # TODO (wardlt): Add a maximum timestep size? Victor was using that to avoid the issues with the integrator
+        self._predictor = None  # Cache the predictor used between steps
 
-    def _make_models(self, transient: TheveninTransient, asoh: TheveninASOH, inputs: TheveninInput) -> Iterator[Model]:
+    def _make_models(self, transient: TheveninTransient, asoh: TheveninASOH, inputs: TheveninInput) \
+            -> Iterator[tuple[Prediction, TransientState]]:
         """
-        Generate a model for each member of the batch of experimental conditions
+        Update the predictor and state for each member of the batch of experimental conditions
 
         Args:
             transient: Batch of transient states
             asoh: Batch of health variables
+            inputs: Inputs to the battery system
 
         Yields:
-            A model for each member of the batch
+            A Prediction class and Thevenin-compatible state for each member of the batch
         """
 
-        for b in range(max(transient.batch_size, asoh.batch_size, inputs.batch_size)):
-            # The value of each member of the transient or ASOH is a 2D array with the first dimension either 1
-            #  or batch_size. The % signs below are a short syntax for either using the same value for all batches
-            #  (anything mod 1 is 0) or the appropriate member of the batch
-            params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal}
-            for scalar, value in [
-                ('soc0', transient.soc), ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
-                ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm), ('ce', asoh.ce),
-                ('gamma', asoh.gamma),
-            ]:
-                params[scalar] = value[b % value.shape[0], 0]
+        for batch_id in range(max(transient.batch_size, asoh.batch_size, inputs.batch_size)):
+            # Convert the parameters from Moira
+            params, state = self._moirae_to_thevenin(batch_id, asoh, inputs, transient)
 
-            # Add the SOC and series resistors as functions where we pin the batch ID to the appropriate value
-            params['ocv'] = partial(asoh.ocv, batch_id=b)
-            params['R0'] = partial(asoh.r[0], batch_id=b)
-            params['M_hyst'] = partial(asoh.m_hyst, batch_id=b)
+            # Make or update the model
+            if self._predictor is None or self._predictor.num_RC_pairs != params['num_RC_pairs']:
+                self._predictor = Prediction(params=params)
+            else:
+                for key, val in params.items():
+                    setattr(self._predictor, key, val)
 
-            # Append the RC elements
-            for r in range(params['num_RC_pairs']):
-                params[f'R{r + 1}'] = partial(asoh.r[r + 1], batch_id=b)
-                params[f'C{r + 1}'] = partial(asoh.c[r], batch_id=b)
+            yield self._predictor, state
 
-            # Make the model
-            model = Model(params=params)
+    def _moirae_to_thevenin(self,
+                            batch_id: int,
+                            asoh: TheveninASOH,
+                            inputs: TheveninInput,
+                            transient: TheveninTransient) -> tuple[dict[str, float | np.ndarray], TransientState]:
+        """Assemble Thevenin-compatible parameters for a single batch member
+        from their description in Moirae
 
-            # Update the state of the RC elements
-            #  TODO (wardlt): Working with Corey on an official route for setting these SVs.
-            #   This is his current recommendation
-            if params['num_RC_pairs'] > 0:
-                model._sv0[model._ptr['eta_j']] = transient.eta[b % transient.eta.shape[0]]
+        ArgS:
+            batch_id: Batch index
+            asoh: Object holding the battery health parameters
+            inputs: Inputs applied to the battery system
+            transient: Transient state
 
-            yield model
+        Returns:
+            - Dictionary of parameters to applied to Predictor
+            - Transient state of the battery
+        """
+        # The value of each member of the transient or ASOH is a 2D array with the first dimension either 1
+        #  or batch_size. The % signs below are a short syntax for either using the same value for all batches
+        #  (anything mod 1 is 0) or the appropriate member of the batch
+        params = {'num_RC_pairs': asoh.num_rc_elements, 'isothermal': self.isothermal, 'soc0': 0.}
+        for scalar, value in [
+            ('capacity', asoh.capacity), ('mass', asoh.mass), ('Cp', asoh.c_p),
+            ('T_inf', inputs.t_inf), ('h_therm', asoh.h_thermal), ('A_therm', asoh.a_therm), ('ce', asoh.ce),
+            ('gamma', asoh.gamma),
+        ]:
+            params[scalar] = value[batch_id % value.shape[0], 0]
+
+        # Add the SOC and series resistors as functions where we pin the batch ID to the appropriate value
+        params['ocv'] = partial(asoh.ocv, batch_id=batch_id)
+        params['R0'] = partial(asoh.r[0], batch_id=batch_id)
+        params['M_hyst'] = partial(asoh.m_hyst, batch_id=batch_id)
+
+        # Append the RC elements
+        for r in range(params['num_RC_pairs']):
+            params[f'R{r + 1}'] = partial(asoh.r[r + 1], batch_id=batch_id)
+            params[f'C{r + 1}'] = partial(asoh.c[r], batch_id=batch_id)
+
+        # Make the state
+        state = TransientState(
+            soc=transient.soc[batch_id % transient.soc.shape[0], 0],
+            T_cell=transient.temp[batch_id % transient.temp.shape[0], 0],
+            hyst=transient.hyst[batch_id % transient.hyst.shape[0], 0],
+            eta_j=None if params['num_RC_pairs'] == 0 else transient.eta[batch_id % transient.eta.shape[0], :]
+        )
+        return params, state
 
     def update_transient_state(
             self,
@@ -83,22 +114,20 @@ class TheveninModel(CellModel):
         output_array = np.zeros((batch_size, len(transient_state)))
 
         # Iterate over models representing each member of the batch
-        for model_i, model in enumerate(self._make_models(transient_state, asoh, new_inputs)):
+        for model_i, (model, state) in enumerate(self._make_models(transient_state, asoh, new_inputs)):
             # Propagate the system under a constant current load
-            # TODO (wardlt): Make current time-dependent, which is possible by passing a function to add_step
-            exp = Experiment()
+            # TODO (wardlt): Make current time-dependent, which is possible by passing a callable
             cur_time = new_inputs.time[model_i % new_inputs.time.shape[0], 0]
             pre_time = previous_inputs.time[model_i % previous_inputs.time.shape[0], 0]
-            exp.add_step('current_A',
-                         -new_inputs.current[model_i % new_inputs.current.shape[0]],  # Sign convention is opposite
-                         (cur_time - pre_time, 2))
-            sln = model.run(exp)
+            current = -new_inputs.current[model_i % new_inputs.current.shape[0], 0]
+            sln = model.take_step(state, current=current, delta_t=cur_time - pre_time)
 
             # Fill in the state variables
-            output_array[model_i, 0] = sln.vars['soc'][-1]
-            output_array[model_i, 1] = sln.vars['temperature_K'][-1]
-            for rc_i in range(asoh.num_rc_elements):
-                output_array[model_i, 2 + rc_i] = sln.vars[f'eta{rc_i + 1}_V'][-1]
+            output_array[model_i, 0] = sln.soc
+            output_array[model_i, 1] = sln.T_cell
+            output_array[model_i, 2] = sln.hyst
+            if model.num_RC_pairs > 0:
+                output_array[model_i, 3:] = sln.eta_j
 
         return transient_state.make_copy(output_array)
 
