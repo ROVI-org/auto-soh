@@ -1,7 +1,11 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical models which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence, Annotated
+from functools import cached_property
+from typing import (
+    Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence,
+    Annotated, get_type_hints, get_origin, get_args, Literal
+)
 from typing_extensions import Self
 from abc import abstractmethod
 import logging
@@ -73,6 +77,32 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     updatable: set[str] = Field(default_factory=set)
     """Which fields are to be treated as updatable by a parameter estimator"""
+
+    @cached_property
+    def all_fields_with_types(self) -> tuple[tuple[str, Literal['parameter', 'variable', 'sequence', 'dict']], ...]:
+        """Names of all fields which correspond to physical parameters and their types"""
+        # Start with all annotated fields
+
+        # Filter out to only those which are either a Parameter, Health Variable or collection of Health Variables
+        output = []
+        for field, info in self.__class__.model_fields.items():
+            # Simple case: it's a parameter
+            if info.annotation == np.ndarray and 'moirae_parameter' in info.metadata:
+                output.append((field, 'parameter'))
+            elif get_origin(info.annotation) is None and issubclass(info.annotation, HealthVariable):
+                output.append((field, 'variable'))
+            elif get_origin(info.annotation) in (list, tuple) and \
+                    issubclass(get_args(info.annotation)[0], HealthVariable):
+                output.append((field, 'sequence'))
+            elif get_origin(info.annotation) in (dict,) and \
+                    issubclass(get_args(info.annotation)[1], HealthVariable):
+                output.append((field, 'dict'))
+        return tuple(output)
+
+    @property
+    def all_fields(self) -> tuple[str, ...]:
+        """Names of all fields which correspond to physical parameters and their types"""
+        return tuple(x for x, _ in self.all_fields_with_types)
 
     @model_validator(mode='after')
     def check_batch_size(self):
@@ -188,11 +218,17 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         Args:
             recurse: Make all parameters of each submodel updatable too
         """
-        _allowed_field_types = (np.ndarray, HealthVariable, List, Tuple, Dict)
+        _allowed_field_types = (HealthVariable, List, Tuple, Dict)
 
         models = self._iter_over_submodels() if recurse else (self,)
         for model in models:
-            for key in model.model_fields.keys():
+            for key, info in get_type_hints(model, include_extras=True).items():
+
+                # Handle parameters
+                if get_origin(info) == Annotated and 'moirae_parameter' in info.__metadata__:
+                    model.updatable.add(key)
+                    continue
+
                 # Add the field as updatable
                 field = getattr(model, key)
                 if isinstance(field, _allowed_field_types):
@@ -219,7 +255,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
 
         for n, m in zip(*self._get_model_chain(name)):
-            if n not in m.model_fields:
+            if n not in get_type_hints(m):
                 raise ValueError(f'Failed to mark {name}. '
                                  f'No such parameter {n} in health variable {m.__class__.__name__}')
             m.updatable.add(n)
@@ -228,15 +264,15 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """Iterate over all models which compose this HealthVariable"""
 
         yield self
-        for key in self.model_fields:
+        for key, my_type in self.all_fields_with_types:
             field = getattr(self, key)
-            if isinstance(field, HealthVariable):
+            if my_type == 'variable':
                 yield from field._iter_over_submodels()
-            elif isinstance(field, (List, Tuple)):
-                for submodel in getattr(self, key):
+            elif my_type == 'sequence':
+                for submodel in field:
                     yield from submodel._iter_over_submodels()
-            elif isinstance(field, Dict):
-                for submodel in getattr(self, key).values():
+            elif my_type == 'dict':
+                for submodel in field.values():
                     yield from submodel._iter_over_submodels()
 
     def _get_model_chain(self, name: str) -> tuple[tuple[str, ...], tuple['HealthVariable', ...]]:
@@ -315,29 +351,31 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             "<name of attribute in this class>.<name of attribute in submodel>"
         """
 
-        for key, info in self.model_fields.items():  # Iterate over fields and not updatable to have repeatable order
+        for key, info in self.all_fields_with_types:
             if updatable_only and key not in self.updatable:
                 continue
 
             field = getattr(self, key)
-            if 'moirae_parameter' in info.metadata:
-                yield key, getattr(self, key)
-            elif isinstance(field, HealthVariable) and recurse:
+            if info == 'parameter':
+                yield key, field
+            elif recurse and info == 'variable':
                 submodel: HealthVariable = getattr(self, key)
                 for subkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                     yield f'{key}.{subkey}', subvalue
-            elif isinstance(field, (List, Tuple)) and recurse:
+            elif recurse and info == 'sequence':
                 submodels: List[HealthVariable] = getattr(self, key)
                 for i, submodel in enumerate(submodels):
                     for subkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                         yield f'{key}.{i}.{subkey}', subvalue
-            elif isinstance(field, Dict) and recurse:
+            elif recurse and info == 'dict':
                 submodels: Dict[str, HealthVariable] = getattr(self, key)
                 for subkey, submodel in submodels.items():
                     for subsubkey, subvalue in submodel.iter_parameters(updatable_only=updatable_only, recurse=recurse):
                         yield f'{key}.{subkey}.{subsubkey}', subvalue
+            elif not recurse:
+                pass  # All is good
             else:
-                logger.debug(f'The "{key}" field is not any of the type associated with health variables, skipping')
+                raise NotImplementedError(f'Unrecognized type for {key}: {info}')
 
     def get_parameters(self, names: Optional[Sequence[str]] = None) -> np.ndarray:
         """Get updatable parameters as a numpy vector
@@ -446,14 +484,14 @@ class GeneralContainer(BaseModel,
     :class:`ListParameter` for scalar and 1-dimensional data, respectively.
     """
 
-    @property
+    @cached_property
     def all_fields(self) -> tuple[str, ...]:
         """Names of all fields of the model in the order they appear in :meth:`to_numpy`
 
         Returns a single name per field, regardless of whether the field is a scalar or vector.
         See :meth:`all_names` to get a single name per value.
         """
-        return tuple(self.model_fields.keys())
+        return tuple(self.__class__.model_fields.keys())
 
     @property
     def all_names(self) -> tuple[str, ...]:
@@ -477,14 +515,14 @@ class GeneralContainer(BaseModel,
 
     def __len__(self) -> int:
         """ Returns total length of all numerical values stored """
-        return sum([self.length_field(field_name) for field_name in self.model_fields.keys()])
+        return sum(self.length_field(field_name) for field_name in self.all_fields)
 
     @property
     def batch_size(self) -> int:
         """Batch size determined from the batch dimension of all attributes"""
         batch_size = 1
         batch_param_name = None  # Name of the parameter which is setting the batch size
-        for name in self.model_fields.keys():
+        for name in self.all_fields:
             param = getattr(self, name)
             if param is None:
                 continue
