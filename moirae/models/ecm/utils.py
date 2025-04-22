@@ -1,5 +1,5 @@
 """Functions used in multiple components"""
-from typing import List, Optional, Union, Literal, Callable, Iterator
+from typing import List, Optional, Union, Literal, Callable
 from numbers import Number
 
 import numpy as np
@@ -22,11 +22,6 @@ class SOCInterpolatedHealth(HealthVariable):
     # Internal caches
     _ppoly_cache: tuple[np.ndarray, np.ndarray, Callable] | None = PrivateAttr(None)
     """Cache for the interpolation function, and the interpolation points/soc points at which it was produced"""
-
-    def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
-        for name, param in super().iter_parameters(updatable_only, recurse):
-            if name != "soc_pinpoints":
-                yield name, param
 
     def _get_function(self) -> Callable:
         """Retrieve the interpolation function

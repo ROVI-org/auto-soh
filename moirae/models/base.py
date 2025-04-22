@@ -1,8 +1,8 @@
 """Base classes which define the state of a storage system,
 the control signals applied to it, the outputs observable from it,
 and the mathematical models which links state, control, and outputs together."""
-from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence
-from typing_extensions import Annotated, Self
+from typing import Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence, Annotated
+from typing_extensions import Self
 from abc import abstractmethod
 import logging
 
@@ -46,6 +46,7 @@ def _encode_ndarray(value: np.ndarray, handler) -> List:
 
 ScalarParameter = Annotated[
     np.ndarray,
+    'moirae_parameter',
     BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
@@ -53,6 +54,7 @@ ScalarParameter = Annotated[
 
 ListParameter = Annotated[
     np.ndarray,
+    'moirae_parameter',
     BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
@@ -65,7 +67,6 @@ NumpyType = Annotated[
 
 
 # TODO (wardlt): Decide on what we call a parameter and a variable (or, rather, adopt @vventuri's terminology)
-# TODO (wardlt): Make an "expand names" function to turn the name of a subvariable to a list of updatable names
 class HealthVariable(BaseModel, arbitrary_types_allowed=True):
     """Base class for a container which holds the physical parameters of system and which ones
     are being treated as updatable."""
@@ -314,12 +315,12 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
             "<name of attribute in this class>.<name of attribute in submodel>"
         """
 
-        for key in self.model_fields:  # Iterate over fields and not updatable to have repeatable order
+        for key, info in self.model_fields.items():  # Iterate over fields and not updatable to have repeatable order
             if updatable_only and key not in self.updatable:
                 continue
 
             field = getattr(self, key)
-            if isinstance(field, np.ndarray):
+            if 'moirae_parameter' in info.metadata:
                 yield key, getattr(self, key)
             elif isinstance(field, HealthVariable) and recurse:
                 submodel: HealthVariable = getattr(self, key)
