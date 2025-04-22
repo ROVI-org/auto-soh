@@ -4,6 +4,7 @@ from pytest import mark
 import numpy as np
 
 from moirae.estimators.online.joint import JointEstimator
+from moirae.models.base import OutputQuantities
 from moirae.models.thevenin import TheveninInput, TheveninTransient, TheveninModel
 from moirae.models.thevenin.components import SOCPolynomialVariable, SOCTempPolynomialVariable
 from moirae.models.thevenin.state import TheveninASOH
@@ -166,13 +167,11 @@ def test_estimator():
     pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
     new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
 
-    model = TheveninModel()
-    expected_state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
-    expected_v = model.calculate_terminal_voltage(new_inputs, expected_state, asoh)
+    model = TheveninModel(isothermal=True)
 
     # Make a joint estimator with the R0 as an adjustable parameter so that we
     #  get batching on at least one variable
-    asoh.mark_updatable('r.0.t_coeffs')
+    asoh.mark_updatable('r.0.soc_coeffs')
     est = JointEstimator.initialize_unscented_kalman_filter(
         cell_model=model,
         initial_asoh=asoh,
@@ -186,11 +185,53 @@ def test_estimator():
     )
     assert est.state.get_covariance().shape == (5, 5)
 
-    est_state, est_outputs = est.step(new_inputs, expected_v)
-    assert np.isclose(est_outputs.get_mean(), expected_v.terminal_voltage)
+    # Write down the expected results after 30 seconds of a 1A charge
+    soc = 1. / 120
+    expected_state = [soc, 298, 0]
+    expected_v = 1.5 + soc + 1 * (0.01 * (1 + soc))
+
+    est_state, est_outputs = est.step(new_inputs, OutputQuantities(terminal_voltage=expected_v))
+    assert np.isclose(est_outputs.get_mean(), expected_v)
     est_mean = est_state.get_mean()
-    assert np.allclose(expected_state.to_numpy(), est_mean[:3], rtol=1e-4)  # SOC, T, hyst
-    assert np.allclose(asoh.r[0].t_coeffs, est_mean[3:], atol=1e-6)  # Temp dependence of R
+    assert np.allclose(expected_state, est_mean[:3], rtol=1e-4)  # SOC, T, hyst
+    assert np.allclose(asoh.r[0].soc_coeffs, est_mean[3:], atol=1e-6)  # Temp dependence of R
+
+    # Perturb the r0 and see if it converges back to the correct value
+    #  Run several cycles of 1 A charge/discharge
+    asoh.r[0].soc_coeffs[0, 0] = 0.011
+    state.soc = np.atleast_2d(soc)
+    est = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=model,
+        initial_asoh=asoh,
+        initial_transients=state,
+        initial_inputs=pre_inputs,
+        covariance_transient=np.diag([0.001, 0.1, 1e-6]),
+        covariance_asoh=np.diag([1e-3] * 2),
+        transient_covariance_process_noise=np.diag([0.01] * 3),
+        asoh_covariance_process_noise=np.diag([1e-3] * 2),
+        covariance_sensor_noise=np.diag([1e-3])
+    )
+    assert np.isclose(est.get_estimated_state()[1].r[0].soc_coeffs[0, 0], 0.011)
+
+    def _soc_over_time(t: float):
+        """Actual SOC as a function of time"""
+        time_in_cycle = t % 7200
+        return time_in_cycle / 3600 if time_in_cycle < 3600 else 1 - (time_in_cycle - 3600) / 3600
+
+    def _iv_over_time(t: float):
+        time_in_cycle = t % 7200
+        current = 1 if time_in_cycle < 3600 else -1
+        soc = _soc_over_time(t)
+        return current, 1.5 + soc + current * 0.01 * (1 + soc)
+
+    for time in np.linspace(0, 7200 * 2, 500):
+        i, v = _iv_over_time(time)
+        est.step(
+            TheveninInput(current=i, time=time, t_inf=298),
+            OutputQuantities(terminal_voltage=v)
+        )
+    est_tran, est_asoh = est.get_estimated_state()
+    assert np.isclose(est_tran.soc, 0., atol=0.05)
 
 
 def test_overpotentials():
