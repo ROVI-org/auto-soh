@@ -158,6 +158,32 @@ def test_multiple_steps(asoh):
     assert np.isclose(v.terminal_voltage, 1.5).all()
 
 
+def test_batching():
+    """Evaluate whether batches of ASOH coordinates are treated properly"""
+
+    # Run an experiment where the serial resistances are increasing
+    model = TheveninModel()
+    asoh = rint.model_copy(deep=True)
+    asoh.r[0].soc_coeffs = np.array([[0.01], [0.02], [0.03]])
+    assert asoh.batch_size == 3
+
+    # The temperature of the cell should be higher with higher resistance
+    state = TheveninTransient.from_asoh(asoh)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+
+    new_state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
+    assert new_state.batch_size == 3
+    assert (np.diff(new_state.temp[:, 0]) > 0).all()  # Temperatures should be increasing
+    assert np.std(new_state.soc) == 0.  # SOC should all be the same
+
+    # Compute the voltage
+    soc = 1. / 120
+    v = 1.5 + soc + 1 * asoh.r[0].soc_coeffs[:, 0]
+    pred_v = model.calculate_terminal_voltage(new_inputs, new_state, asoh)
+    assert np.allclose(v, pred_v.terminal_voltage[:, 0], atol=1e-3)  # Differences are due to temp
+
+
 def test_estimator():
     """Make sure everything functions with an estimator"""
 
