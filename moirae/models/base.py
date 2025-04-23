@@ -50,7 +50,7 @@ def _encode_ndarray(value: np.ndarray, handler) -> List:
 
 ScalarParameter = Annotated[
     np.ndarray,
-    'moirae_parameter',
+    Field(json_schema_extra={'type': 'moirae_parameter'}),
     BeforeValidator(lambda x: enforce_dimensions(x, 0)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
@@ -58,7 +58,7 @@ ScalarParameter = Annotated[
 
 ListParameter = Annotated[
     np.ndarray,
-    'moirae_parameter',
+    Field(json_schema_extra={'type': 'moirae_parameter'}),
     BeforeValidator(lambda x: enforce_dimensions(x, 1)), Field(validate_default=True),
     WrapSerializer(_encode_ndarray, when_used='json-unless-none')
 ]
@@ -92,7 +92,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         output = []
         for field, info in self.__class__.model_fields.items():
             # Simple case: it's a parameter
-            if info.annotation == np.ndarray and 'moirae_parameter' in info.metadata:
+            if info.annotation == np.ndarray and info.json_schema_extra.get('type') == 'moirae_parameter':
                 output.append((field, 'parameter'))
             elif get_origin(info.annotation) is None and issubclass(info.annotation, HealthVariable):
                 output.append((field, 'variable'))
