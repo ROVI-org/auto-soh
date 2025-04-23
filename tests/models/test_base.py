@@ -35,8 +35,9 @@ def example_hv() -> ExampleHealthVariable:
 
 
 def test_field_names(example_hv):
-    names = example_hv.all_fields
+    names, field_types = zip(*example_hv.all_fields_with_types)
     assert names == ('a', 'b', 'c', 'd', 'e')
+    assert field_types == ('parameter', 'parameter', 'variable', 'sequence', 'dict')
 
 
 def test_parameter_iterator(example_hv):

@@ -4,7 +4,7 @@ and the mathematical models which links state, control, and outputs together."""
 from functools import cached_property
 from typing import (
     Iterator, Optional, List, Tuple, Dict, Union, Any, Iterable, Sequence,
-    Annotated, get_type_hints, get_origin, get_args, Literal
+    Annotated, get_origin, get_args, Literal
 )
 from typing_extensions import Self
 from abc import abstractmethod
@@ -80,9 +80,14 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
 
     @cached_property
     def all_fields_with_types(self) -> tuple[tuple[str, Literal['parameter', 'variable', 'sequence', 'dict']], ...]:
-        """Names of all fields which correspond to physical parameters and their types"""
-        # Start with all annotated fields
+        """Names of all fields which correspond to physical parameters and their types
 
+        Types of fields include:
+            - `parameter`: a NumPy array of health parameter values
+            - `variable`: another HealthVariable class
+            - `sequence`: a list of HealthVariables
+            - `dict`: a map of HealthVariables
+        """
         # Filter out to only those which are either a Parameter, Health Variable or collection of Health Variables
         output = []
         for field, info in self.__class__.model_fields.items():
@@ -218,21 +223,9 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         Args:
             recurse: Make all parameters of each submodel updatable too
         """
-        _allowed_field_types = (HealthVariable, List, Tuple, Dict)
-
         models = self._iter_over_submodels() if recurse else (self,)
         for model in models:
-            for key, info in get_type_hints(model, include_extras=True).items():
-
-                # Handle parameters
-                if get_origin(info) == Annotated and 'moirae_parameter' in info.__metadata__:
-                    model.updatable.add(key)
-                    continue
-
-                # Add the field as updatable
-                field = getattr(model, key)
-                if isinstance(field, _allowed_field_types):
-                    model.updatable.add(key)
+            model.updatable.update(model.all_fields)
 
     def mark_all_fixed(self, recurse: bool = True):
         """Mark all fields in the model as not updatable
@@ -255,7 +248,7 @@ class HealthVariable(BaseModel, arbitrary_types_allowed=True):
         """
 
         for n, m in zip(*self._get_model_chain(name)):
-            if n not in get_type_hints(m):
+            if n not in m.all_fields:
                 raise ValueError(f'Failed to mark {name}. '
                                  f'No such parameter {n} in health variable {m.__class__.__name__}')
             m.updatable.add(n)
