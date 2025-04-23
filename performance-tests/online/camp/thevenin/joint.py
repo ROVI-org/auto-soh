@@ -48,17 +48,17 @@ asoh_covariance = [(2.5e-03 * initial_asoh.capacity.item()) ** 2]  # +/- std_dev
 asoh_covariance += ((2.5e-03 * initial_asoh.r[0].soc_coeffs[0, :]) ** 2).tolist()  # +/- std_dev^2 of R0
 asoh_covariance = np.diag(asoh_covariance)
 
-# For the transients, assume SOC is a uniform random variable in [0,1], and hysteresis has 2*std_dev of 1 mV
+# For the transients, assume SOC is a uniform random variable in [0,1], and hysteresis has 2*std_dev of 1 uV
 init_transients = TheveninTransient.from_asoh(initial_asoh)
 init_transients.soc = np.atleast_2d(1.)
-tran_covariance = np.diag([1 / 12, 1.])
+tran_covariance = np.diag([1 / 100, 0.01, 1e-6])
 
 # Make the noise terms
 #  Logic from: https://github.com/ROVI-org/auto-soh/blob/main/notebooks/demonstrate_joint_ukf.ipynb
 voltage_err = 1.0e-03  # mV voltage error
 noise_sensor = ((voltage_err / 2) ** 2) * np.eye(1)
 noise_asoh = 1.0e-10 * np.eye(asoh_covariance.shape[0])
-noise_tran = 1.0e-08 * np.eye(2)
+noise_tran = 1.0e-08 * np.eye(3)
 
 estimator = JointEstimator.initialize_unscented_kalman_filter(
     cell_model=TheveninModel(),

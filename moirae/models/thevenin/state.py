@@ -62,6 +62,8 @@ class TheveninTransient(GeneralContainer):
     """State of charge for the battery system"""
     temp: ScalarParameter = 298.
     """Temperature of the battery (units: K)"""
+    hyst: ScalarParameter = 0.
+    """Hysteresis voltage (units: V)"""
     eta: ListParameter = ()
     """Overpotential for the RC elements (units: V)"""
 
