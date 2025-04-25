@@ -85,19 +85,22 @@ class IdentityConversionOperator(ConversionOperator):
     """
     Class that implements simple identity operation, that is, it does not change the inputs.
     """
+
+    # DEV NOTE: Returning copies so that we are assured the inputs are unmodified
+    #  regardless of how we use the output
     def transform_samples(self, samples: np.ndarray) -> np.ndarray:
-        return samples
+        return samples.copy()
 
     def transform_covariance(self, covariance: np.ndarray, pivot: Optional[np.ndarray] = None) -> np.ndarray:
-        return covariance
+        return covariance.copy()
 
     def inverse_transform_samples(self, transformed_samples: np.ndarray) -> np.ndarray:
-        return transformed_samples
+        return transformed_samples.copy()
 
     def inverse_transform_covariance(self,
                                      transformed_covariance: np.ndarray,
                                      transformed_pivot: Optional[np.ndarray] = None) -> np.ndarray:
-        return transformed_covariance
+        return transformed_covariance.copy()
 
 
 class LinearConversionOperator(ConversionOperator):
@@ -196,6 +199,7 @@ class FirstOrderTaylorConversionOperator(ConversionOperator):
     :class:`~moirae.estimators.online.filters.conversions.LinearConversionOperator`
     Full explanation on `Wikipedia <https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations>`_.
     """
+
     @abstractmethod
     def get_jacobian(self, pivot: np.ndarray) -> np.ndarray:
         """

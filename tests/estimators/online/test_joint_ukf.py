@@ -156,6 +156,10 @@ def test_joint_ecm() -> None:
         covariance_sensor_noise=noise_sensor
     )
 
+    # Check pulling the estimated state
+    cur_tran, cur_asoh = rint_joint_ukf.get_estimated_state()
+    assert np.allclose(cur_tran.to_numpy(), transient0_rint_off.to_numpy())
+
     # Co-simulate
     # Total number of cycles to simulate
     num_cycles = 10
