@@ -29,7 +29,7 @@ def test_data_check(rc_dataset, rc_extractor):
 
 
 def test_spline_fit(rc_dataset, rc_extractor):
-    rc_points = rc_extractor.interpolate_rc(rc_dataset)  # .tables['raw_data'])
+    rc_points = rc_extractor.interpolate_rc(rc_dataset)
 
     expected_rc = unrealistic_fake_rc(rc_extractor.soc_points)
 
