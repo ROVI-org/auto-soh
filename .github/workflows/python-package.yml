@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         with:
             environment-file: dev/environment.yml
             activate-environment: test
@@ -26,7 +26,7 @@ jobs:
             architecture: x64
             clean-patched-environment-file: true
             run-post: true
-            use-mamba: true
+            use-mamba: false
             miniforge-version: latest
       - name: Lint with flake8
         run: |
