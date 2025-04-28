@@ -89,7 +89,7 @@ class EquivalentCircuitModel(CellModel):
         # has to be <0. The easiest way to check for that is to multiply by the
         # current and divide by its absolute value
         M = M * current_k  # shape (h0_batch, 1)
-        if not np.allclose(current_k, 0):
+        if np.max(np.abs(current_k)) > 1e-6:
             M = M / abs(current_k)  # shape (h0_batch, trans_batch, 1)
 
         gamma = asoh.h0.gamma  # shape (h0_batch, 1)
