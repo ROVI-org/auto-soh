@@ -152,7 +152,7 @@ class EquivalentCircuitModel(CellModel):
 
         # Check series capacitance
         if transient_state.q0 is not None:
-            c0 = asoh.c0.get_value(soc=transient_state.soc.copy())  # shape (c0_batch, soc_batch, soc_dim=1)
+            c0 = asoh.c0.get_value(soc=transient_state.soc)  # shape (c0_batch, soc_batch, soc_dim=1)
             q0 = transient_state.q0  # shape (q0_batch, 1)
             deltaV = q0 / c0  # broadcasting from right to left gives (c0_batch, trans_batch, 1)
             Vt = Vt + deltaV  # broadcasting from right to left gives (asoh_batch, trans_batch, 1)
@@ -172,5 +172,5 @@ class EquivalentCircuitModel(CellModel):
 
         # Include hysteresis
         hyst = transient_state.hyst  # shape (hyst_batch, 1)
-        Vt = Vt + hyst  # shape (asoh_batch_size, trans_batch_size, 1)
+        Vt = Vt + hyst  # shape (asoh_batch_size, 1)
         return ECMMeasurement(terminal_voltage=Vt)

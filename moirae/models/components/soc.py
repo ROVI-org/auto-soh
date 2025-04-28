@@ -95,7 +95,7 @@ class SOCInterpolatedHealth(SOCDependentHealth):
 
         # Make the spline then cache it
         func = interp1d(self.soc_pinpoints,
-                        self.base_values[batch_id, :],
+                        self.base_values[slice(None) if batch_id is None else batch_id % self.base_values.shape[0], :],
                         kind=self.interpolation_style,
                         bounds_error=False,
                         fill_value='extrapolate')
@@ -124,12 +124,16 @@ class SOCInterpolatedHealth(SOCDependentHealth):
             y = self.base_values[index, :]
             return np.tile(y, (batch_size // y.shape[0], soc_dim))  # shape = (batch_size, soc_dim)
 
-        # Evaluate splines for each member of the batch
-        output = np.empty((batch_size, soc_dim))
-        for i, b in enumerate(range(batch_size) if batch_id is None else [batch_id]):
-            f = self._get_function(b % internal_batch_size)
-            output[i, :] = f(soc[b % soc_batch_size])
-        return output
+        # Make a single call to interpolation
+        f = self._get_function(batch_id)
+        if batch_id is None:
+            results = f(soc)
+            output = np.empty((batch_size, soc_dim))
+            for b in range(batch_size):
+                output[b, :] = results[b % internal_batch_size, b % soc_batch_size, :]
+            return output
+        else:
+            return f(soc[batch_id % soc_batch_size, :])[None, :]
 
 
 class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):

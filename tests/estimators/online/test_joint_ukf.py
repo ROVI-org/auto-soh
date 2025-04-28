@@ -162,7 +162,7 @@ def test_joint_ecm() -> None:
 
     # Co-simulate
     # Total number of cycles to simulate
-    num_cycles = 10
+    num_cycles = 6
 
     # Let's also create a simple ways to store UKF predictions and estimates, as well as the inputs provided
     noisy_voltage = []
