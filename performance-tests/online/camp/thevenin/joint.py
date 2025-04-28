@@ -5,11 +5,12 @@ from pathlib import Path
 import numpy as np
 from numpy.polynomial.polynomial import polyfit
 from moirae.estimators.online.joint import JointEstimator
+from moirae.models.components.soc_t import SOCTempPolynomialHealth
+from moirae.models.components.soc import SOCPolynomialHealth
 from moirae.models.ecm import ECMASOH
 from moirae.models.thevenin import TheveninASOH, TheveninModel
 from moirae.models.thevenin.state import TheveninTransient
 from moirae.models.thevenin.ins_outs import TheveninInput
-from moirae.models.thevenin.components import SOCPolynomialVariable, SOCTempPolynomialVariable
 
 # Load the initial ASOH used in the ECM model
 ecm_asoh = ECMASOH.model_validate_json(Path('../ecm/initial-asoh.json').read_text())
@@ -31,9 +32,9 @@ r0_poly = polyfit(
 
 initial_asoh = TheveninASOH(
     capacity=ecm_asoh.q_t.base_values.item(),
-    ocv=SOCPolynomialVariable(coeffs=ocv_poly),
+    ocv=SOCPolynomialHealth(coeffs=ocv_poly),
     r=(
-        SOCTempPolynomialVariable(soc_coeffs=r0_poly, t_coeffs=0),
+        SOCTempPolynomialHealth(soc_coeffs=r0_poly, t_coeffs=0),
     ),
 )
 
