@@ -80,9 +80,10 @@ class SOCInterpolatedHealth(SOCDependentHealth):
         """
 
         # Return the cached spline if it exists and the base values have not changed
+        my_values = self.base_values[slice(None) if batch_id is None else batch_id % self.base_values.shape[0], :]
         if (cached := self._ppoly_cache.get(batch_id)) is not None:
             org_soc, orig_array, ppoly = cached
-            if np.array_equal(orig_array, self.base_values) \
+            if np.array_equal(orig_array, my_values) \
                     and np.array_equal(org_soc, self.soc_pinpoints):
                 return ppoly
 
@@ -95,12 +96,12 @@ class SOCInterpolatedHealth(SOCDependentHealth):
 
         # Make the spline then cache it
         func = interp1d(self.soc_pinpoints,
-                        self.base_values[slice(None) if batch_id is None else batch_id % self.base_values.shape[0], :],
+                        my_values,
                         kind=self.interpolation_style,
                         bounds_error=False,
                         fill_value='extrapolate')
         if self.interpolation_style not in {'linear', 'nearest', 'nearest-up'}:  # Don't cache lazy models
-            self._ppoly_cache[batch_id] = (self.soc_pinpoints.copy(), self.base_values[batch_id, :].copy(), func)
+            self._ppoly_cache[batch_id] = (self.soc_pinpoints.copy(), my_values.copy(), func)
         return func
 
     def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
