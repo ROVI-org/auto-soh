@@ -80,14 +80,14 @@ class TheveninModel(CellModel):
             params[scalar] = value[batch_id % value.shape[0], 0]
 
         # Add the SOC and series resistors as functions where we pin the batch ID to the appropriate value
-        params['ocv'] = partial(asoh.ocv, batch_id=batch_id)
-        params['R0'] = partial(asoh.r[0], batch_id=batch_id)
-        params['M_hyst'] = partial(asoh.m_hyst, batch_id=batch_id)
+        params['ocv'] = partial(asoh.ocv.get_value, batch_id=batch_id)
+        params['R0'] = partial(asoh.r[0].get_value, batch_id=batch_id)
+        params['M_hyst'] = partial(asoh.m_hyst.get_value, batch_id=batch_id)
 
         # Append the RC elements
         for r in range(params['num_RC_pairs']):
-            params[f'R{r + 1}'] = partial(asoh.r[r + 1], batch_id=batch_id)
-            params[f'C{r + 1}'] = partial(asoh.c[r], batch_id=batch_id)
+            params[f'R{r + 1}'] = partial(asoh.r[r + 1].get_value, batch_id=batch_id)
+            params[f'C{r + 1}'] = partial(asoh.c[r].get_value, batch_id=batch_id)
 
         # Make the state
         state = TransientState(
@@ -139,9 +139,9 @@ class TheveninModel(CellModel):
         # Thevenin stores overpotentials, so it is easy enough to compute terminal voltage directly from states and ASOH
         #  See last eq of https://rovi-org.github.io/thevenin/user_guide/model_description.html
         v = (
-                asoh.ocv(transient_state.soc[:, 0])
+                asoh.ocv.get_value(transient_state.soc)
                 # Sign convention is opposite of thevenin
-                + new_inputs.current[:, 0] * asoh.r[0](transient_state.soc[:, 0], transient_state.temp[:, 0])
-                - transient_state.eta.sum(axis=1)
+                + new_inputs.current[:, 0] * asoh.r[0].get_value(transient_state.soc, transient_state.temp)
+                - transient_state.eta.sum(axis=1, keepdims=True)
         )
         return OutputQuantities(terminal_voltage=v)

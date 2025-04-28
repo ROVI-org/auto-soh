@@ -5,8 +5,11 @@ from typing import Tuple
 from pydantic import Field, model_validator, ConfigDict
 
 from moirae.models.base import HealthVariable, ScalarParameter, GeneralContainer, ListParameter
-from moirae.models.thevenin.components import (
-    SOCDependentVariable, SOCPolynomialVariable, SOCTempDependentVariable, SOCTempPolynomialVariable
+from moirae.models.components.soc import (
+    SOCDependentHealth, SOCPolynomialHealth
+)
+from moirae.models.components.soc_t import (
+    SOCTempDependentHealth, SOCTempPolynomialHealth
 )
 
 
@@ -28,19 +31,19 @@ class TheveninASOH(HealthVariable):
     """Convective coefficient (W/m^2/K)"""
     a_therm: ScalarParameter = 1
     """Heat loss area (m^2)"""
-    ocv: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=3.5))
+    ocv: SOCDependentHealth = Field(default_factory=lambda: SOCPolynomialHealth(coeffs=3.5))
     """Open circuit voltage (V)"""
-    r: Tuple[SOCTempDependentVariable, ...] = Field(
-        default_factory=lambda: (SOCTempPolynomialVariable(soc_coeffs=0.1),), min_length=1
+    r: Tuple[SOCTempDependentHealth, ...] = Field(
+        default_factory=lambda: (SOCTempPolynomialHealth(soc_coeffs=0.1),), min_length=1
     )
     """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
-    c: Tuple[SOCTempDependentVariable, ...] = Field(default_factory=tuple)
+    c: Tuple[SOCTempDependentHealth, ...] = Field(default_factory=tuple)
     """Capacitance in all RC elements (C)"""
     ce: ScalarParameter = 1.
     """Coulomb efficiency"""
     gamma: ScalarParameter = 50.
     """Hysteresis approach rate"""
-    m_hyst: SOCDependentVariable = Field(default_factory=lambda: SOCPolynomialVariable(coeffs=0))
+    m_hyst: SOCDependentHealth = Field(default_factory=lambda: SOCPolynomialHealth(coeffs=0))
     """Maximum magnitude of hysteresis (V)"""
 
     @property

@@ -46,11 +46,11 @@ class ECMASOH(HealthVariable):
         # Get SOC values to be used in the integration
         soc_vals = np.linspace(min(soc_limits), max(soc_limits), 100)
         # Get corresponding OCV
-        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)  # shape (ocv_batch, 1, soc_dim)
+        ocv_vals = self.ocv(soc=soc_vals, temp=temperature)  # shape (ocv_batch, soc_dim)
         # Integrate
         energy = trapezoid(y=ocv_vals, x=soc_vals, axis=-1)  # integrate over the last axis, corresponding to soc_dim
         # Now, multiply by the charge
-        return energy * self.q_t.amp_hour  # shape (asoh_batch, 1)
+        return energy[:, None] * self.q_t.amp_hour  # shape (asoh_batch, 1)
 
     @classmethod
     def provide_template(

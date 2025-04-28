@@ -1,4 +1,4 @@
-"""Models for parameters which vary as a function of SOC and temperature"""
+"""Models for parameters which vary as a function of SOC"""
 from abc import ABCMeta, abstractmethod
 from typing import List, Optional, Union, Literal, Callable
 from numbers import Number
@@ -6,12 +6,32 @@ from numbers import Number
 import numpy as np
 from pydantic import Field, PrivateAttr
 from scipy.interpolate import interp1d
+from numpy.polynomial.polynomial import polyval
 from numpy.polynomial.legendre import Legendre
 
 from moirae.models.base import HealthVariable, ListParameter, NumpyType
 
 FloatOrArray = Union[Number, List[float], np.ndarray]
 """A number of list of numbers"""
+
+
+def adjust_soc_shape(soc: Union[Number, List, np.ndarray]) -> np.ndarray:
+    """Adjust the SOC from a user-provided shape to 2D array
+
+    Args:
+        soc: SOC, as provided by user
+    Returns:
+        2D array where first dimension is the batch and second is the SOC values.
+    """
+    soc = np.asarray(soc)  # Ensure it's an array, but don't copy it
+    if soc.ndim == 0:
+        return soc[None, None]
+    elif soc.ndim == 1:
+        return soc[None, :]
+    elif soc.ndim == 2:
+        return soc
+    else:
+        raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc.shape}!')
 
 
 class SOCDependentHealth(HealthVariable, metaclass=ABCMeta):
@@ -85,7 +105,7 @@ class SOCInterpolatedHealth(SOCDependentHealth):
 
     def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
         # Determine the batch sizes for the output
-        soc = self._adjust_soc_shape(soc)
+        soc = adjust_soc_shape(soc)
         soc_batch_size, soc_dim = soc.shape
         internal_batch_size = self.base_values.shape[0]
 
@@ -101,7 +121,7 @@ class SOCInterpolatedHealth(SOCDependentHealth):
         # Special case: constant value
         if self.base_values.shape[-1] == 1:
             index = slice(None) if batch_id is None else batch_id
-            y = self.base_values[index, 0]
+            y = self.base_values[index, :]
             return np.tile(y, (batch_size // y.shape[0], soc_dim))  # shape = (batch_size, soc_dim)
 
         # Evaluate splines for each member of the batch
@@ -110,24 +130,6 @@ class SOCInterpolatedHealth(SOCDependentHealth):
             f = self._get_function(b % internal_batch_size)
             output[i, :] = f(soc[b % soc_batch_size])
         return output
-
-    def _adjust_soc_shape(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
-        """Adjust the SOC from a user-provided shape to 2D array
-
-        Args:
-            soc: SOC, as provided by user
-        Returns:
-            2D array where first dimension is the batch and second is the SOC values.
-        """
-        soc = np.asarray(soc)  # Ensure it's an array, but don't copy it
-        if soc.ndim == 0:
-            return soc[None, None]
-        elif soc.ndim == 1:
-            return soc[None, :]
-        elif soc.ndim == 2:
-            return soc
-        else:
-            raise ValueError(f'SOC must be passed as at most a 2D array, but has shape {soc.shape}!')
 
 
 class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
@@ -147,7 +149,7 @@ class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
 
     def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
         # Evaluate the interpolated values
-        soc = self._adjust_soc_shape(soc)
+        soc = adjust_soc_shape(soc)
         interpolated = super().get_value(soc, batch_id)
 
         # Determine batch size of the output, prepare outputs
@@ -176,3 +178,14 @@ class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
             else:
                 output[i, :] *= 1 + scaling_amount
         return output
+
+
+class SOCPolynomialHealth(SOCDependentHealth):
+    """A health parameter whose value is described by a power-series polynomial"""
+    coeffs: ListParameter = 1.
+    """Coefficients for the polynomial"""
+
+    def get_value(self, soc: FloatOrArray, batch_id: Optional[int] = None) -> FloatOrArray:
+        soc = adjust_soc_shape(soc)
+        coeffs = self.coeffs if batch_id is None else self.coeffs[batch_id % self.batch_size, :]
+        return polyval(soc.T, coeffs.T, tensor=False).T

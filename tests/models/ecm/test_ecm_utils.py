@@ -2,7 +2,8 @@
 import numpy as np
 from pytest import fixture, mark
 
-from moirae.models.components.soc import SOCInterpolatedHealth, ScaledSOCInterpolatedHealth
+from moirae.models.components.soc import SOCInterpolatedHealth, ScaledSOCInterpolatedHealth, SOCPolynomialHealth
+from moirae.models.components.soc_t import SOCTempPolynomialHealth
 
 
 @fixture
@@ -61,9 +62,25 @@ def test_provided(provide_soc):
 
 def test_constant(constant):
     values = np.random.rand(100)
-    assert np.isclose([3.14159265358979323846264] * len(values),
-                      constant.get_value(values),
-                      atol=1e-12).all(), 'Wrong constant interpolation!'
+    result = constant.get_value(values)
+    assert result.shape == (1, 100)
+    assert np.allclose([3.14159265358979323846264], result,
+                       atol=1e-12), 'Wrong constant interpolation!'
+
+    # Test with batching the SOCs
+    result = constant.get_value(values[:, None])
+    assert result.shape == (100, 1)
+
+    # Test with batching the base values
+    constant.base_values = np.array([[1], [2]])
+    result = constant.get_value(1.)
+    assert result.shape == (2, 1)
+    assert np.allclose(result, constant.base_values)
+
+    # Test with getting only a certain batch member
+    result = constant.get_value(1., batch_id=1)
+    assert result.shape == (1, 1)
+    assert np.allclose(2, result)
 
 
 def test_scale(linear_scale):
@@ -184,3 +201,47 @@ def test_scaling(inter_batch, scale_batch, additive):
     single_id = scaled.get_value(soc, batch_id=0)
     assert single_id.shape == (1, scaled_val.shape[1])
     assert np.allclose(single_id, scaled_val[0, :])
+
+
+def test_soc_polynomial():
+    comp = SOCPolynomialHealth(coeffs=[[1, 0.5], [0.5, 0.25]])
+
+    # Make sure it works with scalars for a single batch, as needed by Thevenin to update
+    y = comp.get_value(0.5, batch_id=0)
+    assert y.shape == (1, 1)
+    assert np.isclose(y, 1.25)
+
+    y = comp.get_value(0.5, batch_id=1)
+    assert y.shape == (1, 1)
+    assert np.isclose(y, 0.625)
+
+    # Make sure it works with 2D inputs and all batches, as when computing terminal voltage
+    y = comp.get_value(np.array([0.5]))
+    assert y.shape == (2, 1)
+    assert np.allclose(y, [[1.25], [0.625]])
+
+    y = comp.get_value(np.array([[0.5], [0.]]))  # Evaluate different SOC points for different batch members
+    assert y.shape == (2, 1)
+    assert np.allclose(y, [[1.25], [0.5]])
+
+
+def test_soc_temp_dependence():
+    comp = SOCTempPolynomialHealth(soc_coeffs=[[1, 0.5], [0.5, 0.25]], t_coeffs=[[0, -0.1]])
+
+    # Make sure it works with scalars for a single batch, as needed by Thevenin to update
+    y = comp.get_value(0.5, 299, batch_id=0)
+    assert y.shape == (1, 1)
+    assert np.isclose(y, 1.15)
+
+    y = comp.get_value(0.5, 299, batch_id=1)
+    assert y.shape == (1, 1)
+    assert np.isclose(y, 0.525)
+
+    # Make sure it works with 2D inputs and all batches, as when computing terminal voltage
+    y = comp.get_value(np.array([0.5]), np.array([299]))
+    assert y.shape == (2, 1)
+    assert np.allclose(y, [[1.15], [0.525]])
+
+    y = comp.get_value(np.array([[0.5], [0.]]), np.array([299]))
+    assert y.shape == (2, 1)
+    assert np.allclose(y, [[1.15], [0.4]])
