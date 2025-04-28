@@ -1,5 +1,6 @@
-"""Parameters which vary as a function of SOC"""
-from typing import List, Optional, Union, Literal, Callable, Iterator
+"""Models for parameters which vary as a function of SOC and temperature"""
+from abc import ABCMeta, abstractmethod
+from typing import List, Optional, Union, Literal, Callable
 from numbers import Number
 
 import numpy as np
@@ -9,27 +10,48 @@ from numpy.polynomial.legendre import Legendre
 
 from moirae.models.base import HealthVariable, ListParameter, NumpyType
 
+FloatOrArray = Union[Number, List[float], np.ndarray]
+"""A number of list of numbers"""
 
-class SOCInterpolatedHealth(HealthVariable):
-    """Health variables which vary as a function of SOC"""
+
+class SOCDependentHealth(HealthVariable, metaclass=ABCMeta):
+    """Interface for variables whose values depend on the state of charge"""
+
+    @abstractmethod
+    def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
+        """
+        Computes value(s) at given SOC(s).
+
+        Args:
+            soc: Values at which to compute the property. Dimensions must be either
+
+                1. a 2D array of shape `(batch_size, soc_dim)`. The `batch_size` must either be 1 or
+                   equal to the batch size fo the parameters.
+                2. a 1D array of shape `(soc_dim,)`, in which case we will consider the `batch_size` to be equal to 1
+                3. a 0D array (a scalar), in which case both `batch_size` and `soc_dim` are equal to 1.
+            batch_id: Which batch member for the parameters and input SOC values to use. Default is to use whole batch
+        Returns:
+            Interpolated values as a 2D with dimensions (batch_size, soc_points).
+            The ``batch_size`` is 0 when ``batch_id`` is not None.
+        """
+        raise NotImplementedError()
+
+
+class SOCInterpolatedHealth(SOCDependentHealth):
+    """Health variables where SOC dependence is described by a piecewise-polynomial"""
     base_values: ListParameter = \
         Field(default=0, description='Values at specified SOCs')
     soc_pinpoints: Optional[NumpyType] = Field(default=None, description='SOC pinpoints for interpolation.')
-    interpolation_style: Literal['linear', 'nearest', 'nearest-up', 'zero', 'slinear',
-    'quadratic', 'cubic', 'previous', 'next'] = \
-        Field(default='linear', description='Type of interpolation to perform')
+    interpolation_style: Literal[
+        'linear', 'nearest', 'nearest-up', 'zero', 'slinear', 'quadratic', 'cubic', 'previous', 'next'
+    ] = Field(default='linear', description='Type of interpolation to perform')
 
     # Internal caches
-    _ppoly_cache: tuple[np.ndarray, np.ndarray, Callable] | None = PrivateAttr(None)
+    _ppoly_cache: dict[int, tuple[np.ndarray, np.ndarray, Callable]] = PrivateAttr(default_factory=dict)
     """Cache for the interpolation function, and the interpolation points/soc points at which it was produced"""
 
-    def iter_parameters(self, updatable_only: bool = True, recurse: bool = True) -> Iterator[tuple[str, np.ndarray]]:
-        for name, param in super().iter_parameters(updatable_only, recurse):
-            if name != "soc_pinpoints":
-                yield name, param
-
-    def _get_function(self) -> Callable:
-        """Retrieve the interpolation function
+    def _get_function(self, batch_id: int) -> Callable:
+        """Retrieve the interpolation function for a specific batch member
 
         Uses the internal cache, :attr:`_ppoly_cache`, if the :attr:`base_values` has not changed.
 
@@ -38,14 +60,14 @@ class SOCInterpolatedHealth(HealthVariable):
         """
 
         # Return the cached spline if it exists and the base values have not changed
-        if self._ppoly_cache is not None:
-            org_soc, orig_array, ppoly = self._ppoly_cache
+        if (cached := self._ppoly_cache.get(batch_id)) is not None:
+            org_soc, orig_array, ppoly = cached
             if np.array_equal(orig_array, self.base_values) \
                     and np.array_equal(org_soc, self.soc_pinpoints):
                 return ppoly
 
-            # Otherwise, clear the cache and continue
-            self._ppoly_cache = None
+            # Otherwise, clear the cache (all entries) and continue
+            self._ppoly_cache.clear()
 
         # Generate the SOC interpolation points if they don't already exist
         if self.soc_pinpoints is None:
@@ -53,50 +75,41 @@ class SOCInterpolatedHealth(HealthVariable):
 
         # Make the spline then cache it
         func = interp1d(self.soc_pinpoints,
-                        self.base_values,
+                        self.base_values[batch_id, :],
                         kind=self.interpolation_style,
                         bounds_error=False,
                         fill_value='extrapolate')
         if self.interpolation_style not in {'linear', 'nearest', 'nearest-up'}:  # Don't cache lazy models
-            self._ppoly_cache = (self.soc_pinpoints.copy(), self.base_values.copy(), func)
+            self._ppoly_cache[batch_id] = (self.soc_pinpoints.copy(), self.base_values[batch_id, :].copy(), func)
         return func
 
-    # TODO (wardlt): We might only use the diagonal terms from the output, maybe simplify by not computing off-diagonal
-    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
-        """
-        Computes value(s) at given SOC(s).
-
-        This function always returns a 3D array, of shape `(internal_batch_size, soc_batch_size, soc_dim)`, where
-        `internal_batch_size` is the batch size of the underlying health variable, `soc_batch_size` is the batch size
-        of the SOC array, and `soc_dim` is the dimensionality of the SOC. The SOC must be passed as either:
-        1. a 2D array of shape `(soc_batch_size, soc_dim)`
-        2. a 1D array of shape `(soc_dim,)`, in which case we will consider the `soc_batch_size` to be equal to 1
-        3. a 0D array (that is, a number), in which case both `soc_batch_size` and `soc_dim` are equal to 1.
-
-        Args:
-            soc: Values at which to compute the property
-        Returns:
-            Interpolated values as a 3D with dimensions (batch_size, soc_batch_size, soc_points)
-        """
-        # Determine which case we're dealing with
+    def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
+        # Determine the batch sizes for the output
         soc = self._adjust_soc_shape(soc)
-        internal_batch_size = self.base_values.shape[0]
         soc_batch_size, soc_dim = soc.shape
+        internal_batch_size = self.base_values.shape[0]
 
-        # Special case: no interpolation
-        if self.base_values.shape[-1] == 1:
-            y = self.base_values[:, 0].copy()[:, None]  # shape = (internal_batch_size, 1)
-            y = np.tile(y, (soc_batch_size, 1, soc_dim))  # shape = (soc_batch, internal_batch, soc_dim)
-            y = np.swapaxes(y, 0, 1)  # shape = (internal_batch, soc_batch, soc_dim)
-        # Otherwise, run the interpolator, but the results mean something different
+        # Determine the batch size and build the interpolation functions
+        if batch_id is None:
+            batch_size = max(soc_batch_size, internal_batch_size)
+            if min(soc_batch_size, internal_batch_size) != 1 and soc_batch_size != internal_batch_size:
+                raise ValueError(f'Batch sizes of provided SOCs ({soc_batch_size}) '
+                                 f'and parameters for this class ({internal_batch_size}) are inconsistent.')
         else:
-            y = self._get_function()(soc)  # interpolator adds batch dimension:
-            # If the SOC was batched, the shape is (internal_batch, soc_batch, soc_dim)
-            # Otherwise, the shape is (internal_batch, soc_dim)
-            y = y.reshape((internal_batch_size, soc_batch_size, soc_dim))
+            batch_size = 1
 
-        # Now, the y array has shape (internal_batch, soc_batch, soc_dim).
-        return y
+        # Special case: constant value
+        if self.base_values.shape[-1] == 1:
+            index = slice(None) if batch_id is None else batch_id
+            y = self.base_values[index, 0]
+            return np.tile(y, (batch_size // y.shape[0], soc_dim))  # shape = (batch_size, soc_dim)
+
+        # Evaluate splines for each member of the batch
+        output = np.empty((batch_size, soc_dim))
+        for i, b in enumerate(range(batch_size) if batch_id is None else [batch_id]):
+            f = self._get_function(b % internal_batch_size)
+            output[i, :] = f(soc[b % soc_batch_size])
+        return output
 
     def _adjust_soc_shape(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
         """Adjust the SOC from a user-provided shape to 2D array
@@ -132,31 +145,34 @@ class ScaledSOCInterpolatedHealth(SOCInterpolatedHealth):
     additive: bool = True
     """Whether to add or multiply interpolated value with the scaling factor"""
 
-    def get_value(self, soc: Union[Number, List, np.ndarray]) -> np.ndarray:
+    def get_value(self, soc: FloatOrArray, batch_id: int | None = None) -> np.ndarray:
         # Evaluate the interpolated values
         soc = self._adjust_soc_shape(soc)
-        interpolated = super().get_value(soc)
+        interpolated = super().get_value(soc, batch_id)
 
         # Determine batch size of the output, prepare outputs
         scale_batch = self.scaling_coeffs.shape[0]
         inter_batch = self.base_values.shape[0]
         soc_batch = soc.shape[0]
-
-        batch_size = max(scale_batch, inter_batch)
-        if inter_batch != batch_size:
-            assert inter_batch == 1, 'Inter batch should be either 1 or equal to the batch size'
-            output = np.tile(interpolated, (batch_size, 1, 1))
+        if batch_id is None:
+            batch_size = max(scale_batch, inter_batch)
+            if inter_batch != batch_size:
+                assert inter_batch == 1, 'Inter batch should be either 1 or equal to the batch size'
+                output = np.tile(interpolated, (batch_size, 1))
+            else:
+                output = interpolated
         else:
             output = interpolated
+            batch_size = 1
 
         # Apply the scaling factors for each batch member
-        for b in range(batch_size):
+        for i, b in enumerate(range(batch_size) if batch_id is None else [batch_id]):
             # % is a shortcut which gets either the correct batch index for batched data,
             #  and 1 for data which are not batched. It works
             scaler = Legendre(coef=self.scaling_coeffs[b % scale_batch, :])
             scaling_amount = scaler(soc[b % soc_batch, :])
             if self.additive:
-                output[b, b % soc_batch, :] += scaling_amount
+                output[i, :] += scaling_amount
             else:
-                output[b, b % soc_batch, :] *= 1 + scaling_amount
+                output[i, :] *= 1 + scaling_amount
         return output

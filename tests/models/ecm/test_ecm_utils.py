@@ -89,6 +89,33 @@ def test_cube(cubic):
     assert np.allclose(result, cached_result)
 
 
+def test_batching_interp(cubic):
+    """Ensure that we get the correct answers with different batch conditions"""
+    # Batched SOC, singular params
+    socs = np.array([[0.1], [0.4]])
+    result = cubic.get_value(socs)
+    assert result.shape == (2, 1)
+    assert np.allclose(socs ** 3, result)
+
+    result = cubic.get_value(socs, batch_id=1)
+    assert result.shape == (1, 1)
+    assert np.allclose(0.4 ** 3, result)
+
+    # Singular SOC, batched params
+    cubic.base_values = cubic.base_values * np.array([[2], [1]])
+    assert cubic.batch_size == 2
+    socs = np.array([[0.1]])
+
+    result = cubic.get_value(socs)
+    assert result.shape == (2, 1)
+    assert np.allclose(2 * socs ** 3, result[0, 0])
+    assert np.allclose(socs ** 3, result[1, 0])
+
+    result = cubic.get_value(socs, batch_id=1)
+    assert result.shape == (1, 1)
+    assert np.allclose(0.1 ** 3, result)
+
+
 def test_serialization():
     # Create a variable
     variable = SOCInterpolatedHealth(base_values=np.arange(10))
@@ -143,12 +170,17 @@ def test_scaling(inter_batch, scale_batch, additive):
     scaled_val = scaled.get_value(soc)
     unscaled_val = unscaled.get_value(soc)
     assert not np.allclose(scaled_val, unscaled_val)
-    assert scaled_val.shape == (max(inter_batch, scale_batch), 1, 9)
+    assert scaled_val.shape == (max(inter_batch, scale_batch), 9)
 
     # Check the changed amount
     if additive:
-        assert np.allclose(scaled_val[0, :, :] - unscaled_val[0, :, :], 0.001)
+        assert np.allclose(scaled_val[0, :] - unscaled_val[0, :], 0.001)
         if scale_batch == 2:
-            assert np.allclose(scaled_val[1, :, :] - unscaled_val[1 % inter_batch, :, :], 0.002)
+            assert np.allclose(scaled_val[1, :] - unscaled_val[1 % inter_batch, :], 0.002)
     else:
-        assert np.allclose(scaled_val[0, :, 1:] / unscaled_val[0, :, 1:], 1.001)
+        assert np.allclose(scaled_val[0, 1:] / unscaled_val[0, 1:], 1.001)
+
+    # Make sure it works with selecting a specific ID
+    single_id = scaled.get_value(soc, batch_id=0)
+    assert single_id.shape == (1, scaled_val.shape[1])
+    assert np.allclose(single_id, scaled_val[0, :])
