@@ -5,7 +5,7 @@ from pydantic import Field
 import numpy as np
 
 from moirae.models.base import HealthVariable, ListParameter, ScalarParameter
-from .utils import SOCInterpolatedHealth
+from moirae.models.components.soc import SOCInterpolatedHealth
 
 
 class MaxTheoreticalCapacity(HealthVariable):

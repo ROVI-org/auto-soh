@@ -6,15 +6,6 @@ Models (``moirae.models``)
    :undoc-members:
    :show-inheritance:
 
-
-Base Classes (``moirae.models.base``)
--------------------------------------
-
-.. automodule:: moirae.models.base
-   :members:
-   :show-inheritance:
-
-
 Cell Models
 ------------
 
@@ -25,3 +16,24 @@ Each cell model is in its own submodule to limit dependency conflicts.
 
    cell-models/ecm
    cell-models/thevenin
+
+Base Classes (``moirae.models.base``)
+-------------------------------------
+
+.. automodule:: moirae.models.base
+   :members:
+   :show-inheritance:
+
+Reusable Components (``moirae.models.components``)
+--------------------------------------------------
+
+.. automodule:: moirae.models.components
+   :members:
+   :show-inheritance:
+
+State Dependent ASOH (``moirae.models.components.soc``)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: moirae.models.components.soc
+   :members:
+   :show-inheritance:
