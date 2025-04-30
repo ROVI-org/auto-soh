@@ -3,6 +3,7 @@
 from pytest import mark
 import numpy as np
 
+from moirae.estimators.offline.loss import MeanSquaredLoss
 from moirae.estimators.online.joint import JointEstimator
 from moirae.models.base import OutputQuantities
 from moirae.models.thevenin import TheveninInput, TheveninTransient, TheveninModel
@@ -249,3 +250,20 @@ def test_overpotentials():
         -0.02 * (1 - np.exp(-10 / 0.02 / 1000)),
         -0.03 * (1 - np.exp(-10 / 0.03 / 2000))
     ]], atol=1e-4)
+
+
+def test_offline(timeseries_dataset):
+    """Ensure thevenin works with the core offline estimator objectives"""
+    loss = MeanSquaredLoss(
+        cell_model=TheveninModel(isothermal=True),
+        asoh=rint,
+        transient_state=TheveninTransient.from_asoh(rint),
+        observations=timeseries_dataset,
+        input_class=TheveninInput,
+        output_class=OutputQuantities
+    )
+
+    # Run the evaluation
+    x0 = loss.get_x0()[None, :]
+    y = loss(x0)
+    assert y.shape == (1,)
