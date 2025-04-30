@@ -22,12 +22,17 @@ from moirae.simulator import Simulator
 __all__ = ['row_to_inputs', 'run_online_estimate', 'run_model']
 
 
-def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[InputQuantities, OutputQuantities]:
+def row_to_inputs(row: pd.Series,
+                  default_temperature: float = 25,
+                  input_class: type[InputQuantities] = ECMInput,
+                  output_class: type[OutputQuantities] = ECMMeasurement) -> Tuple[InputQuantities, OutputQuantities]:
     """Convert a row from the time series data to a distribution object
 
     Args:
         row: Row from the `dataset.raw_data` dataframe
         default_temperature: Default temperature for the cells (units: C)
+        input_class: Class to use to store inputs
+        output_class: Class to use to store outputs
     Returns:
         - Distribution describing the inputs
         - Distribution describing the measurements (model outputs)
@@ -35,13 +40,13 @@ def row_to_inputs(row: pd.Series, default_temperature: float = 25) -> Tuple[Inpu
 
     # First to an "inputs" class, which stores the proper order
     use_temp = 'temperature' in row and isfinite(row['temperature'])
-    # TODO (wardlt): Remove hard code from ECM when we're ready (maybe a "from_batdata" to the model class?)
-    inputs = ECMInput(
+    # TODO (wardlt): Allow ability to override mapping between battdat "raw_data" columns and variable names
+    inputs = input_class(
         time=row['test_time'],
         current=row['current'],
         temperature=row['temperature'] if use_temp else default_temperature
     )
-    outputs = ECMMeasurement(
+    outputs = output_class(
         terminal_voltage=row['voltage']
     )
 
