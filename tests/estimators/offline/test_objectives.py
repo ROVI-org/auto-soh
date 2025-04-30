@@ -3,6 +3,7 @@ import numpy as np
 
 from pytest import mark
 from moirae.estimators.offline.loss import MeanSquaredLoss, PriorLoss, AdditiveLoss
+from moirae.models.ecm import ECMInput, ECMMeasurement
 
 
 @mark.parametrize('state_only', [True, False])
@@ -16,7 +17,9 @@ def test_mse_loss(simple_rint, timeseries_dataset, state_only):
         cell_model=ecm_model,
         asoh=rint_asoh,
         transient_state=rint_state,
-        observations=timeseries_dataset
+        observations=timeseries_dataset,
+        input_class=ECMInput,
+        output_class=ECMMeasurement
     )
 
     # Run the evaluation

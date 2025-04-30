@@ -1,24 +1,31 @@
 """Interfaces that evaluate the fitness of a set of battery state parameters
 provided as a NumPy array."""
+from dataclasses import dataclass
 
 import numpy as np
-
 from scipy.stats import rv_continuous
 from battdat.data import BatteryDataset
+
 from ._base import BaseLoss
 from ._meta import AdditiveLoss
-
 from moirae.interface import row_to_inputs
-from moirae.models.base import CellModel, HealthVariable, GeneralContainer
+from moirae.models.base import CellModel, HealthVariable, GeneralContainer, InputQuantities, OutputQuantities
 from moirae.simulator import Simulator
+from moirae.models.ecm import ECMInput, ECMMeasurement
 
 
 # TODO (wardlt): Generalize to other outputs when we have them
+@dataclass
 class MeanSquaredLoss(BaseLoss):
     """
     Score the fitness of a set of health parameters by the mean squared error
     between observed and predicted terminal voltage.
     """
+
+    input_class: type[InputQuantities] = ECMInput
+    """Class used to represent the input data for a model"""
+    output_class: type[OutputQuantities] = ECMMeasurement
+    """Class used to represent the output data for a model"""
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         # Translate input parameters to state and ASOH parameters
@@ -26,7 +33,9 @@ class MeanSquaredLoss(BaseLoss):
 
         # Build a simulator
         raw_data = self.observations.tables['raw_data']
-        initial_input, initial_output = row_to_inputs(raw_data.iloc[0])
+        initial_input, initial_output = row_to_inputs(raw_data.iloc[0],
+                                                      input_class=self.input_class,
+                                                      output_class=self.output_class)
         sim = Simulator(
             cell_model=self.cell_model,
             asoh=asoh_x,
@@ -45,7 +54,9 @@ class MeanSquaredLoss(BaseLoss):
 
         # Run the forward model
         for i, (_, row) in enumerate(self.observations.tables['raw_data'].iloc[1:].iterrows()):
-            new_in, new_out = row_to_inputs(row)
+            new_in, new_out = row_to_inputs(row,
+                                            input_class=self.input_class,
+                                            output_class=self.output_class)
             _, pred_out = sim.step(new_in)
 
             true_y[i + 1, :] = new_out.to_numpy()
@@ -56,6 +67,7 @@ class MeanSquaredLoss(BaseLoss):
         return np.mean(squared_error, axis=(0, 2))  # Average over steps and outputs
 
 
+@dataclass
 class PriorLoss(BaseLoss):
     """Compute the negative log-probability of parameter values from a prior distribution
 

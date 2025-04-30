@@ -1,15 +1,11 @@
-from typing import Optional
-
-from pydantic import Field
-
-from moirae.models.base import InputQuantities, OutputQuantities, ScalarParameter
+from moirae.models.base import InputQuantities, OutputQuantities
 
 
 class ECMInput(InputQuantities):
     """
     Control of a battery based on the feed current, temperature
     """
-    temperature: Optional[ScalarParameter] = Field(None, description='Temperature reading(s). Units: °C')
+    pass
 
 
 # TODO (vventuri): Remember we need to implement ways to denoise SOC, Qt, R0,

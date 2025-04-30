@@ -596,6 +596,7 @@ class InputQuantities(GeneralContainer):
     """
     time: ScalarParameter = Field(default=0., description='Timestamp(s) of inputs. Units: s')
     current: ScalarParameter = Field(default=0., description='Current applied to the storage system. Units: A')
+    temperature: Optional[ScalarParameter] = Field(None, description='Temperature reading(s). Units: °C')
 
 
 class OutputQuantities(GeneralContainer):

@@ -1,6 +1,7 @@
 """Base class for all loss function.
 
 In separate file to make easily findable and as protection against circular imports"""
+from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
@@ -10,6 +11,7 @@ from moirae.models.base import CellModel, HealthVariable, GeneralContainer
 
 
 # TODO (wardlt): Add degradation model after we decide how to handle its parameters
+@dataclass
 class BaseLoss:
     """
     Base class for objective functions which evaluate the ability of a set
@@ -18,39 +20,31 @@ class BaseLoss:
     All Loss classes should follow the convention that better sets of
     parameters yield values which are less than worse parameters.
     There are no constraints on whether the values need to be positive or negative.
+
+    Args:
+        cell_model: Model that describes battery physics
+        asoh: Initial guesses for ASOH parameter values
+        transient_state: Initial guesses for transient state
+        observations: Observations of battery performance
     """
 
     cell_model: CellModel
     """Cell model used to compute """
     asoh: HealthVariable
     """Initial guess for battery health"""
-    state: GeneralContainer
+    transient_state: GeneralContainer
     """Initial guess for battery transient state"""
     observations: BatteryDataset
     """Observed data for the battery performance"""
 
-    def __init__(self,
-                 cell_model: CellModel,
-                 asoh: HealthVariable,
-                 transient_state: GeneralContainer,
-                 observations: BatteryDataset):
-        """
-
-        Args:
-            cell_model: Model that describes battery physics
-            asoh: Initial guesses for ASOH parameter values
-            transient_state: Initial guesses for transient state
-            observations: Observations of battery performance
-        """
-        self.cell_model = cell_model
-        self.asoh = asoh.model_copy(deep=True)
-        self.state = transient_state.model_copy(deep=True)
-        self.observations = observations
+    def __post_init__(self):
+        self.asoh = self.asoh.model_copy(deep=True)
+        self.transient_state = self.transient_state.model_copy(deep=True)
 
     @cached_property
     def num_states(self) -> int:
         """Number of output variables which correspond to transient states"""
-        return len(self.state)
+        return len(self.transient_state)
 
     def x_to_state(self, x: np.ndarray, inplace: bool = True) -> tuple[GeneralContainer, HealthVariable]:
         """Copy batch of parameters into ASOH and state classes
@@ -64,11 +58,11 @@ class BaseLoss:
         asoh = x[:, self.num_states:]
 
         if inplace:
-            self.state.from_numpy(states)
+            self.transient_state.from_numpy(states)
             self.asoh.update_parameters(asoh)
-            return self.state, self.asoh
+            return self.transient_state, self.asoh
         else:
-            return self.state.make_copy(states), self.asoh.make_copy(asoh)
+            return self.transient_state.make_copy(states), self.asoh.make_copy(asoh)
 
     # TODO (wardlt): Consider passing the ASOH parameters through somewhere else
     def get_x0(self) -> np.ndarray:
@@ -78,8 +72,9 @@ class BaseLoss:
             A 1D vector used as a starting point for class to this class
         """
         if self.asoh.num_updatable == 0:
-            return self.state.to_numpy()[0, :]
-        return np.concatenate([self.state.to_numpy(), self.asoh.get_parameters()], axis=1)[0, :]  # Get a 1D vector
+            return self.transient_state.to_numpy()[0, :]
+        return np.concatenate([self.transient_state.to_numpy(),
+                               self.asoh.get_parameters()], axis=1)[0, :]  # Get a 1D vector
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """

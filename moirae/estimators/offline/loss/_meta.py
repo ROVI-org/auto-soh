@@ -1,9 +1,12 @@
 """Loss functions which combine other loss functions"""
+from dataclasses import dataclass
+
 import numpy as np
 
 from ._base import BaseLoss
 
 
+@dataclass
 class AdditiveLoss(BaseLoss):
     """Loss function which combines multiple loss functions
 
@@ -19,7 +22,7 @@ class AdditiveLoss(BaseLoss):
         _l = losses[0][1]
         super().__init__(
             cell_model=_l.cell_model,
-            transient_state=_l.state,
+            transient_state=_l.transient_state,
             asoh=_l.asoh,
             observations=_l.observations
         )
