@@ -32,13 +32,13 @@ def test_rint():
     assert rint.ocv.get_value(0.5, batch_id=0) == 2.
 
     # Ensuring we can do SOC and temperature dependence
-    assert rint.r[0].get_value(0.5, 298, batch_id=0) == 0.015
-    assert rint.r[0].get_value(0.5, 308, batch_id=0) == 0.025
+    assert rint.r[0].get_value(0.5, 25, batch_id=0) == 0.015
+    assert rint.r[0].get_value(0.5, 35, batch_id=0) == 0.025
 
     # Test a single step at constant current
-    state = TheveninTransient(soc=0., temp=298.)
-    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
-    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+    state = TheveninTransient(soc=0., temp=25.)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=25.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=25.)
 
     model = TheveninModel()
     new_state = model.update_transient_state(pre_inputs, new_inputs, state, rint)
@@ -49,7 +49,7 @@ def test_rint():
     # Get the terminal voltage
     voltage = model.calculate_terminal_voltage(new_inputs, new_state, rint)
     assert voltage.batch_size == 1
-    assert np.allclose(voltage.terminal_voltage, (1.5 + 30 / 3600) + rint.r[0].get_value(30 / 3600, 298))
+    assert np.allclose(voltage.terminal_voltage, (1.5 + 30 / 3600) + rint.r[0].get_value(30 / 3600, 25))
 
 
 @mark.parametrize('asoh', [rint, rc2])
@@ -58,8 +58,8 @@ def test_multiple_steps(asoh):
 
     # Test a single step at constant current
     state = TheveninTransient.from_asoh(asoh)
-    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
-    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=25.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=25.)
 
     # Test a single step of 30s charging
     model = TheveninModel()
@@ -73,44 +73,44 @@ def test_multiple_steps(asoh):
 
     # Test charging until the full hour
     pre_inputs = new_inputs
-    new_inputs = TheveninInput(current=1., time=3600., t_inf=298.)
+    new_inputs = TheveninInput(current=1., time=3600., t_inf=25.)
     state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
     assert np.allclose(state.soc, 1.)
     assert np.less(state.eta, 0.).all()
-    assert np.greater(state.temp, 298.).all()
+    assert np.greater(state.temp, 25.).all()
 
     v = model.calculate_terminal_voltage(new_inputs, state, asoh)
     assert np.greater_equal(v.terminal_voltage, 2.5 + 1 * 0.02).all()
 
     # Rest for 15 minutes, so that all RC elements and temperature equilibrate
     pre_inputs = new_inputs
-    new_inputs = TheveninInput(current=0., time=pre_inputs.time + 15 * 60., t_inf=298.)
+    new_inputs = TheveninInput(current=0., time=pre_inputs.time + 15 * 60., t_inf=25.)
     state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
     assert np.allclose(state.soc, 1.)
     assert np.allclose(state.eta, 0.)
-    assert np.isclose(state.temp, 298.)
+    assert np.isclose(state.temp, 25.)
 
     v = model.calculate_terminal_voltage(new_inputs, state, asoh)
     assert np.isclose(v.terminal_voltage, 2.5).all()
 
     # Discharge for an hour to get back to SOC 0
     pre_inputs = new_inputs
-    new_inputs = TheveninInput(current=-1, time=pre_inputs.time + 3600., t_inf=298.)
+    new_inputs = TheveninInput(current=-1, time=pre_inputs.time + 3600., t_inf=25.)
     state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
     assert np.allclose(state.soc, 0.)
     assert np.greater(state.eta, 0.).all()
-    assert np.greater(state.temp, 298.).all()
+    assert np.greater(state.temp, 25.).all()
 
     v = model.calculate_terminal_voltage(new_inputs, state, asoh)
     assert np.less_equal(v.terminal_voltage, 1.5 - 1 * 0.01).all()
 
     # Rest for 15 minutes, so that all RC elements and temperature equilibrate
     pre_inputs = new_inputs
-    new_inputs = TheveninInput(current=0., time=pre_inputs.time + 15 * 60., t_inf=298.)
+    new_inputs = TheveninInput(current=0., time=pre_inputs.time + 15 * 60., t_inf=25.)
     state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
     assert np.allclose(state.soc, 0.)
     assert np.allclose(state.eta, 0.)
-    assert np.isclose(state.temp, 298.)
+    assert np.isclose(state.temp, 25.)
 
     v = model.calculate_terminal_voltage(new_inputs, state, asoh)
     assert np.isclose(v.terminal_voltage, 1.5).all()
@@ -127,8 +127,8 @@ def test_batching():
 
     # The temperature of the cell should be higher with higher resistance
     state = TheveninTransient.from_asoh(asoh)
-    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
-    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=25.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=25.)
 
     new_state = model.update_transient_state(pre_inputs, new_inputs, state, asoh)
     assert new_state.batch_size == 3
@@ -148,8 +148,8 @@ def test_estimator():
     # Test a single step at constant current
     asoh = rint.model_copy(deep=True)
     state = TheveninTransient.from_asoh(asoh)
-    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
-    new_inputs = TheveninInput(current=1., time=30., t_inf=298.)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=25.)
+    new_inputs = TheveninInput(current=1., time=30., t_inf=25.)
 
     model = TheveninModel(isothermal=True)
 
@@ -171,7 +171,7 @@ def test_estimator():
 
     # Write down the expected results after 30 seconds of a 1A charge
     soc = 1. / 120
-    expected_state = [soc, 298, 0]
+    expected_state = [soc, 25, 0]
     expected_v = 1.5 + soc + 1 * (0.01 * (1 + soc))
 
     est_state, est_outputs = est.step(new_inputs, OutputQuantities(terminal_voltage=expected_v))
@@ -211,7 +211,7 @@ def test_estimator():
     for time in np.linspace(0, 7200 * 2, 500):
         i, v = _iv_over_time(time)
         est.step(
-            TheveninInput(current=i, time=time, t_inf=298),
+            TheveninInput(current=i, time=time, t_inf=25),
             OutputQuantities(terminal_voltage=v)
         )
     est_tran, est_asoh = est.get_estimated_state()
@@ -234,13 +234,13 @@ def test_overpotentials():
             SOCTempPolynomialHealth(soc_coeffs=[2000], t_coeffs=[0])
         )
     )
-    assert rc.c[0].get_value(0., 298) == 1000
-    assert rc.c[1].get_value(0., 298) == 2000
+    assert rc.c[0].get_value(0., 25) == 1000
+    assert rc.c[1].get_value(0., 25) == 2000
 
     # Charge for 10s at 1A
     state = TheveninTransient.from_asoh(rc)
-    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
-    new_inputs = TheveninInput(current=1., time=10., t_inf=298.)
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=25.)
+    new_inputs = TheveninInput(current=1., time=10., t_inf=25.)
 
     model = TheveninModel()
     new_state = model.update_transient_state(pre_inputs, new_inputs, state, rc)
