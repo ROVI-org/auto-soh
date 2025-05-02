@@ -14,14 +14,6 @@ Transient and State of Health (``moirae.models.thevenin.state``)
    :undoc-members:
    :show-inheritance:
 
-Components (``moirae.models.thevenin.components``)
-++++++++++++++++++++++++++++++++++++++++++++++++++
-
-.. automodule:: moirae.models.thevenin.components
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Inputs and Outputs (``moirae.models.thevenin.ins_outs``)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

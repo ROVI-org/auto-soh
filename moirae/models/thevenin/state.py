@@ -38,7 +38,7 @@ class TheveninASOH(HealthVariable):
     )
     """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
     c: Tuple[SOCTempDependentHealth, ...] = Field(default_factory=tuple)
-    """Capacitance in all RC elements (C)"""
+    """Capacitance in all RC elements (F)"""
     ce: ScalarParameter = 1.
     """Coulomb efficiency"""
     gamma: ScalarParameter = 50.

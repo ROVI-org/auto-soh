@@ -31,9 +31,16 @@ Reusable Components (``moirae.models.components``)
    :members:
    :show-inheritance:
 
-State Dependent ASOH (``moirae.models.components.soc``)
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+SOC-Dependent ASOH (``moirae.models.components.soc``)
++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. automodule:: moirae.models.components.soc
+   :members:
+   :show-inheritance:
+
+(SOC,T)-Dependent ASOH (``moirae.models.components.soc``)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: moirae.models.components.soc_t
    :members:
    :show-inheritance:

@@ -6,4 +6,4 @@ class TheveninInput(InputQuantities):
     """Inputs for the Thevenin model"""
 
     t_inf: ScalarParameter = 298.
-    """Environmental temperature (units: K)"""
+    """Environmental temperature (units: °C)"""
