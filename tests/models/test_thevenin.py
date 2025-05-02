@@ -5,6 +5,7 @@ import numpy as np
 
 from moirae.estimators.offline.loss import MeanSquaredLoss
 from moirae.estimators.online.joint import JointEstimator
+from moirae.interface import run_model, run_online_estimate
 from moirae.models.base import OutputQuantities
 from moirae.models.thevenin import TheveninInput, TheveninTransient, TheveninModel
 from moirae.models.components.soc import SOCPolynomialHealth
@@ -267,3 +268,37 @@ def test_offline(timeseries_dataset):
     x0 = loss.get_x0()[None, :]
     y = loss(x0)
     assert y.shape == (1,)
+
+
+def test_interface(timeseries_dataset):
+    """Ensure we can run with the battdat interfaces"""
+    timeseries_dataset.tables['raw_data'] = timeseries_dataset.tables['raw_data'].head(128)
+
+    # Start with running the model
+    model = TheveninModel(isothermal=True)
+    asoh = rint.model_copy(deep=True)
+    state = TheveninTransient.from_asoh(asoh)
+
+    run_model(
+        model=model,
+        dataset=timeseries_dataset,
+        asoh=asoh,
+        state_0=state,
+        inout_types=(TheveninInput, OutputQuantities)
+    )
+
+    # Test online estimates
+    pre_inputs = TheveninInput(current=1., time=0., t_inf=298.)
+    est = JointEstimator.initialize_unscented_kalman_filter(
+        cell_model=model,
+        initial_asoh=asoh,
+        initial_transients=state,
+        initial_inputs=pre_inputs,
+        covariance_transient=np.diag([0.05, 0.1, 1e-6]),
+        covariance_asoh=np.diag([]),
+        transient_covariance_process_noise=np.diag([0.01] * 3),
+        asoh_covariance_process_noise=np.diag([]),
+        covariance_sensor_noise=np.diag([1e-3])
+    )
+
+    run_online_estimate(timeseries_dataset, est, inout_types=(TheveninInput, OutputQuantities))
