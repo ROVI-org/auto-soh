@@ -229,19 +229,19 @@ def test_soc_temp_dependence():
     comp = SOCTempPolynomialHealth(soc_coeffs=[[1, 0.5], [0.5, 0.25]], t_coeffs=[[0, -0.1]])
 
     # Make sure it works with scalars for a single batch, as needed by Thevenin to update
-    y = comp.get_value(0.5, 299, batch_id=0)
+    y = comp.get_value(0.5, 26, batch_id=0)
     assert y.shape == (1, 1)
     assert np.isclose(y, 1.15)
 
-    y = comp.get_value(0.5, 299, batch_id=1)
+    y = comp.get_value(0.5, 26, batch_id=1)
     assert y.shape == (1, 1)
     assert np.isclose(y, 0.525)
 
     # Make sure it works with 2D inputs and all batches, as when computing terminal voltage
-    y = comp.get_value(np.array([0.5]), np.array([299]))
+    y = comp.get_value(np.array([0.5]), np.array([26]))
     assert y.shape == (2, 1)
     assert np.allclose(y, [[1.15], [0.525]])
 
-    y = comp.get_value(np.array([[0.5], [0.]]), np.array([299]))
+    y = comp.get_value(np.array([[0.5], [0.]]), np.array([26]))
     assert y.shape == (2, 1)
     assert np.allclose(y, [[1.15], [0.4]])
