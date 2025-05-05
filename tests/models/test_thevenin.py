@@ -211,7 +211,7 @@ def test_estimator():
     for time in np.linspace(0, 7200 * 2, 500):
         i, v = _iv_over_time(time)
         est.step(
-            TheveninInput(current=i, time=time, t_inf=298),
+            TheveninInput(current=i, time=time, t_inf=25),
             OutputQuantities(terminal_voltage=v)
         )
     est_tran, est_asoh = est.get_estimated_state()
@@ -234,8 +234,8 @@ def test_overpotentials():
             SOCTempPolynomialHealth(soc_coeffs=[2000], t_coeffs=[0])
         )
     )
-    assert rc.c[0].get_value(0., 298) == 1000
-    assert rc.c[1].get_value(0., 298) == 2000
+    assert rc.c[0].get_value(0., 25) == 1000
+    assert rc.c[1].get_value(0., 25) == 2000
 
     # Charge for 10s at 1A
     state = TheveninTransient.from_asoh(rc)
