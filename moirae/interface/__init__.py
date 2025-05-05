@@ -60,6 +60,7 @@ def run_online_estimate(
         pbar: bool = False,
         output_states: bool = True,
         hdf5_output: Union[Path, str, Group, HDF5Writer, None] = None,
+        inout_types: tuple[type[InputQuantities], type[OutputQuantities]] = (ECMInput, ECMMeasurement)
 ) -> Tuple[pd.DataFrame, OnlineEstimator]:
     """Run an online estimation of battery parameters given a fixed dataset for the
 
@@ -76,6 +77,8 @@ def run_online_estimate(
             write the estimated parameter values. Writes the mean for each timestep and
             the full state for the first timestep in each cycle by default. Modify what is written
             by providing a :class:`~moirae.interface.hdf5.HDF5Writer`.
+        inout_types: Types used to represent input and measurement data.
+            Uses those for the Moirae ECM by default
     Returns:
         - Estimates of the parameters at all timesteps from the input dataset
         - Estimator after updating with the data in dataset
@@ -121,6 +124,7 @@ def run_online_estimate(
         h5_writer = nullcontext()
 
     # Iterate over all timesteps
+    in_type, out_type = inout_types
     with h5_writer:
         # Prepare given the available data
         if hdf5_output is not None:
@@ -133,7 +137,7 @@ def run_online_estimate(
         for i, row in tqdm(
                 enumerate(row_iter), total=num_rows, disable=not pbar,
         ):
-            controls, measurements = row_to_inputs(row)
+            controls, measurements = row_to_inputs(row, input_class=in_type, output_class=out_type)
             new_state, new_outputs = estimator.step(controls, measurements)
 
             if output_states:
@@ -163,7 +167,8 @@ def run_model(
         model: CellModel,
         dataset: BatteryDataset,
         asoh: HealthVariable,
-        state_0: GeneralContainer
+        state_0: GeneralContainer,
+        inout_types: tuple[type[InputQuantities], type[OutputQuantities]] = (ECMInput, ECMMeasurement)
 ) -> pd.DataFrame:
     """Run a cell model following data provided by a :class:`~battdat.data.BatteryDataset`
 
@@ -172,17 +177,20 @@ def run_model(
         dataset: Observations of current and voltage used when running th emodel
         asoh: Parameters for the cell
         state_0: Starting state for the model
+        inout_types: Types used to represent input and measurement data.
+            Uses those for the Moirae ECM by default
     Returns:
         Outputs from the model as a function of time
     """
 
     # Init the simulation runner
     raw_data = dataset.tables['raw_data']
+    in_class, out_class = inout_types
     simulator = Simulator(
         cell_model=model,
         asoh=asoh,
         transient_state=state_0,
-        initial_input=row_to_inputs(raw_data.iloc[0])[0],
+        initial_input=row_to_inputs(raw_data.iloc[0], input_class=in_class, output_class=out_class)[0],
         keep_history=False
     )
 
@@ -192,7 +200,7 @@ def run_model(
     output[0, :] = init_outputs.to_numpy()[0, :]
 
     for i, (_, row) in enumerate(raw_data.iloc[1:].iterrows()):
-        inputs, _ = row_to_inputs(row)
+        inputs, _ = row_to_inputs(row, input_class=in_class, output_class=out_class)
         _, outputs = simulator.step(inputs)
         output[i + 1, :] = outputs.to_numpy()[0, :]
     return pd.DataFrame(output, columns=init_outputs.all_names)
