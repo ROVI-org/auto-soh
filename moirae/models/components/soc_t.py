@@ -23,7 +23,8 @@ class SOCTempDependentHealth(HealthVariable, metaclass=ABCMeta):
                    equal to the batch size fo the parameters.
                 2. a 1D array of shape `(soc_dim,)`, in which case we will consider the `batch_size` to be equal to 1
                 3. a 0D array (a scalar), in which case both `batch_size` and `soc_dim` are equal to 1.
-            temp: Temperatures at which to evaluate the property. Dimensions follow the same format as ``soc``.
+            temp: Temperatures at which to evaluate the property. (Units: °C)
+                 Dimensions follow the same format as ``soc``.
             batch_id: Which batch member for the parameters and input SOC values to use. Default is to use whole batch
         Returns:
             Interpolated values as a 2D with dimensions (batch_size, soc_points).
@@ -45,8 +46,8 @@ class SOCTempPolynomialHealth(SOCTempDependentHealth):
     """
 
     # TODO (wardlt): We define a constant parameter in both polynomials. Maybe set one have an assumed constant of zero
-    t_ref: ScalarParameter = 298.
-    """Reference temperature for the temperature dependence. Units: K"""
+    t_ref: ScalarParameter = 25.
+    """Reference temperature for the temperature dependence. Units: °C"""
     soc_coeffs: ListParameter = 1.
     """Reference parameters for the OCV dependence polynomial"""
     t_coeffs: ListParameter = 0.

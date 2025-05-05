@@ -22,29 +22,29 @@ class TheveninASOH(HealthVariable):
 
     # Default parameters from: test_model.py in thevenin
     capacity: ScalarParameter = 1.
-    """Maximum battery capacity (A-hr)"""
+    """Maximum battery capacity. Units: A-hr"""
     mass: ScalarParameter = 0.1
-    """Total battery mass of a battery (kg)"""
+    """Total battery mass of a battery. Units: kg"""
     c_p: ScalarParameter = 1150.
-    """Specific heat capacity (J/kg/K)"""
+    """Specific heat capacity. Units: J/kg/K"""
     h_thermal: ScalarParameter = 12
-    """Convective coefficient (W/m^2/K)"""
+    """Convective coefficient. Units: W/m^2/K"""
     a_therm: ScalarParameter = 1
-    """Heat loss area (m^2)"""
+    """Heat loss area. Units: m^2"""
     ocv: SOCDependentHealth = Field(default_factory=lambda: SOCPolynomialHealth(coeffs=3.5))
-    """Open circuit voltage (V)"""
+    """Open circuit voltage. Units: V"""
     r: Tuple[SOCTempDependentHealth, ...] = Field(
         default_factory=lambda: (SOCTempPolynomialHealth(soc_coeffs=0.1),), min_length=1
     )
-    """Resistance all resistors, including both the series resistor and those in RC elements (Ohm)"""
+    """Resistance all resistors, including both the series resistor and those in RC elements. Units: Ohm"""
     c: Tuple[SOCTempDependentHealth, ...] = Field(default_factory=tuple)
-    """Capacitance in all RC elements (C)"""
+    """Capacitance in all RC elements. Units: F"""
     ce: ScalarParameter = 1.
     """Coulomb efficiency"""
     gamma: ScalarParameter = 50.
     """Hysteresis approach rate"""
     m_hyst: SOCDependentHealth = Field(default_factory=lambda: SOCPolynomialHealth(coeffs=0))
-    """Maximum magnitude of hysteresis (V)"""
+    """Maximum magnitude of hysteresis. Units: V"""
 
     @property
     def num_rc_elements(self) -> int:
@@ -63,15 +63,15 @@ class TheveninTransient(GeneralContainer):
 
     soc: ScalarParameter = 0.
     """State of charge for the battery system"""
-    temp: ScalarParameter = 298.
-    """Temperature of the battery (units: K)"""
+    cell_temperature: ScalarParameter = 25.
+    """Temperature of the battery. Units: °C"""
     hyst: ScalarParameter = 0.
-    """Hysteresis voltage (units: V)"""
+    """Hysteresis voltage. Units: V"""
     eta: ListParameter = ()
-    """Overpotential for the RC elements (units: V)"""
+    """Overpotential for the RC elements. Units: V"""
 
     @classmethod
-    def from_asoh(cls, asoh: TheveninASOH, soc: float = 0., temp: float = 298.) -> 'TheveninTransient':
+    def from_asoh(cls, asoh: TheveninASOH, soc: float = 0., temp: float = 25.) -> 'TheveninTransient':
         """
         Create a transient state appropriate for the circuit defined in a :class:`TheveninASOH`.
 
@@ -85,4 +85,4 @@ class TheveninTransient(GeneralContainer):
         """
 
         eta = np.zeros((1, asoh.num_rc_elements))
-        return cls(soc=soc, temp=temp, eta=eta)
+        return cls(soc=soc, cell_temperature=temp, eta=eta)

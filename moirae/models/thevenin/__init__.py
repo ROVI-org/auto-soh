@@ -89,10 +89,22 @@ class TheveninModel(CellModel):
             params[f'R{r + 1}'] = partial(asoh.r[r + 1].get_value, batch_id=batch_id)
             params[f'C{r + 1}'] = partial(asoh.c[r].get_value, batch_id=batch_id)
 
+        # Determine the temperature of the system
+        #  If isothermal, use the input temperature from the inputs
+        if self.isothermal:
+            cell_temperature = (
+                inputs.temperature[batch_id % inputs.temperature.shape[0], 0]
+                if inputs.temperature is not None
+                else 25.
+            )
+        else:
+            # Otherwise, propagate the cell temperature from the previous step
+            cell_temperature = transient.cell_temperature[batch_id % transient.cell_temperature.shape[0], 0],
+
         # Make the state
         state = TransientState(
             soc=transient.soc[batch_id % transient.soc.shape[0], 0],
-            T_cell=transient.temp[batch_id % transient.temp.shape[0], 0],
+            T_cell=cell_temperature,
             hyst=transient.hyst[batch_id % transient.hyst.shape[0], 0],
             eta_j=None if params['num_RC_pairs'] == 0 else transient.eta[batch_id % transient.eta.shape[0], :]
         )
@@ -141,7 +153,7 @@ class TheveninModel(CellModel):
         v = (
                 asoh.ocv.get_value(transient_state.soc)
                 # Sign convention is opposite of thevenin
-                + new_inputs.current[:, 0] * asoh.r[0].get_value(transient_state.soc, transient_state.temp)
+                + new_inputs.current[:, 0] * asoh.r[0].get_value(transient_state.soc, transient_state.cell_temperature)
                 - transient_state.eta.sum(axis=1, keepdims=True)
         )
         return OutputQuantities(terminal_voltage=v)
