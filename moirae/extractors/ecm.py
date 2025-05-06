@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from scipy.interpolate import LSQUnivariateSpline
 from scipy.optimize import differential_evolution
-from battdat.data import CellDataset
+from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 from typing import Tuple
 
@@ -25,7 +25,7 @@ class MaxCapacityExtractor(BaseExtractor):
         2. Find the maximum capacity over all provided cycles
     """
 
-    def extract(self, data: CellDataset) -> MaxTheoreticalCapacity:
+    def extract(self, data: BatteryDataset) -> MaxTheoreticalCapacity:
         # Access or compute cycle-level capacity
         cycle_stats = data.tables.get('cycle_stats')
         if cycle_stats is None or 'capacity_charge' not in cycle_stats:
@@ -78,7 +78,7 @@ class OCVExtractor(BaseExtractor):
         self.soc_requirement = soc_requirement
         self.interpolation_style = interpolation_style
 
-    def check_data(self, data: CellDataset):
+    def check_data(self, data: BatteryDataset):
         # Check if there is a raw_data table
         if 'raw_data' not in data.tables:
             raise ValueError('`raw_data` table is required')
@@ -116,7 +116,7 @@ class OCVExtractor(BaseExtractor):
         model = IsotonicRegression(out_of_bounds='clip').fit(cycle['soc'], cycle['voltage'], sample_weight=w)
         return model.predict(self.soc_points)
 
-    def extract(self, dataset: CellDataset) -> OpenCircuitVoltage:
+    def extract(self, dataset: BatteryDataset) -> OpenCircuitVoltage:
         """Extract an estimate for the OCV of a cell
 
         Args:
@@ -143,7 +143,7 @@ class R0Extractor(BaseExtractor):
     Algorithm:
         1. Locate cycle with jumps in current across SOC range
         2. Assign an SOC to each measurement based on :attr:`capacity`
-        3. Calculate instantanous resistance as dI/dt
+        3. Calculate instantaneous resistance as dI/dt
         4. Filter for R0 values with dt below the threshold specified by
            :attr:`dt_max` and dI above the threshold specified by
            :attr:`dInorm_min`
@@ -183,7 +183,7 @@ class R0Extractor(BaseExtractor):
         self.dInorm_min = dInorm_min
         self.interpolation_style = 'linear'
 
-    def check_data(self, data: CellDataset):
+    def check_data(self, data: BatteryDataset):
         # Check if there is a raw_data table
         if 'raw_data' not in data.tables:
             raise ValueError('`raw_data` table is required')
@@ -245,7 +245,7 @@ class R0Extractor(BaseExtractor):
         spline = LSQUnivariateSpline(x_data, y_data, t=t, k=1)
         return spline(self.soc_points)
 
-    def extract(self, dataset: CellDataset) -> Resistance:
+    def extract(self, dataset: BatteryDataset) -> Resistance:
         """Extract an estimate for the R0 of a cell
 
         Args:
@@ -323,7 +323,7 @@ class RCExtractor(BaseExtractor):
         self.max_rest_I = max_rest_I
         self.interpolation_style = 'linear'
 
-    def check_data(self, data: CellDataset):
+    def check_data(self, data: BatteryDataset):
         # Check if there is a raw_data table
         if 'raw_data' not in data.tables:
             raise ValueError('`raw_data` table is required')
@@ -339,7 +339,7 @@ class RCExtractor(BaseExtractor):
             raise ValueError(f'Dataset rests must sample {self.soc_requirement*100:.1f}% of SOC.'
                              f' Only sampled {sampled_soc*100:.1f}%')
 
-    def interpolate_rc(self, data: CellDataset) -> np.ndarray:
+    def interpolate_rc(self, data: BatteryDataset) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains
         RC values as a function of SOC
 
@@ -401,7 +401,7 @@ class RCExtractor(BaseExtractor):
 
         return splines_eval
 
-    def _extract_rests(self, data: CellDataset) -> np.ndarray:
+    def _extract_rests(self, data: BatteryDataset) -> np.ndarray:
         """Extract the relevant time-series segments for fitting RC elements
 
         Args:
@@ -525,7 +525,7 @@ class RCExtractor(BaseExtractor):
 
         return err
 
-    def extract(self, dataset: CellDataset) -> Tuple[RCComponent, ...]:
+    def extract(self, dataset: BatteryDataset) -> Tuple[RCComponent, ...]:
         """Extract an estimate for the RC elements of a cell
 
         Args:

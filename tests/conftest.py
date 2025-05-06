@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Tuple
 
 from pytest import fixture
-from battdat.data import BatteryDataset, CellDataset
+from battdat.data import BatteryDataset
 import pandas as pd
 import numpy as np
 
@@ -88,7 +88,7 @@ def make_dataset(simple_rint):
         battery=BatteryDescription(nominal_capacity=rint_asoh.q_t.amp_hour.item())
     )
 
-    return CellDataset(raw_data=raw_data, metadata=metadata)
+    return BatteryDataset.make_cell_dataset(raw_data=raw_data, metadata=metadata)
 
 
 @fixture()
@@ -203,12 +203,7 @@ def make_dataset_hppc(model_and_params):
     metadata = BatteryMetadata(
         battery=BatteryDescription(nominal_capacity=asoh.q_t.amp_hour.item())
     )
-
-    # CellDataset(
-    #     raw_data=raw_data, metadata=metadata).to_hdf(
-    #         '../../docs/extractors/files/hppc_1rc.h5', complevel=9)
-
-    return CellDataset(raw_data=raw_data, metadata=metadata)
+    return BatteryDataset.make_cell_dataset(raw_data=raw_data, metadata=metadata)
 
 
 @fixture()
