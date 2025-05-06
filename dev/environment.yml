@@ -10,7 +10,6 @@ dependencies:
     # Basics
     - tqdm
     - matplotlib
-    - pytables
 
     - jupyterlab
     - -e ..[test,docs,thevenin]
