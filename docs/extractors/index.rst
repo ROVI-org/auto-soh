@@ -23,6 +23,10 @@ All extractors provide two operations:
    contains data needed to perform the estimation.
 2. :attr:`~moirae.extractors.base.BaseExtractor.extract` generates part of a
    `health parameter object <../system-models.html#health-parameter>`_ given a dataset.
+3. :attr:`~moirae.extractors.base.BaseExtractor.extract_from_raw` calls ``extract``
+   using only a pandas DataFrame of current, voltage, and cycle index over time.
+   Column names and units are expected to follow
+   `battdat conventions <https://rovi-org.github.io/battery-data-toolkit/user-guide/schemas/column-schema.html#rawdata>`_
 
 Instantiate an extractor by providing configuration options for the algorithm
 and, in some cases, information gathered from other extractors.
