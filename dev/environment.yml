@@ -5,16 +5,11 @@ channels:
 dependencies:
   - python==3.10.*
 
-  # Basics
-  - tqdm
-  - matplotlib
-  - pytables
-
-  # Thevenin
-  - scikits_odes_sundials
-
   - pip
   - pip:
-    - battery-data-toolkit
+    # Basics
+    - tqdm
+    - matplotlib
+
     - jupyterlab
     - -e ..[test,docs,thevenin]

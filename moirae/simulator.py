@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Optional
 
-from battdat.data import BatteryDataset, CellDataset
+from battdat.data import BatteryDataset
 from battdat.schemas.column import ColumnInfo, DataType
 from moirae.models.base import (HealthVariable,
                                 GeneralContainer,
@@ -190,7 +190,7 @@ class Simulator:
 
         output = []
         for _, group in df.groupby('batch'):
-            batch = CellDataset(raw_data=group.drop(columns=['batch']))
+            batch = BatteryDataset.make_cell_dataset(raw_data=group.drop(columns=['batch']))
 
             # Compile names for the other columns
             #  TODO (wardlt): I bet I can grab the description from the model fields.
