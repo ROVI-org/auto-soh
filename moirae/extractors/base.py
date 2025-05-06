@@ -1,4 +1,6 @@
 """Interface for extractors"""
+import pandas as pd
+
 from battdat.data import BatteryDataset
 
 from moirae.models.base import HealthVariable
@@ -26,3 +28,18 @@ class BaseExtractor:
             Part of the parameter set for a model.
         """
         raise NotImplementedError()
+
+    def extract_from_raw(self, data: pd.DataFrame) -> HealthVariable:
+        """Determine parameters of a physics model from current/voltage data over time
+
+        The data must follow the `RawData format`_ of battery-data-toolkit RawData.
+
+        Args:
+            data: Data to use for parameter assessment
+        Returns:
+            Part of the parameter set for a model.
+
+        .. _RawData format:
+            https://rovi-org.github.io/battery-data-toolkit/user-guide/schemas/column-schema.html#rawdata
+        """
+        return self.extract(BatteryDataset.make_cell_dataset(raw_data=data))

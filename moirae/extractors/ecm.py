@@ -105,7 +105,10 @@ class OCVExtractor(BaseExtractor):
         #  TODO (wardlt): Make whether the cell started as charged (SOC~1) an option
         #   This code assumes the cycle starts with a discharged cell
         cycle = cycle.copy(deep=False)  # We are not editing the data
-        cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
+        if 'cycle_capacity' not in cycle.columns:
+            StateOfCharge().enhance(cycle)
+        cycle['soc'] = (cycle['cycle_capacity'] - cycle['cycle_capacity'].min()) / \
+                       (cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min())
         cycle = cycle.sort_values('soc')
 
         # Assign weights according to current so that low-current values are more important
@@ -319,7 +322,7 @@ class RCExtractor(BaseExtractor):
         self.n_rc = n_rc
         self.min_rest = min_rest
         if max_rest_I is None:
-            max_rest_I = self.capacity/100
+            max_rest_I = self.capacity / 100
         self.max_rest_I = max_rest_I
         self.interpolation_style = 'linear'
 
@@ -336,8 +339,8 @@ class RCExtractor(BaseExtractor):
         rest_socs = np.array([item['soc'] for item in rests])
         sampled_soc = rest_socs.max() - rest_socs.min()
         if sampled_soc < self.soc_requirement:
-            raise ValueError(f'Dataset rests must sample {self.soc_requirement*100:.1f}% of SOC.'
-                             f' Only sampled {sampled_soc*100:.1f}%')
+            raise ValueError(f'Dataset rests must sample {self.soc_requirement * 100:.1f}% of SOC.'
+                             f' Only sampled {sampled_soc * 100:.1f}%')
 
     def interpolate_rc(self, data: BatteryDataset) -> np.ndarray:
         """Fit then evaluate a smoothing spline which explains
@@ -353,8 +356,8 @@ class RCExtractor(BaseExtractor):
 
         RCs = {'soc': []}
         for i_rc in range(self.n_rc):
-            RCs[f'R{i_rc+1}'] = []
-            RCs[f'C{i_rc+1}'] = []
+            RCs[f'R{i_rc + 1}'] = []
+            RCs[f'C{i_rc + 1}'] = []
 
         for rest in rests:
 
@@ -362,7 +365,7 @@ class RCExtractor(BaseExtractor):
 
                 RCs['soc'].append(rest['soc'])
 
-                bounds = np.zeros((2*self.n_rc, 2))
+                bounds = np.zeros((2 * self.n_rc, 2))
                 bounds[:, 1] = 1
                 bounds[-1, 1] = 1000
 
@@ -374,26 +377,26 @@ class RCExtractor(BaseExtractor):
 
                 params_fit = res.x.copy()
 
-                for i_rc in np.arange(self.n_rc-1)[::-1]:
+                for i_rc in np.arange(self.n_rc - 1)[::-1]:
                     # Ti = Ti/Ti+1 * Ti+1
-                    params_fit[2*i_rc+1] *= params_fit[2*(i_rc+1) + 1]
+                    params_fit[2 * i_rc + 1] *= params_fit[2 * (i_rc + 1) + 1]
 
                 # transform trace A/T parameters into RC parameters
                 params_rc = params_fit.copy()
                 for i_rc in range(self.n_rc):
-                    params_rc[2*i_rc] /= rest['Iprev']  # R = A/Iprev
-                    params_rc[2*i_rc+1] /= params_fit[2*i_rc]  # C = T/R
+                    params_rc[2 * i_rc] /= rest['Iprev']  # R = A/Iprev
+                    params_rc[2 * i_rc + 1] /= params_fit[2 * i_rc]  # C = T/R
 
-                    RCs[f'R{i_rc+1}'].append(params_rc[2*i_rc])
-                    RCs[f'C{i_rc+1}'].append(params_rc[2*i_rc+1])
+                    RCs[f'R{i_rc + 1}'].append(params_rc[2 * i_rc])
+                    RCs[f'C{i_rc + 1}'].append(params_rc[2 * i_rc + 1])
 
         # Evaluate the smoothing spline for each element of each RC pair
         t = self.soc_points[1:-1]
 
         splines_eval = []
         for i_rc in range(self.n_rc):
-            Rspl = LSQUnivariateSpline(RCs['soc'], RCs[f'R{i_rc+1}'], t=t, k=1)
-            Cspl = LSQUnivariateSpline(RCs['soc'], RCs[f'C{i_rc+1}'], t=t, k=1)
+            Rspl = LSQUnivariateSpline(RCs['soc'], RCs[f'R{i_rc + 1}'], t=t, k=1)
+            Cspl = LSQUnivariateSpline(RCs['soc'], RCs[f'C{i_rc + 1}'], t=t, k=1)
 
             splines_eval.append(
                 (Rspl(self.soc_points),
@@ -461,7 +464,7 @@ class RCExtractor(BaseExtractor):
             indx_rest = tmp[tmp].index
             t_rest = step_data['test_time'][indx_rest]
 
-            t_rest_el = t_rest.max()-t_rest.min()
+            t_rest_el = t_rest.max() - t_rest.min()
             if t_rest_el < self.min_rest:
                 step_data_prev = step_data.copy()
                 continue
@@ -475,7 +478,7 @@ class RCExtractor(BaseExtractor):
                 't_rest': t_rest,
                 'state': state,
                 'Iprev': Iprev
-                })
+            })
 
         rests_ = [rests[ii] for ii in np.argsort(socs)]
 
@@ -499,8 +502,8 @@ class RCExtractor(BaseExtractor):
 
         As = params[None, ..., 0::2]
         Ts = params[None, ..., 1::2]
-        for i_rc in np.arange(self.n_rc-1)[::-1]:
-            Ts[..., i_rc] *= Ts[..., i_rc+1]
+        for i_rc in np.arange(self.n_rc - 1)[::-1]:
+            Ts[..., i_rc] *= Ts[..., i_rc + 1]
 
         t = np.array(t_fitseg) - np.array(t_fitseg)[0]
         t = t[..., None]
@@ -510,16 +513,16 @@ class RCExtractor(BaseExtractor):
 
         if state == 'di':
             for i_rc in range(self.n_rc):
-                res -= As[..., i_rc]*np.exp(-t/Ts[..., i_rc])
+                res -= As[..., i_rc] * np.exp(-t / Ts[..., i_rc])
 
         elif state == 'ch':
             for i_rc in range(self.n_rc):
-                res += As[..., i_rc]*np.exp(-t/Ts[..., i_rc])
+                res += As[..., i_rc] * np.exp(-t / Ts[..., i_rc])
 
         ref = cycle_data['voltage'][indx_fitseg]
         ref = np.array(ref)[:, None]
 
-        err = np.sum((ref-res)**2, axis=0)
+        err = np.sum((ref - res) ** 2, axis=0)
 
         err[np.isnan(err)] = np.inf
 
