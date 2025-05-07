@@ -417,6 +417,9 @@ class RCExtractor(BaseExtractor):
             CapacityPerCycle().add_summaries(data)
 
         cycle = data.tables['raw_data']
+        cycle = cycle.copy(deep=False)  # We are not editing the data
+        if 'cycle_capacity' not in cycle.columns:
+            StateOfCharge().enhance(cycle)
         cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
         grp = cycle.groupby('step_index')
