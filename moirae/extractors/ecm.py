@@ -1,4 +1,6 @@
 """Extraction algorithms which gather parameters of an ECM"""
+from typing import Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -7,7 +9,7 @@ from scipy.interpolate import LSQUnivariateSpline
 from scipy.optimize import differential_evolution
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
-from typing import Tuple
+from battdat.postprocess.tagging import AddSteps, AddState
 
 from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
@@ -422,6 +424,10 @@ class RCExtractor(BaseExtractor):
             StateOfCharge().enhance(cycle)
         cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
+        if 'state' not in cycle.columns:
+            AddState().enhance(cycle)
+        if 'step_index' not in cycle.columns:
+            AddSteps().enhance(cycle)
         grp = cycle.groupby('step_index')
         step_data_prev = None
 
