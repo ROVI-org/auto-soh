@@ -500,7 +500,7 @@ class RCExtractor(BaseExtractor):
             params: The parameters of the RC pairs
             cycle_data: Dataset containing the time series measurement
             indx_fitseg: Time index for the fitting segment (the rest)
-            t_fitset: Time sequence for the fitting segment
+            t_fitseg: Time sequence for the fitting segment
             state: State of the previous segment (ch or di)
         Returns:
             An tuple of RC instances with the requested SOC interpolation points
