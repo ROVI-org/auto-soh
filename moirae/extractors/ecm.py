@@ -429,7 +429,7 @@ class RCExtractor(BaseExtractor):
         cycle['soc'] = self.starting_soc + cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
         if 'state' not in cycle.columns:
-            AddState().enhance(cycle)
+            AddState(rest_curr_threshold=self.max_rest_I).enhance(cycle)
         if 'step_index' not in cycle.columns:
             AddSteps().enhance(cycle)
         grp = cycle.groupby('step_index')
@@ -473,7 +473,7 @@ class RCExtractor(BaseExtractor):
                 indx_end_chdi = step_data.index[0]
 
             tmp = (step_data['current'].loc[indx_end_chdi + 1:].abs()
-                   > 1e-5).cumsum() == 0
+                   > self.max_rest_I).cumsum() == 0
             indx_rest = tmp[tmp].index
             t_rest = step_data['test_time'][indx_rest]
 
