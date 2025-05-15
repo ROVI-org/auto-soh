@@ -297,6 +297,8 @@ class RCExtractor(BaseExtractor):
 
     capacity: float
     """Best estimate for capacity of the cell"""
+    starting_soc: float
+    """Best estimate for SOC at the beginning of cycle"""
     soc_points: np.ndarray
     """State of charge points at which to estimate the resistance"""
     soc_requirement: float
@@ -310,6 +312,7 @@ class RCExtractor(BaseExtractor):
 
     def __init__(self,
                  capacity: float | MaxTheoreticalCapacity,
+                 starting_soc: float = 0.0,
                  soc_points: np.ndarray | int = 11,
                  soc_requirement: float = 0.95,
                  n_rc: int = 1,
@@ -319,6 +322,7 @@ class RCExtractor(BaseExtractor):
         if isinstance(soc_points, int):
             soc_points = np.linspace(0, 1, soc_points)
         self.capacity = capacity.base_values[0, 0] if isinstance(capacity, MaxTheoreticalCapacity) else float(capacity)
+        self.starting_soc = starting_soc
         self.soc_points = np.array(soc_points)
         self.soc_requirement = soc_requirement
         self.n_rc = n_rc
@@ -422,10 +426,10 @@ class RCExtractor(BaseExtractor):
         cycle = cycle.copy(deep=False)  # We are not editing the data
         if 'cycle_capacity' not in cycle.columns:
             StateOfCharge().enhance(cycle)
-        cycle['soc'] = cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
+        cycle['soc'] = self.starting_soc + cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
 
         if 'state' not in cycle.columns:
-            AddState().enhance(cycle)
+            AddState(rest_curr_threshold=self.max_rest_I).enhance(cycle)
         if 'step_index' not in cycle.columns:
             AddSteps().enhance(cycle)
         grp = cycle.groupby('step_index')
@@ -469,7 +473,7 @@ class RCExtractor(BaseExtractor):
                 indx_end_chdi = step_data.index[0]
 
             tmp = (step_data['current'].loc[indx_end_chdi + 1:].abs()
-                   > 1e-5).cumsum() == 0
+                   > self.max_rest_I).cumsum() == 0
             indx_rest = tmp[tmp].index
             t_rest = step_data['test_time'][indx_rest]
 
