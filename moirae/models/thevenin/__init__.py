@@ -45,6 +45,7 @@ class TheveninModel(CellModel):
             if self._predictor is None or self._predictor.num_RC_pairs != params['num_RC_pairs']:
                 self._predictor = Prediction(params=params)
             else:
+                params.pop('num_RC_pairs')
                 for key, val in params.items():
                     setattr(self._predictor, key, val)
 
