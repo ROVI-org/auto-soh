@@ -1,7 +1,8 @@
 """Tools for writing state estimates to HDF5 files"""
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Union, Optional, Literal, Dict, Any, Iterator
 from pathlib import Path
+import pickle as pkl
 import json
 
 from flatten_dict import flatten
@@ -9,8 +10,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 import tables as tb
 import numpy as np
 
+from moirae import __version__
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
 from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
+from moirae.models.base import HealthVariable, GeneralContainer
 
 OutputType = Literal['full', 'mean_cov', 'mean_var', 'mean', 'none']
 
@@ -36,7 +39,6 @@ def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution,
         raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
 
-# TODO (wardlt): Consider writing only every N timesteps
 class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
     """Write state estimation data to an HDF5 file incrementally
 
@@ -119,14 +121,18 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._check_if_ready()
 
         # Put the metadata in the attributes of the group
+        self._group_handle._v_attrs['moirae_version'] = __version__
         self._group_handle._v_attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
+        estimator.get_estimated_state()
         self._group_handle._v_attrs['state_names'] = estimator.state_names
         self._group_handle._v_attrs['output_names'] = estimator.output_names
         self._group_handle._v_attrs['estimator_name'] = estimator.__class__.__name__
         self._group_handle._v_attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle._v_attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle._v_attrs['initial_asoh'] = estimator.asoh.model_dump_json()
+        self._group_handle._v_attrs['initial_asoh_pkl'] = pkl.dumps(estimator.asoh)
         self._group_handle._v_attrs['initial_transient_state'] = estimator.transients.model_dump_json()
+        self._group_handle._v_attrs['initial_transient_state_pkl'] = pkl.dumps(estimator.transients)
 
         # Update accordingly
         state = estimator.state
@@ -195,6 +201,22 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             my_table.append(row)
 
 
+@contextmanager
+def _open_estimates_hdf5(data_path: Union[str, Path, tb.Group]) -> tb.Group:
+    """Access the group storing state estimates in an HDF file,
+    regardless of whether someone passes a path or an already-open file"""
+    file = None
+    if isinstance(data_path, (str, Path)):
+        with tb.open_file(data_path, mode='r') as file:
+            try:
+                yield file.root['state_estimates']
+            except ValueError:
+                file.close()
+                raise
+    else:
+        yield data_path
+
+
 def read_state_estimates(data_path: Union[str, Path, tb.Group],
                          per_timestep: bool = True,
                          dist_type: type[MultivariateRandomDistribution] = MultivariateGaussian
@@ -214,18 +236,7 @@ def read_state_estimates(data_path: Union[str, Path, tb.Group],
     """
 
     # Open the file and access the group holding the state estimates
-    file = None
-    if isinstance(data_path, (str, Path)):
-        file = tb.open_file(data_path, mode='r')
-        try:
-            se_group = file.root['state_estimates']
-        except ValueError:
-            file.close()
-            raise
-    else:
-        se_group = data_path
-
-    try:
+    with _open_estimates_hdf5(data_path) as se_group:
         # Access the target group to read from
         tag = 'per_timestep' if per_timestep else 'per_cycle'
         read_type = json.loads(se_group._v_attrs['write_settings'])[tag]
@@ -265,6 +276,28 @@ def read_state_estimates(data_path: Union[str, Path, tb.Group],
             output_values = _unpack(row, 'output_')
             output_dist = dist_type(**output_values)
             yield row['time'], state_dist, output_dist
-    finally:
-        if file is not None:
-            file.close()
+
+
+def read_asoh_transient_estimates(data_path: Union[str, Path, tb.Group],
+                                  per_timestep: bool = True) \
+        -> Iterator[tuple[float, HealthVariable, GeneralContainer]]:
+    """
+    Read estimates for the battery health and state over time.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+    Yields:
+         The mean aSOH and battery state at each time step.
+    """
+
+    with _open_estimates_hdf5(data_path) as se_group:
+        # Get the output types for each
+        asoh_template: HealthVariable = se_group._v_attrs['initial_asoh_pkl']
+        tran_template: GeneralContainer = se_group._v_attrs['initial_transient_state_pkl']
+        num_tran = len(tran_template)
+
+        # Iterate through the estimated states
+        for time, state, _ in read_state_estimates(se_group, per_timestep=per_timestep):
+            mean = state.get_mean()
+            yield time, asoh_template.make_copy(mean[None, num_tran:]), tran_template.make_copy(mean[None, :])

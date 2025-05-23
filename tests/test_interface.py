@@ -7,7 +7,7 @@ import numpy as np
 from moirae.estimators.online.filters.distributions import MultivariateGaussian
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
-from moirae.interface.hdf5 import HDF5Writer, read_state_estimates
+from moirae.interface.hdf5 import HDF5Writer, read_state_estimates, read_asoh_transient_estimates
 from moirae.models.ecm import EquivalentCircuitModel
 
 # Priors for the covariance matrix, taken from the JointUKF demo
@@ -234,6 +234,14 @@ def test_h5_read_what(simple_rint, tmpdir, what):
     # Make sure it iterates no further data
     with raises(StopIteration):
         next(dist_iter)
+
+
+def test_h5_read_objects(simple_rint, tmpdir):
+    h5_path, state_0, _ = _make_simple_hf_estimates(simple_rint, 'mean', tmpdir)
+    time, asoh, tran = next(read_asoh_transient_estimates(h5_path))
+
+    assert np.allclose(tran.to_numpy()[0, :], state_0.get_mean()[:2])
+    assert np.allclose(asoh.get_parameters()[0, :], state_0.get_mean()[2:])
 
 
 def test_h5_open_from_group(simple_rint, tmpdir):
