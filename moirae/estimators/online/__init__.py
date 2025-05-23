@@ -83,7 +83,10 @@ class OnlineEstimator:
 
     @property
     def state(self) -> MultivariateRandomDistribution:
-        """Multivariate probability distribution for all state variables"""
+        """Multivariate probability distribution for all state variables
+
+        The first variables are transient states and the last are are aSOH.
+        """
         raise NotImplementedError()
 
     @abstractmethod
