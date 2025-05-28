@@ -7,7 +7,9 @@ import numpy as np
 from moirae.estimators.online.filters.distributions import MultivariateGaussian
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
-from moirae.interface.hdf5 import HDF5Writer, read_state_estimates, read_asoh_transient_estimates
+from moirae.interface.hdf5 import (
+    HDF5Writer, read_state_estimates, read_asoh_transient_estimates, read_state_estimates_to_df
+)
 from moirae.models.ecm import EquivalentCircuitModel
 
 # Priors for the covariance matrix, taken from the JointUKF demo
@@ -242,6 +244,26 @@ def test_h5_read_objects(simple_rint, tmpdir):
 
     assert np.allclose(tran.to_numpy()[0, :], state_0.get_mean()[:2])
     assert np.allclose(asoh.get_parameters()[0, :], state_0.get_mean()[2:])
+
+
+def test_h5_read_df(simple_rint, tmpdir):
+    h5_path, state_0, _ = _make_simple_hf_estimates(simple_rint, 'mean', tmpdir)
+
+    # Test reading only means
+    df = read_state_estimates_to_df(h5_path, read_std=False)
+    assert df.columns[0] == 'time'
+    assert df.shape == (2, 4)  # Time, SOC, hyst, r0
+
+    df = read_state_estimates_to_df(h5_path, read_std=False, per_timestep=False)
+    assert len(df) == 1  # Only one cycle
+
+    # Test reading std and all cov
+    df = read_state_estimates_to_df(h5_path, read_std=True, read_cov=True)
+    assert len(df.columns) == 1 + 3 + 4 * 3 // 2  # Time, 3 means, upper tri of a 3x3 matrix
+
+    df = read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'soc')])
+    assert 'cov_(hyst,soc)' in df.columns
+    assert df.shape == (2, 1 + 3 + 1)
 
 
 def test_h5_open_from_group(simple_rint, tmpdir):
