@@ -317,13 +317,13 @@ def read_state_estimates_to_df(
     Read states estimates from the file into a single Pandas DataFrame
 
     Columns will always include the mean of each estimate and the name
-    of the column will start with "mean_".
+    of the column will start with ``mean_``.
 
-    Columns for the standard deviations start with "std_".
+    Columns for the standard deviations start with ``std_``.
 
-    Columns for covariance start are of the form "cov_(<var1>,<var2>)."
+    Columns for covariance start are of the form ``cov_(<var1>,<var2>)``.
     The names contain reserved characters for Python and, therefore,
-    require using backticks when performing queries in Pandas :meth:`~pd.Dataframe.query`.
+    require using backticks when performing queries in Pandas :meth:`~pandas.DataFrame.query`.
 
     Args:
         data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.

@@ -265,6 +265,10 @@ def test_h5_read_df(simple_rint, tmpdir):
     assert 'cov_(hyst,soc)' in df.columns
     assert df.shape == (2, 1 + 3 + 1)
 
+    # Make sure it fails with an unknown variable
+    with raises(ValueError, match=': asdf'):
+        read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'asdf')])
+
 
 def test_h5_open_from_group(simple_rint, tmpdir):
     """Make sure we can read from an already-open file"""
