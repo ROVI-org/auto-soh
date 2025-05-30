@@ -1,7 +1,7 @@
 """
 Defines necessary scripts for RC extraction
 """
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -58,6 +58,8 @@ class RCExtractor(BaseExtractor):
     """Number of RC couples in the ECM"""
     min_rest: float
     """Minimum required rest duration in seconds"""
+    min_dur_prev: float
+    """Minimum duration (in seconds) of the step that precedes the rest(s). Defaults to 1 minute"""
     max_rest_I: float
     """Maximum current expected during a rest period (Amps)"""
 
@@ -68,6 +70,7 @@ class RCExtractor(BaseExtractor):
                  soc_requirement: float = 0.95,
                  n_rc: int = 1,
                  min_rest: float = 600,
+                 min_dur_prev: float = 60,
                  max_rest_I: float = None):
 
         if isinstance(soc_points, int):
@@ -78,6 +81,7 @@ class RCExtractor(BaseExtractor):
         self.soc_requirement = soc_requirement
         self.n_rc = n_rc
         self.min_rest = min_rest
+        self.min_dur_prev = min_dur_prev
         if max_rest_I is None:
             max_rest_I = self.capacity / 100
         self.max_rest_I = max_rest_I
@@ -161,7 +165,7 @@ class RCExtractor(BaseExtractor):
 
         return splines_eval
 
-    def _extract_rests(self, data: BatteryDataset) -> np.ndarray:
+    def _extract_rests(self, data: BatteryDataset) -> List[Dict]:
         """Extract the relevant time-series segments for fitting RC elements
 
         Args:
@@ -199,9 +203,13 @@ class RCExtractor(BaseExtractor):
             soc = np.mean(step_data['soc'])
 
             if step_data_prev is not None:
-                Iprev = np.abs(step_data_prev['current'].mean())
-                step_data = pd.concat(
-                    [step_data_prev.iloc[-2:], step_data])
+                prev_time = step_data_prev['test_time'].to_numpy()
+                # Make sure the previous step is long enough our what we want
+                if prev_time[-1] - prev_time[0] >= self.min_dur_prev:
+                    Iprev = {'current': step_data_prev['current'].to_numpy(),
+                             'time': prev_time}
+                    step_data = pd.concat(
+                        [step_data_prev.iloc[-2:], step_data])
             else:
                 Iprev = np.nan
 
