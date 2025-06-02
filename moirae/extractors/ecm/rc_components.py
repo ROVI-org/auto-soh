@@ -16,6 +16,8 @@ from moirae.extractors.base import BaseExtractor
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance, Capacitance, RCComponent
 
+from .utils import compute_I_RCs
+
 
 class RCExtractor(BaseExtractor):
     """Estimate the values of a parallel resistor-capacitor couples (RC)
@@ -145,7 +147,16 @@ class RCExtractor(BaseExtractor):
                 # transform trace A/T parameters into RC parameters
                 params_rc = params_fit.copy()
                 for i_rc in range(self.n_rc):
-                    params_rc[2 * i_rc] /= np.abs(np.mean(rest['Iprev']['current']))  # R = A/Iprev
+                    # We need to compute the current that flows through the resistive element at the beginning of the
+                    # rest period. For that, we need the time constant tau
+                    tau = params_rc[2 * i_rc + 1]
+                    # Compute current assuming previous step started with zero charge in capacitor
+                    i_r_rc = compute_I_RCs(total_current=rest['Iprev']['current'],
+                                           timestamps=rest['Iprev']['time'],
+                                           tau_values=tau).item()
+                    print(f'current {i_rc} = {i_r_rc}')
+                    # Update parameters
+                    params_rc[2 * i_rc] /= abs(i_r_rc)  # R = A/Iprev
                     params_rc[2 * i_rc + 1] /= params_fit[2 * i_rc]  # C = T/R
 
                     RCs[f'R{i_rc + 1}'].append(params_rc[2 * i_rc])
