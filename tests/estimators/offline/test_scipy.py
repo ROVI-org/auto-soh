@@ -7,7 +7,7 @@ from moirae.estimators.offline.scipy import ScipyMinimizer, ScipyDifferentialEvo
 
 @mark.parametrize('state_only', [True, False])
 @mark.parametrize('minimizer', [(ScipyMinimizer, {}),
-                                (ScipyDifferentialEvolution, {'maxiter': 1})])
+                                (ScipyDifferentialEvolution, {'maxiter': 1, 'rng': 1})])
 def test_scipy(simple_rint, timeseries_dataset, state_only, minimizer):
     rint_asoh, rint_state, _, ecm_model = simple_rint
 
