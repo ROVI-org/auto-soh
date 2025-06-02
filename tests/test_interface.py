@@ -4,7 +4,7 @@ from pytest import mark, raises
 import tables as tb
 import numpy as np
 
-from moirae.estimators.online.filters.distributions import MultivariateGaussian
+from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
 from moirae.interface.hdf5 import (
@@ -74,12 +74,15 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+    rint_outputs = ecm.calculate_terminal_voltage(rint_inputs, rint_transient, rint_asoh)
+    output_dist = DeltaDistribution(mean=rint_outputs.to_numpy()[0, :])
 
     # Test with a resizable dataset
     h5_path = Path(tmpdir / 'example.h5')
     with HDF5Writer(hdf5_output=h5_path) as writer:
         assert writer.is_ready
         writer.prepare(estimator)
+        writer.append_step(0., 0, estimator.state, output_dist)
 
     assert not writer.is_ready
     with raises(ValueError):
@@ -91,7 +94,13 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert 'per_timestep' in group
         assert all(x in group._v_attrs for x in ['write_settings', 'estimator_name'])
 
-        dtype = f.get_node('/state_estimates/per_timestep').dtype
+        # Check that the estimator is stored properly
+        estimator_copy = group._v_attrs['estimator_pkl']
+        assert isinstance(estimator_copy, estimator.__class__)
+
+        # Verify the types of data
+        per_ts = f.get_node('/state_estimates/per_timestep')
+        dtype = per_ts.dtype
         assert dtype['state_mean'].shape == (3,)
         assert 'covariance' not in dtype.fields
         assert dtype['time'].shape == ()
@@ -100,6 +109,12 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert dtype['state_mean'].shape == (3,)
         assert dtype['state_covariance'].shape == (3, 3)
         assert dtype['time'].shape == ()
+
+        # Make sure the contents are correct
+        #  The first row should agree with the initial values
+        mean = per_ts[0]['state_mean']
+        assert np.allclose(mean[:2], rint_transient.to_numpy())
+        assert np.isclose(mean[-1], rint_asoh.r0.base_values.item())
 
 
 def _make_simple_hf_estimates(simple_rint, what, tmpdir):

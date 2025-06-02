@@ -126,10 +126,12 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         # Put the metadata in the attributes of the group
         self._group_handle._v_attrs['moirae_version'] = __version__
         self._group_handle._v_attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
+
         estimator.get_estimated_state()
         self._group_handle._v_attrs['state_names'] = estimator.state_names
         self._group_handle._v_attrs['output_names'] = estimator.output_names
         self._group_handle._v_attrs['estimator_name'] = estimator.__class__.__name__
+        self._group_handle._v_attrs['estimator_pkl'] = pkl.dumps(estimator)
         self._group_handle._v_attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle._v_attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle._v_attrs['initial_asoh'] = estimator.asoh.model_dump_json()
