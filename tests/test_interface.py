@@ -274,11 +274,13 @@ def test_h5_read_df(simple_rint, tmpdir):
 
     # Test reading std and all cov
     df = read_state_estimates_to_df(h5_path, read_std=True, read_cov=True)
+    std_soc = df['std_soc']
     assert len(df.columns) == 1 + 3 + 4 * 3 // 2  # Time, 3 means, upper tri of a 3x3 matrix
 
-    df = read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'soc')])
+    df = read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'soc'), ('soc', 'soc')])
     assert 'cov_(hyst,soc)' in df.columns
-    assert df.shape == (2, 1 + 3 + 1)
+    assert df.shape == (2, 1 + 3 + 2)
+    assert np.allclose(std_soc, np.sqrt(df['cov_(soc,soc)']))
 
     # Make sure it fails with an unknown variable
     with raises(ValueError, match=': asdf'):
