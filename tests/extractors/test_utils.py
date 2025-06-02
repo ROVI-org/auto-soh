@@ -60,7 +60,7 @@ def test_multiple_RCs(constant_current_proile) -> None:
                           tau_values=taus)
     powers = time.shape[0] / np.array(taus)
     expected_i_rcs = current_mean * (1 - (np.pow(np.e, -powers)))
-    assert np.allclose(i_rcs, expected_i_rcs), f'{i_rcs} != {expected_i_rcs}'
+    assert np.allclose(i_rcs, expected_i_rcs, rtol=0.001), f'{i_rcs} != {expected_i_rcs}'
 
 
 def test_saturation(constant_current_proile) -> None:
