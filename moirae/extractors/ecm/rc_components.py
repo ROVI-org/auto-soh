@@ -154,7 +154,6 @@ class RCExtractor(BaseExtractor):
                     i_r_rc = compute_I_RCs(total_current=rest['Iprev']['current'],
                                            timestamps=rest['Iprev']['time'],
                                            tau_values=tau).item()
-                    print(f'current {i_rc} = {i_r_rc}')
                     # Update parameters
                     params_rc[2 * i_rc] /= abs(i_r_rc)  # R = A/Iprev
                     params_rc[2 * i_rc + 1] /= params_fit[2 * i_rc]  # C = T/R
