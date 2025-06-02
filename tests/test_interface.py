@@ -8,7 +8,8 @@ from moirae.estimators.online.filters.distributions import MultivariateGaussian,
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
 from moirae.interface.hdf5 import (
-    HDF5Writer, read_state_estimates, read_asoh_transient_estimates, read_state_estimates_to_df, read_outputs_to_df
+    HDF5Writer, read_state_estimates, read_asoh_transient_estimates,
+    read_state_estimates_to_df, read_outputs_to_df, read_to_df
 )
 from moirae.models.ecm import EquivalentCircuitModel
 
@@ -291,6 +292,19 @@ def test_h5_read_df(simple_rint, tmpdir):
     assert df.shape == (2, 1 + 1 + 1 + 0)  # Time, 1 mean and std col, no cov
     assert 'std_terminal_voltage' in df.columns
     assert np.allclose(df['mean_terminal_voltage'], 0.)
+
+    # Test reading both
+    df_full = read_to_df(h5_path, read_std=False, read_cov=False)
+    assert df_full.shape == (2, 1 + 1 + 3)  # One time, 1 output, 3 states
+
+    # Test partitioning between state and output
+    with raises(ValueError, match=r'Offending pair: \(soc,terminal_voltage\)'):
+        read_to_df(h5_path, read_cov=[('soc', 'terminal_voltage')])
+    with raises(ValueError, match='asdf'):
+        read_to_df(h5_path, read_cov=[('soc', 'asdf')])
+    df = read_to_df(h5_path, per_timestep=False, read_cov=[('soc', 'hyst')])
+    assert 'cov_(soc,hyst)' in df.columns
+    assert len(df) == 1
 
 
 def test_h5_open_from_group(simple_rint, tmpdir):

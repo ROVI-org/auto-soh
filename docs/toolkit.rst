@@ -144,7 +144,8 @@ distributions from the file sequentially as :class:`~moirae.estimators.online.fi
 :meth:`~moirae.interface.hdf5.read_asoh_transient_estimates` reads the mean estimates for
 the transient state and aSOH as objects ready for use in a :class:`~moirae.model.base.CellModel`
 
-:meth:`~moirae.interface.hdf5.read_state_estimates_to_df` reads the data to a Pandas DataFrame.
+Functions to such as :meth:`~moirae.interface.hdf5.read_state_estimates_to_df`
+read the data to a Pandas DataFrame.
 Options change whether to read the standard deviation or any part of the covariance matrix into memory.
 
 .. code-block:: python

@@ -441,3 +441,65 @@ def read_outputs_to_df(
     """
     with _open_estimates_hdf5(data_path) as se_group:
         return _read_to_df(se_group, False, per_timestep, read_std, read_cov)
+
+
+def read_to_df(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Read both the states and output estimates to the same dataframe
+
+    Column name convention is the same as :meth:`read_state_estimates_to_df`.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs.
+            Pairs must either be both state variables or output variables.
+            Covariance between state and output is not available.
+
+    Returns:
+        A pandas dataframe with the requested data
+    """
+
+    with _open_estimates_hdf5(data_path) as se_group:
+        if not isinstance(read_cov, bool):
+            # Map names to either state or output
+            state_names = set(se_group._v_attrs['state_names'])
+            output_names = set(se_group._v_attrs['output_names'])
+
+            def _is_state(name: str):
+                _in_state = name in state_names
+                _in_output = name in output_names
+                if _in_state and _in_output:
+                    raise ValueError(f'"{name}" is both a state and output. Read the state and output separately')
+                if not (_in_state or _in_output):
+                    raise ValueError(f'"{name}" is in neither state nor output.')
+                return _in_state
+
+            state_cov = []
+            output_cov = []
+            for name1, name2 in read_cov:
+                state1 = _is_state(name1)
+                state2 = _is_state(name2)
+                if state1 != state2:
+                    raise ValueError('State estimation does not capture covariance '
+                                     f'between states and outputs. Offending pair: ({name1},{name2})')
+                if state1:
+                    state_cov.append((name1, name2))
+                else:
+                    output_cov.append((name1, name2))
+
+        else:
+            # Read the same for output and state
+            state_cov = output_cov = read_cov
+
+        # Read both the state and output then compile
+        state_df = read_state_estimates_to_df(se_group, per_timestep, read_std, state_cov)
+        output_df = read_outputs_to_df(se_group, per_timestep, read_std, output_cov)
+        return pd.concat([state_df, output_df.drop(columns='time')], axis=1)
