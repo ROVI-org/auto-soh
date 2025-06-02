@@ -1,16 +1,22 @@
 """Tools for writing state estimates to HDF5 files"""
-from contextlib import AbstractContextManager
-from typing import Union, Optional, Literal, Dict, Any, Iterator
+from typing import Union, Optional, Literal, Dict, Any, Iterator, Collection
+from contextlib import AbstractContextManager, contextmanager
+from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
+import pickle as pkl
 import json
 
 from flatten_dict import flatten
 from pydantic import BaseModel, Field, PrivateAttr
 import tables as tb
+import pandas as pd
 import numpy as np
 
+from moirae import __version__
 from moirae.estimators.online import OnlineEstimator, MultivariateRandomDistribution
 from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
+from moirae.models.base import HealthVariable, GeneralContainer
 
 OutputType = Literal['full', 'mean_cov', 'mean_var', 'mean', 'none']
 
@@ -36,7 +42,6 @@ def _convert_state_to_numpy_dict(state: MultivariateRandomDistribution,
         raise ValueError('Mode cannot be none' if what == 'none' else f'Unrecognized what: {what}')
 
 
-# TODO (wardlt): Consider writing only every N timesteps
 class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True):
     """Write state estimation data to an HDF5 file incrementally
 
@@ -119,14 +124,20 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._check_if_ready()
 
         # Put the metadata in the attributes of the group
+        self._group_handle._v_attrs['moirae_version'] = __version__
         self._group_handle._v_attrs['write_settings'] = self.model_dump_json(exclude={'hdf5_output'})
+
+        estimator.get_estimated_state()
         self._group_handle._v_attrs['state_names'] = estimator.state_names
         self._group_handle._v_attrs['output_names'] = estimator.output_names
         self._group_handle._v_attrs['estimator_name'] = estimator.__class__.__name__
+        self._group_handle._v_attrs['estimator_pkl'] = pkl.dumps(estimator)
         self._group_handle._v_attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle._v_attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle._v_attrs['initial_asoh'] = estimator.asoh.model_dump_json()
+        self._group_handle._v_attrs['initial_asoh_pkl'] = pkl.dumps(estimator.asoh)
         self._group_handle._v_attrs['initial_transient_state'] = estimator.transients.model_dump_json()
+        self._group_handle._v_attrs['initial_transient_state_pkl'] = pkl.dumps(estimator.transients)
 
         # Update accordingly
         state = estimator.state
@@ -195,10 +206,26 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
             my_table.append(row)
 
 
-def read_state_estimates(data_path: Union[str, Path, tb.Group],
-                         per_timestep: bool = True,
-                         dist_type: type[MultivariateRandomDistribution] = MultivariateGaussian
-                         ) -> Iterator[tuple[float, MultivariateRandomDistribution, MultivariateRandomDistribution]]:
+@contextmanager
+def _open_estimates_hdf5(data_path: Union[str, Path, tb.Group]) -> tb.Group:
+    """Access the group storing state estimates in an HDF file,
+    regardless of whether someone passes a path or an already-open file"""
+    if isinstance(data_path, (str, Path)):
+        with tb.open_file(data_path, mode='r') as file:
+            try:
+                yield file.root['state_estimates']
+            except ValueError:
+                file.close()
+                raise
+    else:
+        yield data_path
+
+
+def read_state_estimates(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        dist_type: type[MultivariateRandomDistribution] = MultivariateGaussian
+) -> Iterator[tuple[float, MultivariateRandomDistribution, MultivariateRandomDistribution]]:
     """
     Read the state estimates from a file into progressive streams
 
@@ -214,18 +241,7 @@ def read_state_estimates(data_path: Union[str, Path, tb.Group],
     """
 
     # Open the file and access the group holding the state estimates
-    file = None
-    if isinstance(data_path, (str, Path)):
-        file = tb.open_file(data_path, mode='r')
-        try:
-            se_group = file.root['state_estimates']
-        except ValueError:
-            file.close()
-            raise
-    else:
-        se_group = data_path
-
-    try:
+    with _open_estimates_hdf5(data_path) as se_group:
         # Access the target group to read from
         tag = 'per_timestep' if per_timestep else 'per_cycle'
         read_type = json.loads(se_group._v_attrs['write_settings'])[tag]
@@ -265,6 +281,225 @@ def read_state_estimates(data_path: Union[str, Path, tb.Group],
             output_values = _unpack(row, 'output_')
             output_dist = dist_type(**output_values)
             yield row['time'], state_dist, output_dist
-    finally:
-        if file is not None:
-            file.close()
+
+
+def read_asoh_transient_estimates(data_path: Union[str, Path, tb.Group],
+                                  per_timestep: bool = True) \
+        -> Iterator[tuple[float, HealthVariable, GeneralContainer]]:
+    """
+    Read estimates for the battery health and state over time.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+    Yields:
+         The mean aSOH and battery state at each time step.
+    """
+
+    with _open_estimates_hdf5(data_path) as se_group:
+        # Get the output types for each
+        asoh_template: HealthVariable = se_group._v_attrs['initial_asoh_pkl']
+        tran_template: GeneralContainer = se_group._v_attrs['initial_transient_state_pkl']
+        num_tran = len(tran_template)
+
+        # Iterate through the estimated states
+        for time, state, _ in read_state_estimates(se_group, per_timestep=per_timestep):
+            mean = state.get_mean()
+            yield time, asoh_template.make_copy(mean[None, num_tran:]), tran_template.make_copy(mean[None, :])
+
+
+def _read_to_df(
+        se_group: tb.Group,
+        read_state: bool = True,
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Utility method for reading either the state or outputs to a DataFrame
+
+    Args:
+        se_group: Table holding state estimates
+        read_state: Whether to read the state (``True``) or outputs (``False``)
+        per_timestep: Whether to read each timestep (``True``) or once per cycle (``False``)
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs
+
+    Returns:
+        Pandas dataframe of the requested data
+    """
+    data = defaultdict(list)
+
+    # Determine the list of covariances to read
+    #  Produce a list the column numbers associated with each
+    cov_to_read: list[tuple[int, int]] = []
+    content = 'state_names' if read_state else 'output_names'
+    names = se_group._v_attrs[content]
+
+    if isinstance(read_cov, bool):
+        if read_cov:
+            cov_to_read = list(combinations(range(len(names)), 2))
+    elif isinstance(read_cov, Collection):
+        # Check that all names in are in the state names
+        all_names = set()
+        for req_names in read_cov:
+            all_names.update(req_names)
+        unknown_names = all_names.difference(names)
+        if len(unknown_names) > 0:
+            raise ValueError(f'Covariance requests asks for terms not defined in names: {", ".join(unknown_names)}')
+
+        for st1, st2 in read_cov:
+            cov_to_read.append((
+                names.index(st1),
+                names.index(st2)
+            ))
+    else:
+        raise ValueError(f'Unrecognized argument type for `read_cov`: {type(read_cov)}')
+
+    # Read them
+    for time, state, output in read_state_estimates(se_group, per_timestep):
+        data['time'].append(time)
+
+        # Decide whether to read state or outputs
+        row = state if read_state else output
+
+        # Record means
+        means = row.get_mean()
+        for name, value in zip(names, means):
+            data[f'mean_{name}'].append(value)
+
+        # Record stds, if desired
+        cov = None
+        if read_std or len(cov_to_read) > 0:
+            cov = row.get_covariance()
+        if read_std:
+            stds = np.sqrt(np.diag(cov))
+            for name, value in zip(names, stds):
+                data[f'std_{name}'].append(value)
+
+        # Record covariances
+        for id1, id2 in cov_to_read:
+            name_1, name_2 = names[id1], names[id2]
+            data[f'cov_({name_1},{name_2})'].append(cov[id1, id2])
+
+    return pd.DataFrame(data)
+
+
+def read_state_estimates_to_df(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Read states estimates from the file into a single Pandas DataFrame
+
+    Columns will always include the mean of each estimate and the name
+    of the column will start with ``mean_``.
+
+    Columns for the standard deviations start with ``std_``.
+
+    Columns for covariance start are of the form ``cov_(<var1>,<var2>)``.
+    The names contain reserved characters for Python and, therefore,
+    require using backticks when performing queries in Pandas :meth:`~pandas.DataFrame.query`.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs
+
+    Returns:
+        A pandas dataframe with the requested data
+    """
+    with _open_estimates_hdf5(data_path) as se_group:
+        return _read_to_df(se_group, True, per_timestep, read_std, read_cov)
+
+
+def read_outputs_to_df(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Read output estimates from the file into a single Pandas DataFrame
+
+    Column name convention is the same as :meth:`read_state_estimates_to_df`.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs
+
+    Returns:
+        A pandas dataframe with the requested data
+    """
+    with _open_estimates_hdf5(data_path) as se_group:
+        return _read_to_df(se_group, False, per_timestep, read_std, read_cov)
+
+
+def read_to_df(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Read both the states and output estimates to the same dataframe
+
+    Column name convention is the same as :meth:`read_state_estimates_to_df`.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs.
+            Pairs must either be both state variables or output variables.
+            Covariance between state and output is not available.
+
+    Returns:
+        A pandas dataframe with the requested data
+    """
+
+    with _open_estimates_hdf5(data_path) as se_group:
+        if not isinstance(read_cov, bool):
+            # Map names to either state or output
+            state_names = set(se_group._v_attrs['state_names'])
+            output_names = set(se_group._v_attrs['output_names'])
+
+            def _is_state(name: str):
+                _in_state = name in state_names
+                _in_output = name in output_names
+                if _in_state and _in_output:
+                    raise ValueError(f'"{name}" is both a state and output. Read the state and output separately')
+                if not (_in_state or _in_output):
+                    raise ValueError(f'"{name}" is in neither state nor output.')
+                return _in_state
+
+            state_cov = []
+            output_cov = []
+            for name1, name2 in read_cov:
+                state1 = _is_state(name1)
+                state2 = _is_state(name2)
+                if state1 != state2:
+                    raise ValueError('State estimation does not capture covariance '
+                                     f'between states and outputs. Offending pair: ({name1},{name2})')
+                if state1:
+                    state_cov.append((name1, name2))
+                else:
+                    output_cov.append((name1, name2))
+
+        else:
+            # Read the same for output and state
+            state_cov = output_cov = read_cov
+
+        # Read both the state and output then compile
+        state_df = read_state_estimates_to_df(se_group, per_timestep, read_std, state_cov)
+        output_df = read_outputs_to_df(se_group, per_timestep, read_std, output_cov)
+        return pd.concat([state_df, output_df.drop(columns='time')], axis=1)

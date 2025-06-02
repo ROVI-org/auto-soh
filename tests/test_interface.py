@@ -4,10 +4,13 @@ from pytest import mark, raises
 import tables as tb
 import numpy as np
 
-from moirae.estimators.online.filters.distributions import MultivariateGaussian
+from moirae.estimators.online.filters.distributions import MultivariateGaussian, DeltaDistribution
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
-from moirae.interface.hdf5 import HDF5Writer, read_state_estimates
+from moirae.interface.hdf5 import (
+    HDF5Writer, read_state_estimates, read_asoh_transient_estimates,
+    read_state_estimates_to_df, read_outputs_to_df, read_to_df
+)
 from moirae.models.ecm import EquivalentCircuitModel
 
 # Priors for the covariance matrix, taken from the JointUKF demo
@@ -72,12 +75,15 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
     rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
     rint_asoh.mark_updatable('r0.base_values')
     estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+    rint_outputs = ecm.calculate_terminal_voltage(rint_inputs, rint_transient, rint_asoh)
+    output_dist = DeltaDistribution(mean=rint_outputs.to_numpy()[0, :])
 
     # Test with a resizable dataset
     h5_path = Path(tmpdir / 'example.h5')
     with HDF5Writer(hdf5_output=h5_path) as writer:
         assert writer.is_ready
         writer.prepare(estimator)
+        writer.append_step(0., 0, estimator.state, output_dist)
 
     assert not writer.is_ready
     with raises(ValueError):
@@ -89,7 +95,13 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert 'per_timestep' in group
         assert all(x in group._v_attrs for x in ['write_settings', 'estimator_name'])
 
-        dtype = f.get_node('/state_estimates/per_timestep').dtype
+        # Check that the estimator is stored properly
+        estimator_copy = group._v_attrs['estimator_pkl']
+        assert isinstance(estimator_copy, estimator.__class__)
+
+        # Verify the types of data
+        per_ts = f.get_node('/state_estimates/per_timestep')
+        dtype = per_ts.dtype
         assert dtype['state_mean'].shape == (3,)
         assert 'covariance' not in dtype.fields
         assert dtype['time'].shape == ()
@@ -98,6 +110,12 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert dtype['state_mean'].shape == (3,)
         assert dtype['state_covariance'].shape == (3, 3)
         assert dtype['time'].shape == ()
+
+        # Make sure the contents are correct
+        #  The first row should agree with the initial values
+        mean = per_ts[0]['state_mean']
+        assert np.allclose(mean[:2], rint_transient.to_numpy())
+        assert np.isclose(mean[-1], rint_asoh.r0.base_values.item())
 
 
 def _make_simple_hf_estimates(simple_rint, what, tmpdir):
@@ -234,6 +252,59 @@ def test_h5_read_what(simple_rint, tmpdir, what):
     # Make sure it iterates no further data
     with raises(StopIteration):
         next(dist_iter)
+
+
+def test_h5_read_objects(simple_rint, tmpdir):
+    h5_path, state_0, _ = _make_simple_hf_estimates(simple_rint, 'mean', tmpdir)
+    time, asoh, tran = next(read_asoh_transient_estimates(h5_path))
+
+    assert np.allclose(tran.to_numpy()[0, :], state_0.get_mean()[:2])
+    assert np.allclose(asoh.get_parameters()[0, :], state_0.get_mean()[2:])
+
+
+def test_h5_read_df(simple_rint, tmpdir):
+    h5_path, state_0, _ = _make_simple_hf_estimates(simple_rint, 'mean', tmpdir)
+
+    # Test reading only means
+    df = read_state_estimates_to_df(h5_path, read_std=False)
+    assert df.columns[0] == 'time'
+    assert df.shape == (2, 4)  # Time, SOC, hyst, r0
+
+    df = read_state_estimates_to_df(h5_path, read_std=False, per_timestep=False)
+    assert len(df) == 1  # Only one cycle
+
+    # Test reading std and all cov
+    df = read_state_estimates_to_df(h5_path, read_std=True, read_cov=True)
+    std_soc = df['std_soc']
+    assert len(df.columns) == 1 + 3 + 4 * 3 // 2  # Time, 3 means, upper tri of a 3x3 matrix
+
+    df = read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'soc'), ('soc', 'soc')])
+    assert 'cov_(hyst,soc)' in df.columns
+    assert df.shape == (2, 1 + 3 + 2)
+    assert np.allclose(std_soc, np.sqrt(df['cov_(soc,soc)']))
+
+    # Make sure it fails with an unknown variable
+    with raises(ValueError, match=': asdf'):
+        read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'asdf')])
+
+    # Read the outputs instead
+    df = read_outputs_to_df(h5_path, read_std=True, read_cov=True)
+    assert df.shape == (2, 1 + 1 + 1 + 0)  # Time, 1 mean and std col, no cov
+    assert 'std_terminal_voltage' in df.columns
+    assert np.allclose(df['mean_terminal_voltage'], 0.)
+
+    # Test reading both
+    df_full = read_to_df(h5_path, read_std=False, read_cov=False)
+    assert df_full.shape == (2, 1 + 1 + 3)  # One time, 1 output, 3 states
+
+    # Test partitioning between state and output
+    with raises(ValueError, match=r'Offending pair: \(soc,terminal_voltage\)'):
+        read_to_df(h5_path, read_cov=[('soc', 'terminal_voltage')])
+    with raises(ValueError, match='asdf'):
+        read_to_df(h5_path, read_cov=[('soc', 'asdf')])
+    df = read_to_df(h5_path, per_timestep=False, read_cov=[('soc', 'hyst')])
+    assert 'cov_(soc,hyst)' in df.columns
+    assert len(df) == 1
 
 
 def test_h5_open_from_group(simple_rint, tmpdir):

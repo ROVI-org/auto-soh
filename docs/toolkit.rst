@@ -104,6 +104,7 @@ The attributes stored by Moirae include:
 - ``state_names``: Names of the states in the order provided in estimates
 - ``output_names``: Names of the outputs in the order provided by the estimator
 - ``estimator_name``: The name of the `estimator framework <estimators/index.html#online-estimators>`_ employed
+- ``estimator_pkl``: The estimator stored in pickle-serialized format. The estimator state is that from the first timestep
 - ``distribution_type``: The type of `probability distribution <source/online.html#module-moirae.estimators.online.filters.distributions>`_ used by the estimator
 - ``cell_model``: Name of the `model used to describe cell behavior <system-models.html#defining-the-cell-physics>`_
 - ``initial_asoh``: Initial estimate of the cell health parameters
@@ -127,10 +128,28 @@ The information in each varies depending on the choice of what to write.
         per_step = group['per_timestep']
         per_step[:]['covariance'][0, 0]  # [row][field][index]
 
-Moirae provides a utility function, :meth:`~moirae.interface.hdf5.read_state_estimates`, to read the
+Utility Functions
++++++++++++++++++
+
+Moirae provides utility functions to read data from the HDF5 files in convenient formats.
+
+:meth:`~moirae.interface.hdf5.read_state_estimates` reads the
 distributions from the file sequentially as :class:`~moirae.estimators.online.filters.distributions.MultivariateRandomDistribution`.
 
 .. code-block:: python
 
     for time, state_dist, output_dist in read_state_estimates('states.hdf5', per_timestep=True):
         continue  # Distributions are read into memory in batches as an iterator
+
+:meth:`~moirae.interface.hdf5.read_asoh_transient_estimates` reads the mean estimates for
+the transient state and aSOH as objects ready for use in a :class:`~moirae.model.base.CellModel`
+
+Functions to such as :meth:`~moirae.interface.hdf5.read_state_estimates_to_df`
+read the data to a Pandas DataFrame.
+Options change whether to read the standard deviation or any part of the covariance matrix into memory.
+
+.. code-block:: python
+
+    # Reads the mean and standard deviation for every state variable, and the covariance
+    #  between hysteresis and state of charge.
+    df = read_state_estimates_to_df(h5_path, read_std=True, read_cov=[('hyst', 'soc')])
