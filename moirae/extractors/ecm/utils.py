@@ -26,14 +26,19 @@ def compute_I_RCs(total_current: np.ndarray,
     # We really only care about the differences in time
     delta_t = np.diff(timestamps)
 
-    # Now, we will "Euler-step" the current, assumig constant values between timestamps, using
-    # dq_c / dt = I_T - (q_C / tau)
+    # Now, we will use an implicit "Euler-step", assumig constant values between timestamps.
+    # The main equation we wish to solve is
+    # dq_C / dt = I_T - (q_C / tau)
+    # Organizing it in an implicit way: q_C^(t+1) = q_C^(t) + dt * (I_T^(t+1) - (q_C^(t+1)/tau))
+    # gives q_C^(t+1) = (q_C^(t) + dt * I_T^(t+1)) / (1 + dt/tau)
+
     # Array to keep values of q_C and taus
     qcs = np.array(qc0s).flatten()
     taus = np.array(tau_values).flatten()
     # Step
-    for dt, curr in zip(delta_t, total_current[:-1]):
-        qcs_dot = curr - (qcs / taus)
-        qcs = qcs + (dt * qcs_dot)
+    for dt, curr in zip(delta_t, total_current[1:]):
+        # qcs_dot = curr - (qcs / taus)
+        # qcs = qcs + (dt * qcs_dot)
+        qcs = (qcs + (dt * curr)) / (1 + (dt / taus))
 
     return qcs / taus
