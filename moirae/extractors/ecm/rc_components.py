@@ -145,7 +145,7 @@ class RCExtractor(BaseExtractor):
                 # transform trace A/T parameters into RC parameters
                 params_rc = params_fit.copy()
                 for i_rc in range(self.n_rc):
-                    params_rc[2 * i_rc] /= rest['Iprev']  # R = A/Iprev
+                    params_rc[2 * i_rc] /= np.abs(np.mean(rest['Iprev']['current']))  # R = A/Iprev
                     params_rc[2 * i_rc + 1] /= params_fit[2 * i_rc]  # C = T/R
 
                     RCs[f'R{i_rc + 1}'].append(params_rc[2 * i_rc])
@@ -210,8 +210,10 @@ class RCExtractor(BaseExtractor):
                              'time': prev_time}
                     step_data = pd.concat(
                         [step_data_prev.iloc[-2:], step_data])
+                else:
+                    Iprev = {'current': np.nan, 'time': np.nan}
             else:
-                Iprev = np.nan
+                Iprev = {'current': np.nan, 'time': np.nan}
 
             # find the state (charging or discharging) of the previous step
             if 'charging' in step_data['state'].values:
