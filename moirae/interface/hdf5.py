@@ -210,7 +210,6 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
 def _open_estimates_hdf5(data_path: Union[str, Path, tb.Group]) -> tb.Group:
     """Access the group storing state estimates in an HDF file,
     regardless of whether someone passes a path or an already-open file"""
-    file = None
     if isinstance(data_path, (str, Path)):
         with tb.open_file(data_path, mode='r') as file:
             try:
@@ -309,6 +308,84 @@ def read_asoh_transient_estimates(data_path: Union[str, Path, tb.Group],
             yield time, asoh_template.make_copy(mean[None, num_tran:]), tran_template.make_copy(mean[None, :])
 
 
+def _read_to_df(
+        se_group: tb.Group,
+        read_state: bool = True,
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Utility method for reading either the state or outputs to a DataFrame
+
+    Args:
+        se_group: Table holding state estimates
+        read_state: Whether to read the state (``True``) or outputs (``False``)
+        per_timestep: Whether to read each timestep (``True``) or once per cycle (``False``)
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs
+
+    Returns:
+        Pandas dataframe of the requested data
+    """
+    data = defaultdict(list)
+
+    # Determine the list of covariances to read
+    #  Produce a list the column numbers associated with each
+    cov_to_read: list[tuple[int, int]] = []
+    content = 'state_names' if read_state else 'output_names'
+    names = se_group._v_attrs[content]
+
+    if isinstance(read_cov, bool):
+        if read_cov:
+            cov_to_read = list(combinations(range(len(names)), 2))
+    elif isinstance(read_cov, Collection):
+        # Check that all names in are in the state names
+        all_names = set()
+        for req_names in read_cov:
+            all_names.update(req_names)
+        unknown_names = all_names.difference(names)
+        if len(unknown_names) > 0:
+            raise ValueError(f'Covariance requests asks for terms not defined in names: {", ".join(unknown_names)}')
+
+        for st1, st2 in read_cov:
+            cov_to_read.append((
+                names.index(st1),
+                names.index(st2)
+            ))
+    else:
+        raise ValueError(f'Unrecognized argument type for `read_cov`: {type(read_cov)}')
+
+    # Read them
+    for time, state, output in read_state_estimates(se_group, per_timestep):
+        data['time'].append(time)
+
+        # Decide whether to read state or outputs
+        row = state if read_state else output
+
+        # Record means
+        means = row.get_mean()
+        for name, value in zip(names, means):
+            data[f'mean_{name}'].append(value)
+
+        # Record stds, if desired
+        cov = None
+        if read_std or len(cov_to_read) > 0:
+            cov = row.get_covariance()
+        if read_std:
+            stds = np.sqrt(np.diag(cov))
+            for name, value in zip(names, stds):
+                data[f'std_{name}'].append(value)
+
+        # Record covariances
+        for id1, id2 in cov_to_read:
+            name_1, name_2 = names[id1], names[id2]
+            data[f'cov_({name_1},{name_2})'].append(cov[id1, id2])
+
+    return pd.DataFrame(data)
+
+
 def read_state_estimates_to_df(
         data_path: Union[str, Path, tb.Group],
         per_timestep: bool = True,
@@ -337,56 +414,30 @@ def read_state_estimates_to_df(
     Returns:
         A pandas dataframe with the requested data
     """
-
-    # Gather the column names
     with _open_estimates_hdf5(data_path) as se_group:
-        data = defaultdict(list)
+        return _read_to_df(se_group, True, per_timestep, read_std, read_cov)
 
-        # Determine the list of covariances to read
-        #  Produce a list the column numbers associated with each
-        cov_to_read: list[tuple[int, int]] = []
-        state_names = se_group._v_attrs['state_names']
-        if isinstance(read_cov, bool):
-            if read_cov:
-                cov_to_read = list(combinations(range(len(state_names)), 2))
-        elif isinstance(read_cov, Collection):
-            # Check that all names in are in the state names
-            all_names = set()
-            for names in read_cov:
-                all_names.update(names)
-            unknown_names = all_names.difference(state_names)
-            if len(unknown_names) > 0:
-                raise ValueError(f'Covariance requests asks for terms not defined in names: {", ".join(unknown_names)}')
 
-            for st1, st2 in read_cov:
-                cov_to_read.append((
-                    state_names.index(st1),
-                    state_names.index(st2)
-                ))
-        else:
-            raise ValueError(f'Unrecognized argument type for `read_cov`: {type(read_cov)}')
+def read_outputs_to_df(
+        data_path: Union[str, Path, tb.Group],
+        per_timestep: bool = True,
+        read_std: bool = True,
+        read_cov: bool | Collection[tuple[str, str]] = False
+) -> pd.DataFrame:
+    """
+    Read output estimates from the file into a single Pandas DataFrame
 
-        # Read them
-        for time, state, _ in read_state_estimates(se_group, per_timestep):
-            data['time'].append(time)
+    Column name convention is the same as :meth:`read_state_estimates_to_df`.
 
-            # Record means
-            means = state.get_mean()
-            for name, value in zip(state_names, means):
-                data[f'mean_{name}'].append(value)
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+        per_timestep: Whether to read per-timestep rather than per-cycle estimates
+        read_std: Whether to read the standard deviations of each variable
+        read_cov: Which subset of covariances to read. Either none (``False``),
+            all (``True``), or only a subset provided in a list of pairs
 
-            # Record stds, if desired
-            cov = None
-            if read_std or len(cov_to_read) > 0:
-                cov = state.get_covariance()
-            if read_std:
-                stds = np.sqrt(np.diag(cov))
-                for name, value in zip(state_names, stds):
-                    data[f'std_{name}'].append(value)
-
-            # Record covariances
-            for id1, id2 in cov_to_read:
-                name_1, name_2 = state_names[id1], state_names[id2]
-                data[f'cov_({name_1},{name_2})'].append(cov[id1, id2])
-
-    return pd.DataFrame(data)
+    Returns:
+        A pandas dataframe with the requested data
+    """
+    with _open_estimates_hdf5(data_path) as se_group:
+        return _read_to_df(se_group, False, per_timestep, read_std, read_cov)

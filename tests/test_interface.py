@@ -8,7 +8,7 @@ from moirae.estimators.online.filters.distributions import MultivariateGaussian,
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
 from moirae.interface.hdf5 import (
-    HDF5Writer, read_state_estimates, read_asoh_transient_estimates, read_state_estimates_to_df
+    HDF5Writer, read_state_estimates, read_asoh_transient_estimates, read_state_estimates_to_df, read_outputs_to_df
 )
 from moirae.models.ecm import EquivalentCircuitModel
 
@@ -285,6 +285,12 @@ def test_h5_read_df(simple_rint, tmpdir):
     # Make sure it fails with an unknown variable
     with raises(ValueError, match=': asdf'):
         read_state_estimates_to_df(h5_path, read_std=False, read_cov=[('hyst', 'asdf')])
+
+    # Read the outputs instead
+    df = read_outputs_to_df(h5_path, read_std=True, read_cov=True)
+    assert df.shape == (2, 1 + 1 + 1 + 0)  # Time, 1 mean and std col, no cov
+    assert 'std_terminal_voltage' in df.columns
+    assert np.allclose(df['mean_terminal_voltage'], 0.)
 
 
 def test_h5_open_from_group(simple_rint, tmpdir):
