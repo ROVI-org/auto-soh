@@ -104,6 +104,7 @@ The attributes stored by Moirae include:
 - ``state_names``: Names of the states in the order provided in estimates
 - ``output_names``: Names of the outputs in the order provided by the estimator
 - ``estimator_name``: The name of the `estimator framework <estimators/index.html#online-estimators>`_ employed
+- ``estimator_pkl``: The estimator stored in pickle-serialized format. The estimator state is that from the first timestep
 - ``distribution_type``: The type of `probability distribution <source/online.html#module-moirae.estimators.online.filters.distributions>`_ used by the estimator
 - ``cell_model``: Name of the `model used to describe cell behavior <system-models.html#defining-the-cell-physics>`_
 - ``initial_asoh``: Initial estimate of the cell health parameters
