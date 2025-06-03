@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import Tuple
+from pathlib import Path
 
 from pytest import fixture
 from battdat.data import BatteryDataset
@@ -222,3 +223,9 @@ def timeseries_dataset_hppc_rc(ecm_rc) -> BatteryDataset:
 
 def test_timeseries_dataset_hppc_rc(timeseries_dataset_hppc_rc):
     timeseries_dataset_hppc_rc.validate()
+
+
+@fixture()
+def realistic_rpt_data() -> BatteryDataset:
+    file_path = Path(__file__).parent / 'single_RPT.h5'
+    return BatteryDataset.from_hdf(path_or_buf=file_path, tables=['raw_data'])

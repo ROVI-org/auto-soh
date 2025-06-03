@@ -50,3 +50,33 @@ def test_full(rc_dataset, rc_extractor):
         print(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1])
         assert np.isclose(rcs[ii].get_value(0.)[0], unrealistic_fake_rc(0.)[ii][0].item(), atol=1e-3)
         assert np.isclose(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1].item(), atol=5e2)
+
+
+def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
+    """
+    Function that tests the RC extractor on a more realistic HPPC profile from synthetic data representative of an
+    LFP cell
+    """
+    # Get data
+    raw_data = realistic_rpt_data.tables['raw_data']
+
+    # The capacity of this cell is 30 Amp-hour
+    capacity = 30
+
+    # Now, let's use the RC extractor on the HPPC data, which corresponds to the second cycle (the first one was the
+    # low C-rate capacity check)
+    hppc_data = raw_data[raw_data['cycle_number'] == 2]
+    # In this synthetic data, only one RC component is present. The cycle starts at 100% SOC, as it is a discharge HPPC
+    rc_ext = RCExtractor(capacity=capacity,
+                         starting_soc=1.0,
+                         soc_points=1,
+                         n_rc=1)
+    rc_comp = rc_ext.extract_from_raw(data=hppc_data)
+
+    # The resistance should be 1.5e-03 Ohms, and the capacitance, 2.0e+05 Farads
+    expected_r = 1.5e-03
+    expected_c = 2.0e+05
+    assert np.allclose(rc_comp[0].r.base_values, expected_r, rtol=0.05), \
+        f'Wrong resistance base values: {rc_comp[0].r.base_values}'
+    assert np.allclose(rc_comp[0].c.base_values, expected_c, rtol=0.05), \
+        f'Wrong capacitance base values: {rc_comp[0].c.base_values}'
