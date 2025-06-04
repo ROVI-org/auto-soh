@@ -36,7 +36,6 @@ def test_spline_fit(rc_dataset, rc_extractor):
     for ii in range(2):
 
         Rdiff = f'R{ii} max diff: {np.abs(rc_points[ii][0] - expected_rc[ii][0]).max():.2e}'
-        print(rc_points[ii][0])
         assert np.allclose(rc_points[ii][0], expected_rc[ii][0], atol=1e-3), Rdiff
 
         Cdiff = f'C{ii} max diff: {np.abs(rc_points[ii][1] - expected_rc[ii][1]).max():.2e}'
@@ -47,7 +46,6 @@ def test_full(rc_dataset, rc_extractor):
     rcs = rc_extractor.extract(rc_dataset)
 
     for ii in range(2):
-        print(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1])
         assert np.isclose(rcs[ii].get_value(0.)[0], unrealistic_fake_rc(0.)[ii][0].item(), atol=1e-3)
         assert np.isclose(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1].item(), atol=5e2)
 
