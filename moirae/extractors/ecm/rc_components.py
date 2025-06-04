@@ -155,9 +155,9 @@ class RCExtractor(BaseExtractor):
                                            timestamps=rest['Iprev']['time'],
                                            tau_values=tau).item()
                     # Update parameters
-                    resitance = params_rc[2 * i_rc] / abs(i_r_rc)  # R = A/Iprev
-                    params_rc[2 * i_rc] = resitance
-                    params_rc[2 * i_rc + 1] = tau / resitance  # C = T/R
+                    resistance = params_rc[2 * i_rc] / abs(i_r_rc)  # R = A/Iprev
+                    params_rc[2 * i_rc] = resistance
+                    params_rc[2 * i_rc + 1] = tau / resistance  # C = T/R
 
                     RCs[f'R{i_rc + 1}'].append(params_rc[2 * i_rc])
                     RCs[f'C{i_rc + 1}'].append(params_rc[2 * i_rc + 1])
