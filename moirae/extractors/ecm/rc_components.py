@@ -39,12 +39,14 @@ class RCExtractor(BaseExtractor):
 
     Args:
         capacity: Best estimate for capacity of the cell (Amp-hours)
+        starting_soc: Best estimate for SOC at the beginning of cycle
         soc_points: SOC points at which to extract R0 or (``int``) number of
         grid points.
         soc_requirement: Require that dataset samples at least this fraction
         of the capacity
         n_rc: Number of RC couples in the ECM
         min_rest: Minimum required rest duration in seconds
+        min_dur_prev: Minimum duration (in seconds) of the step that precedes the rest(s). Defaults to 1 minute
         max_rest_I: Maximum current expected during a rest period (Amps)
     """
 
