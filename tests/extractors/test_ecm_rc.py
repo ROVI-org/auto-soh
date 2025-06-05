@@ -3,7 +3,7 @@ from pytest import fixture, raises
 import numpy as np
 
 from battdat.postprocess.integral import StateOfCharge
-from moirae.extractors.ecm import RCExtractor
+from moirae.extractors.ecm import MaxCapacityExtractor, RCExtractor
 from moirae.models.ecm.utils import unrealistic_fake_rc
 
 
@@ -59,13 +59,17 @@ def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
     raw_data = realistic_rpt_data.tables['raw_data']
 
     # The capacity of this cell is 30 Amp-hour
-    capacity = 30
+    ground_truth_capacity = 30
+    capacity_check = raw_data[raw_data['protocol'] == b'Capacity Check']
+    extracted_capacity = MaxCapacityExtractor().extract_from_raw(data=capacity_check)
+    assert np.allclose(extracted_capacity.amp_hour, ground_truth_capacity, rtol=0.01), \
+        f'Wrong capacity! Expected {ground_truth_capacity}, extracted {extracted_capacity.amp_hour}'
 
     # Now, let's use the RC extractor on the HPPC data, which corresponds to the second cycle (the first one was the
     # low C-rate capacity check)
-    hppc_data = raw_data[raw_data['cycle_number'] == 2]
+    hppc_data = raw_data[raw_data['protocol'] == b'Full HPPC']
     # In this synthetic data, only one RC component is present. The cycle starts at 100% SOC, as it is a discharge HPPC
-    rc_ext = RCExtractor(capacity=capacity,
+    rc_ext = RCExtractor(capacity=extracted_capacity,
                          starting_soc=1.0,
                          soc_points=1,
                          n_rc=1)
