@@ -25,5 +25,5 @@ class MaxCapacityExtractor(BaseExtractor):
         if cycle_stats is None or 'capacity_charge' not in cycle_stats:
             cycle_stats = CapacityPerCycle().compute_features(data)
 
-        max_q = cycle_stats['capacity_charge'].max()
+        max_q = cycle_stats['max_cycled_capacity'].max()
         return MaxTheoreticalCapacity(base_values=max_q)
