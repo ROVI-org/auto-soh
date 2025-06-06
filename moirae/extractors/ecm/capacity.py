@@ -22,8 +22,8 @@ class MaxCapacityExtractor(BaseExtractor):
     def extract(self, data: BatteryDataset) -> MaxTheoreticalCapacity:
         # Access or compute cycle-level capacity
         cycle_stats = data.tables.get('cycle_stats')
-        if cycle_stats is None or 'capacity_charge' not in cycle_stats:
+        if cycle_stats is None or 'max_cycled_capacity' not in cycle_stats:
             cycle_stats = CapacityPerCycle().compute_features(data)
 
-        max_q = cycle_stats['capacity_charge'].max()
+        max_q = cycle_stats['max_cycled_capacity'].max()
         return MaxTheoreticalCapacity(base_values=max_q)
