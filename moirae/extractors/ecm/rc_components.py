@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from scipy.interpolate import LSQUnivariateSpline
+from scipy.interpolate import interp1d
 from scipy.optimize import differential_evolution
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
@@ -124,7 +124,7 @@ class RCExtractor(BaseExtractor):
             RCs[f'R{i_rc + 1}'] = []
             RCs[f'C{i_rc + 1}'] = []
 
-        for rest in rests:
+        for i, rest in enumerate(rests):
 
             if self.n_rc > 0:
 
@@ -159,22 +159,28 @@ class RCExtractor(BaseExtractor):
                     # Update parameters
                     resistance = params_rc[2 * i_rc] / abs(i_r_rc)  # R = A/Iprev
                     params_rc[2 * i_rc] = resistance
-                    params_rc[2 * i_rc + 1] = tau / resistance  # C = T/R
+                    capacitance = tau / resistance  # C = T/R
+                    params_rc[2 * i_rc + 1] = capacitance
 
                     RCs[f'R{i_rc + 1}'].append(params_rc[2 * i_rc])
                     RCs[f'C{i_rc + 1}'].append(params_rc[2 * i_rc + 1])
 
-        # Evaluate the smoothing spline for each element of each RC pair
-        t = self.soc_points[1:-1]
-
         splines_eval = []
+        # Find the indices that sort the SOC values
+        soc_idx = np.argsort(RCs['soc'], )
         for i_rc in range(self.n_rc):
-            Rspl = LSQUnivariateSpline(RCs['soc'], RCs[f'R{i_rc + 1}'], t=t, k=1)
-            Cspl = LSQUnivariateSpline(RCs['soc'], RCs[f'C{i_rc + 1}'], t=t, k=1)
+            # Get the values at the lowest and largest SOC
+            r_low = RCs[f'R{i_rc + 1}'][soc_idx[0]]
+            c_low = RCs[f'C{i_rc + 1}'][soc_idx[0]]
+            r_high = RCs[f'R{i_rc + 1}'][soc_idx[-1]]
+            c_high = RCs[f'C{i_rc + 1}'][soc_idx[-1]]
+            # Create interpolation
+            Rint = interp1d(x=RCs['soc'], y=RCs[f'R{i_rc + 1}'], bounds_error=False, fill_value=(r_low, r_high))
+            Cint = interp1d(x=RCs['soc'], y=RCs[f'C{i_rc + 1}'], bounds_error=False, fill_value=(c_low, c_high))
 
             splines_eval.append(
-                (Rspl(self.soc_points),
-                 Cspl(self.soc_points)))
+                (Rint(self.soc_points),
+                 Cint(self.soc_points)))
 
         return splines_eval
 
