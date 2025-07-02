@@ -131,7 +131,7 @@ class HDF5Writer(BaseModel, AbstractContextManager, arbitrary_types_allowed=True
         self._group_handle._v_attrs['state_names'] = estimator.state_names
         self._group_handle._v_attrs['output_names'] = estimator.output_names
         self._group_handle._v_attrs['estimator_name'] = estimator.__class__.__name__
-        self._group_handle._v_attrs['estimator_pkl'] = pkl.dumps(estimator)
+        self._file_handle.create_array(self._group_handle, 'estimator_pkl', pkl.dumps(estimator))
         self._group_handle._v_attrs['distribution_type'] = estimator.state.__class__.__name__
         self._group_handle._v_attrs['cell_model'] = estimator.cell_model.__class__.__name__
         self._group_handle._v_attrs['initial_asoh'] = estimator.asoh.model_dump_json()
@@ -503,3 +503,21 @@ def read_to_df(
         state_df = read_state_estimates_to_df(se_group, per_timestep, read_std, state_cov)
         output_df = read_outputs_to_df(se_group, per_timestep, read_std, output_cov)
         return pd.concat([state_df, output_df.drop(columns='time')], axis=1)
+
+
+def read_online_estimator(data_path: Union[str, Path, tb.Group]) -> OnlineEstimator:
+    """
+    Reads the online estimator from a file
+
+    Column name convention is the same as :meth:`read_state_estimates_to_df`.
+
+    Args:
+        data_path: Path to the HDF5 file or the group holding state estimates from an already-open file.
+
+    Returns:
+        The estimator used to perform the stored estimates
+    """
+    with _open_estimates_hdf5(data_path) as se_group:
+        estimator = pkl.loads(se_group.estimator_pkl.read())
+
+    return estimator
