@@ -1,4 +1,5 @@
 from pathlib import Path
+import pickle as pkl
 
 from pytest import mark, raises
 import tables as tb
@@ -9,7 +10,8 @@ from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_online_estimate, run_model
 from moirae.interface.hdf5 import (
     HDF5Writer, read_state_estimates, read_asoh_transient_estimates,
-    read_state_estimates_to_df, read_outputs_to_df, read_to_df
+    read_state_estimates_to_df, read_outputs_to_df, read_to_df,
+    read_online_estimator
 )
 from moirae.models.ecm import EquivalentCircuitModel
 
@@ -96,7 +98,7 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         assert all(x in group._v_attrs for x in ['write_settings', 'estimator_name'])
 
         # Check that the estimator is stored properly
-        estimator_copy = group._v_attrs['estimator_pkl']
+        estimator_copy = pkl.loads(group.estimator_pkl.read())
         assert isinstance(estimator_copy, estimator.__class__)
 
         # Verify the types of data
@@ -116,6 +118,24 @@ def test_hdf5_writer_init(simple_rint, tmpdir):
         mean = per_ts[0]['state_mean']
         assert np.allclose(mean[:2], rint_transient.to_numpy())
         assert np.isclose(mean[-1], rint_asoh.r0.base_values.item())
+
+
+def test_read_estimator(simple_rint, tmpdir):
+    rint_asoh, rint_transient, rint_inputs, ecm = simple_rint
+    rint_asoh.mark_updatable('r0.base_values')
+    estimator = make_joint_ukf(rint_asoh, rint_transient, rint_inputs)
+    rint_outputs = ecm.calculate_terminal_voltage(rint_inputs, rint_transient, rint_asoh)
+    output_dist = DeltaDistribution(mean=rint_outputs.to_numpy()[0, :])
+
+    # Test with a resizable dataset
+    h5_path = Path(tmpdir / 'example.h5')
+    with HDF5Writer(hdf5_output=h5_path) as writer:
+        assert writer.is_ready
+        writer.prepare(estimator)
+        writer.append_step(0., 0, estimator.state, output_dist)
+
+    estimator_copy = read_online_estimator(data_path=h5_path)
+    assert isinstance(estimator_copy, estimator.__class__)
 
 
 def _make_simple_hf_estimates(simple_rint, what, tmpdir):
