@@ -4,7 +4,7 @@ Defines functionality for R0 extraction
 import numpy as np
 import pandas as pd
 
-from scipy.interpolate import LSQUnivariateSpline
+from scipy.interpolate import interp1d
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 
@@ -121,9 +121,8 @@ class R0Extractor(BaseExtractor):
         # Evaluate the smoothing spline
         x_data = top_r0['soc'].values
         y_data = top_r0['r0_inst'].values
-        t = self.soc_points[1:-1]
 
-        spline = LSQUnivariateSpline(x_data, y_data, t=t, k=1)
+        spline = interp1d(x=x_data, y=y_data, bounds_error=False, fill_value=(y_data[0], y_data[-1]))
         return spline(self.soc_points)
 
     def extract(self, dataset: BatteryDataset) -> Resistance:
