@@ -1,7 +1,7 @@
 """Get the maximum capacity of a cell"""
 import numpy as np
 
-from moirae.extractors.ecm import MaxCapacityExtractor
+from moirae.estimators.offline.extractors.ecm import MaxCapacityExtractor
 
 
 def test_max_qt(timeseries_dataset):

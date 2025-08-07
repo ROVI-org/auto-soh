@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from pytest import fixture
 
-from moirae.extractors.ecm.utils import compute_I_RCs
+from moirae.estimators.offline.extractors.ecm.utils import compute_I_RCs
 
 
 @fixture

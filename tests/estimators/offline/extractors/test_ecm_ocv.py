@@ -3,7 +3,7 @@ from battdat.postprocess.integral import StateOfCharge
 from pytest import fixture, raises
 import numpy as np
 
-from moirae.extractors.ecm import OCVExtractor
+from moirae.estimators.offline.extractors.ecm import OCVExtractor
 from moirae.models.ecm.utils import realistic_fake_ocv
 
 

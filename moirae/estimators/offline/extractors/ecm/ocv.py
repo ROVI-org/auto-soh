@@ -8,7 +8,7 @@ from sklearn.isotonic import IsotonicRegression
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 
-from moirae.extractors.base import BaseExtractor
+from moirae.estimators.offline.extractors.base import BaseExtractor
 from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
 
 

@@ -1,4 +1,7 @@
-"""Tools which estimate parameters of battery health and performance after-the-fact."""
+"""
+Tools which estimate parameters of battery health and performance in an offline fashion, that is, after the data has
+been collected, as opposed to as it is collected.
+"""
 from typing import Any
 
 from moirae.estimators.offline.loss import BaseLoss

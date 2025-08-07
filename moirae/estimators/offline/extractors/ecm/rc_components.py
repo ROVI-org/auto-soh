@@ -12,7 +12,7 @@ from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 from battdat.postprocess.tagging import AddSteps, AddState
 
-from moirae.extractors.base import BaseExtractor
+from moirae.estimators.offline.extractors.base import BaseExtractor
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance, Capacitance, RCComponent
 

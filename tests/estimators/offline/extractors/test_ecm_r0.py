@@ -2,7 +2,7 @@
 from pytest import fixture, raises
 import numpy as np
 
-from moirae.extractors.ecm import R0Extractor
+from moirae.estimators.offline.extractors.ecm import R0Extractor
 from moirae.models.ecm.utils import unrealistic_fake_r0
 
 
