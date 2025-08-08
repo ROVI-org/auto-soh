@@ -49,7 +49,7 @@ class CapacityDataChecker(BaseDataChecker):
                 raise DataCheckError(f"Cycle does not reach lower voltage limit of {min_voltage:1.2f} V!")
             if not np.allclose(raw_data['voltage'].max(), max_voltage, atol=self.voltage_tolerance):
                 raise DataCheckError(f"Cycle does not reach upper voltage limit of {max_voltage:1.2f} V!")
-        
+
         # Now, let's make sure we can find at least one charge and one discharge segments which are slow enough
         if 'state' not in raw_data.columns:
             AddState().enhance(raw_data)
@@ -79,7 +79,7 @@ class CapacityDataChecker(BaseDataChecker):
                     found_valid[i] = candidate
                     if found_valid[i]:
                         break
-        
+
         if not found_valid[0]:
             raise DataCheckError(f"Cycle does not contain a valid charge segment at C/{1./self.max_C_rate:.1f}"
                                  " or lower!")

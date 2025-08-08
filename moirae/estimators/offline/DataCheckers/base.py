@@ -4,6 +4,7 @@ import pandas as pd
 
 from battdat.data import BatteryDataset
 
+
 class DataCheckError(ValueError):
     """
     Custom exception to be used when we encounter issues when checking the provided data for features to extract

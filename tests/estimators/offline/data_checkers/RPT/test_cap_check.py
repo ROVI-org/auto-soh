@@ -2,7 +2,6 @@
 Unit test for the ECM data checkers.
 """
 import pandas as pd
-import numpy as np
 
 from pytest import fixture, raises
 
@@ -61,7 +60,6 @@ def test_capacity_data_checker(capacity_checker, full_cap_check) -> None:
     short_dur = full_cap_check.iloc[:20]
     with raises(DataCheckError, match="Cycle does not contain a valid charge segment at C/1.0 or lower!"):
         capacity_checker.check(short_dur)
-    
+
     # Make sure that it passes with the full data
     capacity_checker.check(full_cap_check)
-    
