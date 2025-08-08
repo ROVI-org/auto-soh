@@ -1,7 +1,7 @@
 """
 Defines necessary scripts for RC extraction
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,7 @@ from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 from battdat.postprocess.tagging import AddSteps, AddState
 
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 from moirae.estimators.offline.extractors.base import BaseExtractor
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance, Capacitance, RCComponent
@@ -321,7 +322,7 @@ class RCExtractor(BaseExtractor):
 
         return err
 
-    def extract(self, dataset: BatteryDataset) -> Tuple[RCComponent, ...]:
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[RCComponent, ...]:
         """Extract an estimate for the RC elements of a cell
 
         Args:
@@ -330,6 +331,8 @@ class RCExtractor(BaseExtractor):
         Returns:
             An tuple of RC instances with the requested SOC interpolation points
         """
+        # Ensure correct object
+        dataset = ensure_battery_dataset(data=data)
 
         # knotsl: list of tuples of interpolated R and C values
         knotsl = self.interpolate_rc(dataset)

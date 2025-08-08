@@ -61,7 +61,7 @@ def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
     # The capacity of this cell is 30 Amp-hour
     ground_truth_capacity = 30
     capacity_check = raw_data[raw_data['protocol'] == b'Capacity Check']
-    extracted_capacity = MaxCapacityExtractor().extract_from_raw(data=capacity_check)
+    extracted_capacity = MaxCapacityExtractor().extract(data=capacity_check)
     assert np.allclose(extracted_capacity.amp_hour, ground_truth_capacity, rtol=0.01), \
         f'Wrong capacity! Expected {ground_truth_capacity}, extracted {extracted_capacity.amp_hour}'
 
@@ -73,7 +73,7 @@ def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
                          starting_soc=1.0,
                          soc_points=1,
                          n_rc=1)
-    rc_comp = rc_ext.extract_from_raw(data=hppc_data)
+    rc_comp = rc_ext.extract(data=hppc_data)
 
     # The resistance should be 1.5e-03 Ohms, and the capacitance, 2.0e+05 Farads
     expected_r = 1.5e-03

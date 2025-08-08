@@ -1,6 +1,8 @@
 """
 Defines OCV extractor
 """
+from typing import Union
+
 import numpy as np
 import pandas as pd
 
@@ -8,6 +10,7 @@ from sklearn.isotonic import IsotonicRegression
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 from moirae.estimators.offline.extractors.base import BaseExtractor
 from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
 
@@ -96,7 +99,7 @@ class OCVExtractor(BaseExtractor):
         model = IsotonicRegression(out_of_bounds='clip').fit(cycle['soc'], cycle['voltage'], sample_weight=w)
         return model.predict(self.soc_points)
 
-    def extract(self, dataset: BatteryDataset) -> OpenCircuitVoltage:
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> OpenCircuitVoltage:
         """Extract an estimate for the OCV of a cell
 
         Args:
@@ -105,6 +108,9 @@ class OCVExtractor(BaseExtractor):
         Returns:
             An OCV instance with the requested SOC interpolation points,
         """
+        # Ensure correct object
+        dataset = ensure_battery_dataset(data=data)
+
         knots = self.interpolate_ocv(dataset.tables['raw_data'])
         return OpenCircuitVoltage(
             ocv_ref=SOCInterpolatedHealth(base_values=knots, soc_pinpoints=self.soc_points,

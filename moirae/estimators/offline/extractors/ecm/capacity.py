@@ -1,10 +1,15 @@
 """
 Defines capacity extractor
 """
+from typing import Union
+
+import pandas as pd
+
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle
 
 from moirae.estimators.offline.extractors.base import BaseExtractor
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 
 
@@ -19,7 +24,10 @@ class MaxCapacityExtractor(BaseExtractor):
         2. Find the maximum capacity over all provided cycles
     """
 
-    def extract(self, data: BatteryDataset) -> MaxTheoreticalCapacity:
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> MaxTheoreticalCapacity:
+        # Ensure correct object
+        data = ensure_battery_dataset(data=data)
+
         # Access or compute cycle-level capacity
         cycle_stats = data.tables.get('cycle_stats')
         if cycle_stats is None or 'max_cycled_capacity' not in cycle_stats:

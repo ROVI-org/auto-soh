@@ -1,6 +1,8 @@
 """
 Defines functionality for R0 extraction
 """
+from typing import Union
+
 import numpy as np
 import pandas as pd
 
@@ -8,6 +10,7 @@ from scipy.interpolate import interp1d
 from battdat.data import BatteryDataset
 from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
 
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 from moirae.estimators.offline.extractors.base import BaseExtractor
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.models.ecm.components import Resistance
@@ -125,7 +128,7 @@ class R0Extractor(BaseExtractor):
         spline = interp1d(x=x_data, y=y_data, bounds_error=False, fill_value=(y_data[0], y_data[-1]))
         return spline(self.soc_points)
 
-    def extract(self, dataset: BatteryDataset) -> Resistance:
+    def extract(self, dataset: Union[pd.DataFrame, BatteryDataset]) -> Resistance:
         """Extract an estimate for the R0 of a cell
 
         Args:
@@ -134,6 +137,8 @@ class R0Extractor(BaseExtractor):
         Returns:
             An R0 instance with the requested SOC interpolation points,
         """
+        # Ensure correct object
+        dataset = ensure_battery_dataset(dataset)
 
         # Compute the capacity integrates if not available
         knots = self.interpolate_r0(dataset.tables['raw_data'])
