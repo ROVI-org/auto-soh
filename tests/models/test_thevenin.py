@@ -3,7 +3,7 @@
 from pytest import mark
 import numpy as np
 
-from moirae.estimators.offline.loss import MeanSquaredLoss
+from moirae.estimators.offline.refiners.loss import MeanSquaredLoss
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_model, run_online_estimate
 from moirae.models.base import OutputQuantities
