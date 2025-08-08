@@ -81,7 +81,9 @@ class CapacityDataChecker(BaseDataChecker):
                         break
         
         if not found_valid[0]:
-            raise DataCheckError(f"Cycle does not contain a valid charge segment at C/{1./self.max_C_rate:.1f} or lower!")
+            raise DataCheckError(f"Cycle does not contain a valid charge segment at C/{1./self.max_C_rate:.1f}"
+                                 " or lower!")
         if not found_valid[1]:
-            raise DataCheckError(f"Cycle does not contain a valid discharge segment at C/{1./self.max_C_rate:.1f} or lower!")
+            raise DataCheckError(f"Cycle does not contain a valid discharge segment at C/{1./self.max_C_rate:.1f}"
+                                 " or lower!")
         return
