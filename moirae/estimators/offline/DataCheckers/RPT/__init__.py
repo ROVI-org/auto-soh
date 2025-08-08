@@ -1,5 +1,5 @@
 """
-Custom data checkers for RPT cycles: capacity check and HPPC
+Data checkers specifically for Rereference Performance Tests (RPT) data.
 """
 from typing import Optional, Union, Tuple
 
@@ -10,8 +10,8 @@ from battdat.data import BatteryDataset
 from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.schemas.column import ChargingState
 
-from moirae.estimators.offline.extractors.base import BaseDataChecker, DataCheckError
-from moirae.estimators.offline.extractors.utils import ensure_battery_dataset
+from moirae.estimators.offline.DataCheckers.base import BaseDataChecker, DataCheckError
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
 class CapacityDataChecker(BaseDataChecker):
