@@ -4,7 +4,7 @@ been collected, as opposed to as it is collected.
 """
 from typing import Any
 
-from moirae.estimators.offline.loss import BaseLoss
+from moirae.estimators.offline.refiners.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
 

@@ -2,7 +2,7 @@ from scipy.stats import norm
 import numpy as np
 
 from pytest import mark
-from moirae.estimators.offline.loss import MeanSquaredLoss, PriorLoss, AdditiveLoss
+from moirae.estimators.offline.refiners.loss import MeanSquaredLoss, PriorLoss, AdditiveLoss
 from moirae.models.ecm import ECMInput, ECMMeasurement
 
 

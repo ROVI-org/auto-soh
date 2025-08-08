@@ -1,8 +1,8 @@
 """Estimate the state of health using SciPy optimizers"""
 from scipy.optimize import differential_evolution, minimize, OptimizeResult, Bounds
 
-from moirae.estimators.offline import OfflineEstimator
-from moirae.estimators.offline.loss import BaseLoss
+from moirae.estimators.offline.refiners import OfflineEstimator
+from moirae.estimators.offline.refiners.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
 

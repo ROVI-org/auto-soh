@@ -1,8 +1,8 @@
 import numpy as np
 from pytest import mark
 
-from moirae.estimators.offline.loss import MeanSquaredLoss
-from moirae.estimators.offline.scipy import ScipyMinimizer, ScipyDifferentialEvolution
+from moirae.estimators.offline.refiners.loss import MeanSquaredLoss
+from moirae.estimators.offline.refiners.scipy import ScipyMinimizer, ScipyDifferentialEvolution
 
 
 @mark.parametrize('state_only', [True, False])
