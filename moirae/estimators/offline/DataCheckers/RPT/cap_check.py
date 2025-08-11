@@ -84,4 +84,3 @@ class CapacityDataChecker(SingleCycleChecker):
         if not found_valid[1]:
             raise DataCheckError(f"Cycle does not contain a valid discharge segment at C/{1./self.max_C_rate:.1f}"
                                  " or lower!")
-        return
