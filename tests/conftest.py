@@ -263,5 +263,5 @@ def realistic_LFP_aSOH() -> ECMASOH:
                        r0=lfp_r0,
                        rc_elements=(lfp_RC1,),
                        h0=lfp_hyst)
-    
+
     return asoh_LFP
