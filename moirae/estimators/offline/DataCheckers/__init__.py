@@ -40,12 +40,13 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     Ensures the cycle provided has covered a sufficiently large range of SOC values.
 
     Args:
-        min_delta_soc: Minimum required SOC change
-        capacity: Assumed cell capacity in Amp-hours; if not provided 
+        capacity: Assumed cell capacity in Amp-hours
+        min_delta_soc: Minimum required SOC change; defaults to 10%
+        
     """
     def __init__(self,
-                 min_delta_soc: float = 0.1,
-                 capacity: Union[float, MaxTheoreticalCapacity] = 1.0,):
+                 capacity: Union[float, MaxTheoreticalCapacity],
+                 min_delta_soc: float = 0.1):
         self.min_delta_soc = min_delta_soc
         self.capacity = capacity
     
@@ -56,7 +57,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     @min_delta_soc.setter
     def min_delta_soc(self, value: float):
         if value < 0 or value > 1:
-            raise ValueError("Minimum SOC change must be in the range (0, 1].")
+            raise ValueError("Minimum SOC change must be in the range [0, 1].")
         self._min_delta_soc = value
     
     @property
@@ -68,9 +69,11 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         if isinstance(value, MaxTheoreticalCapacity):
             self._capacity = value.amp_hour.item()
         elif isinstance(value, (int, float)):
+            if value <= 0:
+                raise ValueError("Capacity must be a positive number!")
             self._capacity = float(value)
         else:
-            raise TypeError("Capacity must be a float or MaxTheoreticalCapacity instance.")
+            raise TypeError("Capacity must be a float or MaxTheoreticalCapacity object!")
 
 
     def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
