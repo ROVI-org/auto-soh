@@ -8,6 +8,14 @@ import pandas as pd
 import numpy as np
 
 from battdat.schemas import BatteryMetadata, BatteryDescription
+
+from moirae.models.ecm.components import (SOCInterpolatedHealth,
+                                          OpenCircuitVoltage,
+                                          HysteresisParameters,
+                                          MaxTheoreticalCapacity,
+                                          Resistance,
+                                          Capacitance,
+                                          RCComponent)
 from moirae.models.ecm import ECMASOH, ECMTransientVector, EquivalentCircuitModel, ECMInput
 from moirae.simulator import Simulator
 
@@ -227,5 +235,32 @@ def test_timeseries_dataset_hppc_rc(timeseries_dataset_hppc_rc):
 
 @fixture()
 def realistic_rpt_data() -> BatteryDataset:
-    file_path = Path(__file__).parent / 'single_RPT.h5'
+    file_path = Path(__file__).parent / 'LFP_single_RPT.h5'
     return BatteryDataset.from_hdf(path_or_buf=file_path, tables=['raw_data'])
+
+@fixture()
+def realistic_LFP_aSOH() -> ECMASOH:
+    """Return a realistic LFP aSOH model"""
+    # OCV
+    lfp_ref = SOCInterpolatedHealth(base_values=[2.35, 3.0, 3.2, 3.25, 3.28, 3.3, 3.31, 3.32, 3.34, 3.35, 3.6],
+                                    soc_pinpoints=[0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.65, 0.7, 0.75, 0.975, 1.0])
+    lfp_ent = SOCInterpolatedHealth(base_values=0.)
+    lfp_ocv = OpenCircuitVoltage(ocv_ref=lfp_ref,
+                                 ocv_ent=lfp_ent)
+    # Hysteresis
+    lfp_hyst = HysteresisParameters(base_values=[0.07, 0.035, 0.035, 0.02, 0.02, 0.01, 0.01],
+                                    soc_pinpoints=[0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 1.0])
+    # Other parameters
+    lfp_qt = MaxTheoreticalCapacity(base_values=30.)
+    lfp_r0 = Resistance(base_values=5.0e-03)
+    lfp_RC1 = RCComponent(r=Resistance(base_values=1.5e-03),
+                          c=Capacitance(base_values=2.0e+05))  # relaxation time of 300 seconds
+    # Full aSOH
+    asoh_LFP = ECMASOH(q_t=lfp_qt,
+                       ce=0.99999,
+                       ocv=lfp_ocv,
+                       r0=lfp_r0,
+                       rc_elements=(lfp_RC1,),
+                       h0=lfp_hyst)
+    
+    return asoh_LFP

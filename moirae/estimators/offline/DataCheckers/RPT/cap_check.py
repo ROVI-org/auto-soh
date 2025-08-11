@@ -7,11 +7,11 @@ from battdat.data import BatteryDataset
 from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.schemas.column import ChargingState
 
-from moirae.estimators.offline.DataCheckers.base import BaseDataChecker, DataCheckError
+from moirae.estimators.offline.DataCheckers import SingleCycleChecker, DataCheckError
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
-class CapacityDataChecker(BaseDataChecker):
+class CapacityDataChecker(SingleCycleChecker):
     """
     Ensures the cycle provided is representative of a capacity check diagnostic cycle, that is, it:
     1. Contains a full charge and discharge, meaning it reaches both upper and lower voltage limits
@@ -34,14 +34,11 @@ class CapacityDataChecker(BaseDataChecker):
         # Ensure we have a BatteryDataset
         data = ensure_battery_dataset(data)
 
-        # Get only raw data
-        raw_data = data.tables.get('raw_data')
-        if raw_data is None:
-            raise DataCheckError("Raw data table not found in dataset!")
+        # Make sure we have a single cycle
+        super().check(data)
 
-        # Ensure a single cycle
-        if len(raw_data['cycel_numer'].unique()) > 1:
-            raise DataCheckError("Multiple cycles found in data! Please provide a single cycle.")
+        # Get raw data
+        raw_data = data.tables.get('raw_data')
 
         # Check if we reach the voltage limits
         if self.voltage_limits is not None:

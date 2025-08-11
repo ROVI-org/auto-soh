@@ -50,7 +50,7 @@ def test_full(rc_dataset, rc_extractor):
         assert np.isclose(rcs[ii].get_value(0.)[1], unrealistic_fake_rc(0.)[ii][1].item(), atol=5e2)
 
 
-def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
+def test_synthetic_realistic_hppc(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """
     Function that tests the RC extractor on a more realistic HPPC profile from synthetic data representative of an
     LFP cell
@@ -59,7 +59,7 @@ def test_synthetic_realistic_hppc(realistic_rpt_data) -> None:
     raw_data = realistic_rpt_data.tables['raw_data']
 
     # The capacity of this cell is 30 Amp-hour
-    ground_truth_capacity = 30
+    ground_truth_capacity = realistic_LFP_aSOH.q_t.amp_hour.item()
     capacity_check = raw_data[raw_data['protocol'] == b'Capacity Check']
     extracted_capacity = MaxCapacityExtractor().extract(data=capacity_check)
     assert np.allclose(extracted_capacity.amp_hour, ground_truth_capacity, rtol=0.01), \
