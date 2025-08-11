@@ -11,9 +11,9 @@ def soc_checker(simple_rint):
 
 
 def test_delta_soc_checker_init_errors():
-    with raises(ValueError, match="Minimum SOC change must be in the range \[0, 1\]."):
+    with raises(ValueError, match="Minimum SOC change must be positive and <= 1."):
         DeltaSOCRangeChecker(capacity=1., min_delta_soc=-0.1)
-    with raises(ValueError, match="Minimum SOC change must be in the range \[0, 1\]."):
+    with raises(ValueError, match="Minimum SOC change must be positive and <= 1."):
         DeltaSOCRangeChecker(capacity=1., min_delta_soc=1.1)
     with raises(ValueError, match="Capacity must be a positive number!"):
         DeltaSOCRangeChecker(capacity=-1.0)

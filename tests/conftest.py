@@ -238,6 +238,7 @@ def realistic_rpt_data() -> BatteryDataset:
     file_path = Path(__file__).parent / 'LFP_single_RPT.h5'
     return BatteryDataset.from_hdf(path_or_buf=file_path, tables=['raw_data'])
 
+
 @fixture()
 def realistic_LFP_aSOH() -> ECMASOH:
     """Return a realistic LFP aSOH model"""

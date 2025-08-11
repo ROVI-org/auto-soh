@@ -1,6 +1,5 @@
-from typing import Optional, Union, Tuple
+from typing import Union
 
-import numpy as np
 import pandas as pd
 
 from battdat.data import BatteryDataset
@@ -50,14 +49,14 @@ class HPPCDataChecker(DeltaSOCRangeChecker):
             AddMethod().enhance(raw_data)
         if 'sub_step_index' not in raw_data.columns:
             AddSubSteps().enhance(raw_data)
-        
+
         # Now, make sure we can find at least `min_pulses`
         pulses = raw_data[raw_data['method'] == 'pulse']
         num_observed_pulses = len(pulses['substep_index'].unique())
         if num_observed_pulses < self.min_pulses:
             raise DataCheckError(f"Cycle contains only {num_observed_pulses} pulses; "
                                  f"expected at least {self.min_pulses}!")
-        
+
         # Check if we have bidirectional pulses if required
         if self.ensure_bidirectional:
             charge_pulses = pulses[pulses['state'] == ChargingState.charging]
