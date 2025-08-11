@@ -71,4 +71,3 @@ class HPPCDataChecker(DeltaSOCRangeChecker):
             if abs(num_charge_pulses - num_discharge_pulses) > 1:
                 raise DataCheckError(f"Found {num_charge_pulses} charge and {num_discharge_pulses} discharge pulses; "
                                      f"HPPC is not bi-directional!")
-        

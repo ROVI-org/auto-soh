@@ -41,7 +41,6 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     Args:
         capacity: Assumed cell capacity in Amp-hours
         min_delta_soc: Minimum required SOC change; defaults to 10%
-        
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
@@ -53,6 +52,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     def min_delta_soc(self) -> float:
         """Minimum required SOC change"""
         return self._min_delta_soc
+
     @min_delta_soc.setter
     def min_delta_soc(self, value: float):
         if value < 0 or value > 1:
@@ -63,6 +63,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     def capacity(self) -> float:
         """Assumed cell capacity in Amp-hours"""
         return self._capacity
+
     @capacity.setter
     def capacity(self, value: Union[float, MaxTheoreticalCapacity]):
         if isinstance(value, MaxTheoreticalCapacity):
@@ -79,7 +80,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         data = ensure_battery_dataset(data)
 
         # Check for single cycle
-        super().check(data)       
+        super().check(data)
 
         if data.tables.get('cycle_stats') is None or 'max_cycled_capacity' not in data.tables['cycle_stats'].columns:
             CapacityPerCycle().add_summaries(data)
