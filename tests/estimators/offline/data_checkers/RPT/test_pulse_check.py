@@ -57,8 +57,8 @@ def test_pulse_checker_pass(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     # Create a checker with reasonable parameters
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
                                min_delta_soc=0.99,
-                                 min_pulses=20,
-                                 ensure_bidirectional=True)
+                               min_pulses=20,
+                               ensure_bidirectional=True)
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']

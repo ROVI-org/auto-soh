@@ -1,9 +1,5 @@
 from pytest import raises
 
-from battdat.postprocess.tagging import AddState, AddSteps, AddMethod, AddSubSteps
-from battdat.postprocess.integral import StateOfCharge
-from battdat.schemas.column import ChargingState
-
 from moirae.estimators.offline.DataCheckers import DataCheckError
 from moirae.estimators.offline.DataCheckers.RPT import RestDataChecker
 
@@ -40,8 +36,8 @@ def test_unsatisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
                                         min_delta_soc=0.1,
                                         min_number_of_rests=300)
     check_long_rests = RestDataChecker(capacity=realistic_LFP_aSOH.q_t,
-                                        min_delta_soc=0.1,
-                                        min_rest_duration=3600 * 10.)
+                                       min_delta_soc=0.1,
+                                       min_rest_duration=3600 * 10.)
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
@@ -51,7 +47,7 @@ def test_unsatisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     message = "Cycle contains only 12 rest periods of at least 600.0 seconds; expected at least 300!"
     with raises(DataCheckError, match=message):
         checke_many_rests.check(data=hppc)
-    
+
     # Now, check long rests
     message = "Cycle contains only 0 rest periods of at least 36000.0 seconds; expected at least 1!"
     with raises(DataCheckError, match=message):

@@ -190,7 +190,7 @@ class RestDataChecker(DeltaSOCRangeChecker):
             duration = group['test_time'].iloc[-1] - group['test_time'].iloc[0]
             if duration >= self.min_rest_duration:
                 rest_periods.append(group)
-        
+
         if len(rest_periods) < self.min_rests:
             raise DataCheckError(f"Cycle contains only {len(rest_periods)} rest periods of at least "
                                  f"{self.min_rest_duration:.1f} seconds; expected at least {self.min_rests:d}!")
