@@ -8,7 +8,7 @@ from moirae.estimators.offline.DataCheckers import DataCheckError
 from moirae.estimators.offline.DataCheckers.RPT import PulseDataChecker
 
 
-def test_hppc_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
+def test_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if the number of pulses is below the minimum"""
     # Create unreasonable checker expecting 300 pulses
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
@@ -19,11 +19,11 @@ def test_hppc_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     raw_rpt = realistic_rpt_data.tables['raw_data']
     hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
 
-    with raises(ValueError, match="Cycle contains only 20 pulses; expected at least 300!"):
+    with raises(DataCheckError, match="Cycle contains only 20 pulses; expected at least 300!"):
         checker.check(data=hppc)
 
 
-def test_hppc_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
+def test_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if bidirectional pulses are not present"""
     # Create unreasonable checker expecting at least one charge and one discharge pulse
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
@@ -52,7 +52,7 @@ def test_hppc_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> No
         checker.check(data=hppc[hppc['substep_index'] <= 14])
 
 
-def test_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
+def test_pulse_checker_pass(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test the HPPCDataChecker with a valid HPPC cycle"""
     # Create a checker with reasonable parameters
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
