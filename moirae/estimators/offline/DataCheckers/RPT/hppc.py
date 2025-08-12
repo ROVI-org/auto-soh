@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Union
 
 import pandas as pd
 
@@ -13,7 +13,8 @@ from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 class PulseDataChecker(DeltaSOCRangeChecker):
     """
-    Ensures the cycle provided is representative of a Hybrid Pulse Power Characterization (HPPC) diagnostic cycle
+    Ensures the cycle provided is representative of a Hybrid Pulse Power Characterization (HPPC) diagnostic cycle, that
+    is, it contains a sufficient number of pulses and covers a sufficient SOC range.
 
     Args:
         capacity: Assumed cell capacity in Amp-hours
@@ -30,7 +31,23 @@ class PulseDataChecker(DeltaSOCRangeChecker):
         self.min_pulses = min_pulses
         self.ensure_bidirectional = ensure_bidirectional
 
-    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
+    def check(self,
+              data: Union[pd.DataFrame, BatteryDataset],
+              extract: bool = False) -> Union[None, List[pd.DataFrame]]:
+        """
+        Verify whether data contains pulses
+
+        Args:
+            data: Data to be evaluated
+            extract: flag to indicate if pulses should be returned as a list of DataFrames for further processing;
+                defaults to False
+
+        Raises:
+            (DataCheckError) If the dataset is missing critical information
+
+        Returns:
+            If `extract` is True, returns a list of DataFrames containing the pulses; otherwise, returns None
+        """
         # Ensure we have a BatteryDataset
         data = ensure_battery_dataset(data)
 
@@ -71,3 +88,7 @@ class PulseDataChecker(DeltaSOCRangeChecker):
             if abs(num_charge_pulses - num_discharge_pulses) > 1:
                 raise DataCheckError(f"Found {num_charge_pulses} charge and {num_discharge_pulses} discharge pulses; "
                                      f"HPPC is not bi-directional!")
+
+        # Return pulses if requested
+        if extract:
+            return [group[1] for group in pulses.groupby('substep_index')]

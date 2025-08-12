@@ -65,4 +65,4 @@ def test_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
 
     # Check that it passes without errors
-    checker.check(data=hppc)
+    assert len(checker.check(data=hppc, extract=True)) == 20, 'Expected 20 pulses to be extracted from the HPPC data!'
