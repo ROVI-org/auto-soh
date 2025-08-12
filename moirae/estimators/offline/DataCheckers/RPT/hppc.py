@@ -11,7 +11,7 @@ from moirae.estimators.offline.DataCheckers import DeltaSOCRangeChecker, DataChe
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
-class HPPCDataChecker(DeltaSOCRangeChecker):
+class PulseDataChecker(DeltaSOCRangeChecker):
     """
     Ensures the cycle provided is representative of a Hybrid Pulse Power Characterization (HPPC) diagnostic cycle
 

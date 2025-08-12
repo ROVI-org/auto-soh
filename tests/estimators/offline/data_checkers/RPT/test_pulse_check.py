@@ -5,15 +5,15 @@ from battdat.postprocess.integral import StateOfCharge
 from battdat.schemas.column import ChargingState
 
 from moirae.estimators.offline.DataCheckers import DataCheckError
-from moirae.estimators.offline.DataCheckers.RPT import HPPCDataChecker
+from moirae.estimators.offline.DataCheckers.RPT import PulseDataChecker
 
 
 def test_hppc_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if the number of pulses is below the minimum"""
     # Create unreasonable checker expecting 300 pulses
-    checker = HPPCDataChecker(capacity=realistic_LFP_aSOH.q_t,
-                              min_delta_soc=0.1,
-                              min_pulses=300)
+    checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               min_delta_soc=0.1,
+                               min_pulses=300)
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
@@ -26,10 +26,10 @@ def test_hppc_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
 def test_hppc_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if bidirectional pulses are not present"""
     # Create unreasonable checker expecting at least one charge and one discharge pulse
-    checker = HPPCDataChecker(capacity=realistic_LFP_aSOH.q_t,
-                              min_delta_soc=0.1,
-                              min_pulses=1,
-                              ensure_bidirectional=True)
+    checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               min_delta_soc=0.1,
+                               min_pulses=1,
+                               ensure_bidirectional=True)
 
     # Process raw data
     raw_rpt = realistic_rpt_data.tables['raw_data']
@@ -55,10 +55,10 @@ def test_hppc_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> No
 def test_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test the HPPCDataChecker with a valid HPPC cycle"""
     # Create a checker with reasonable parameters
-    checker = HPPCDataChecker(capacity=realistic_LFP_aSOH.q_t,
-                              min_delta_soc=0.99,
-                              min_pulses=20,
-                              ensure_bidirectional=True)
+    checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               min_delta_soc=0.99,
+                                 min_pulses=20,
+                                 ensure_bidirectional=True)
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
