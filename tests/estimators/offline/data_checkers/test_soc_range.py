@@ -17,6 +17,10 @@ def test_delta_soc_checker_init_errors():
         DeltaSOCRangeChecker(capacity=1., min_delta_soc=1.1)
     with raises(ValueError, match="Capacity must be a positive number!"):
         DeltaSOCRangeChecker(capacity=-1.0)
+    with raises(ValueError, match="Coulombic efficiency must be between 0 and 1."):
+        DeltaSOCRangeChecker(capacity=1., coulombic_efficiency=-0.1)
+    with raises(ValueError, match="Coulombic efficiency must be between 0 and 1."):
+        DeltaSOCRangeChecker(capacity=1., coulombic_efficiency=1.1)
     with raises(TypeError, match="Capacity must be a float or MaxTheoreticalCapacity object!"):
         DeltaSOCRangeChecker(capacity="invalid")
 
@@ -24,7 +28,7 @@ def test_delta_soc_checker_init_errors():
 def test_delta_soc_checker_incomplete(timeseries_dataset, soc_checker):
     # Create incomplete dataset
     raw = timeseries_dataset.tables['raw_data']
-    incomplete = raw[raw['test_time'] <= 905]
+    incomplete = raw[raw['test_time'] <= 904]
 
     with raises(DataCheckError, match="Dataset must sample at least 95.0% of SOC. Only sampled 50.0%."):
         soc_checker.check(data=incomplete)

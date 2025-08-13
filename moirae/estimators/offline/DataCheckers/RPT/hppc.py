@@ -24,10 +24,11 @@ class PulseDataChecker(DeltaSOCRangeChecker):
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
+                 coulombic_efficiency: float = 1.0,
                  min_delta_soc: float = 0.1,
                  min_pulses: int = 1,
                  ensure_bidirectional: bool = True):
-        super().__init__(capacity=capacity, min_delta_soc=min_delta_soc)
+        super().__init__(capacity=capacity, coulombic_efficiency=coulombic_efficiency, min_delta_soc=min_delta_soc)
         self.min_pulses = min_pulses
         self.ensure_bidirectional = ensure_bidirectional
 
@@ -107,11 +108,12 @@ class RestDataChecker(DeltaSOCRangeChecker):
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
+                 coulombic_efficiency: float = 1.0, 
                  min_delta_soc: float = 0.1,
                  min_number_of_rests: int = 1,
                  min_rest_duration: float = 600.,
                  rest_current_threshold: float = 1.0e-04):
-        super().__init__(capacity=capacity, min_delta_soc=min_delta_soc)
+        super().__init__(capacity=capacity, coulombic_efficiency=coulombic_efficiency, min_delta_soc=min_delta_soc)
         self.min_rests = min_number_of_rests
         self.min_rest_duration = min_rest_duration
         self.rest_current_threshold = rest_current_threshold

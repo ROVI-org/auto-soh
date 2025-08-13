@@ -6,7 +6,7 @@ from typing import Union
 import pandas as pd
 
 from battdat.data import BatteryDataset
-from battdat.postprocess.integral import CapacityPerCycle
+from battdat.postprocess.integral import StateOfCharge
 
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.estimators.offline.DataCheckers.base import BaseDataChecker, DataCheckError
@@ -44,9 +44,11 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
+                 coulombic_efficiency: float = 1.0,
                  min_delta_soc: float = 0.1):
         self.min_delta_soc = min_delta_soc
         self.capacity = capacity
+        self.coulombic_efficiency = coulombic_efficiency
 
     @property
     def min_delta_soc(self) -> float:
@@ -75,6 +77,17 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         else:
             raise TypeError("Capacity must be a float or MaxTheoreticalCapacity object!")
 
+    @property
+    def coulombic_efficiency(self) -> float:
+        """Coulombic efficiency of the cell"""
+        return self._ce
+
+    @coulombic_efficiency.setter
+    def coulombic_efficiency(self, value: float):
+        if value < 0 or value > 1:
+            raise ValueError("Coulombic efficiency must be between 0 and 1.")
+        self._ce = value
+
     def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
         # Ensure we have a BatteryDataset
         data = ensure_battery_dataset(data)
@@ -82,11 +95,12 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         # Check for single cycle
         super().check(data)
 
-        if data.tables.get('cycle_stats') is None or 'max_cycled_capacity' not in data.tables['cycle_stats'].columns:
-            CapacityPerCycle().add_summaries(data)
+        # Compute SOC range if needed
+        raw_data = data.tables.get('raw_data')
+        if 'CE_charge' not in raw_data.columns:
+            StateOfCharge(coulombic_efficiency=self._ce).enhance(data=raw_data)
+        sampled_soc_range = (raw_data['CE_charge'].max() - raw_data['CE_charge'].min())/ self._capacity
 
-        # Compute range of SOC values sampled
-        sampled_soc_range = data.tables['cycle_stats']['max_cycled_capacity'].max() / self.capacity
         if sampled_soc_range < self.min_delta_soc:
             raise DataCheckError(f"Dataset must sample at least {self.min_delta_soc * 100:.1f}% of SOC. "
                                  f"Only sampled {sampled_soc_range * 100:.1f}%.")
