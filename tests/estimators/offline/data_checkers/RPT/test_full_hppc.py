@@ -16,7 +16,7 @@ def test_full_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     # Get relevant data
     raw_rpt = realistic_rpt_data.tables.get('raw_data')
     hppc_data = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
-    
+
     # First, extract everything
     pulses, rests = hppc_checker.check(data=hppc_data, extract_pulses=True, extract_rests=True)
     assert len(pulses) == 20, f'Expected 20 pulses, but only {len(pulses)} we found!'
