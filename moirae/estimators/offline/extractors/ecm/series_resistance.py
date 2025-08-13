@@ -93,10 +93,10 @@ class R0Extractor(BaseExtractor):
         """
         # calculate soc throughout cycle
         cycle = cycle.copy(deep=False)
-        if 'cycle_capacity' not in cycle.columns:
+        if 'cycled_charge' not in cycle.columns:
             StateOfCharge().enhance(cycle)
-        cycle['soc'] = (cycle['cycle_capacity'] - cycle['cycle_capacity'].min()) / \
-                       (cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min())
+        cycle['soc'] = (cycle['cycled_charge'] - cycle['cycled_charge'].min()) / \
+                       (cycle['cycled_charge'].max() - cycle['cycled_charge'].min())
 
         # calculate instantanous resistance at all points
         cycle['r0_inst'] = np.abs(
@@ -104,7 +104,7 @@ class R0Extractor(BaseExtractor):
             cycle['current'].diff())
 
         # calculate key quantities to filter R0_inst
-        Inorm = cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min()
+        Inorm = cycle['cycled_charge'].max() - cycle['cycled_charge'].min()
         cycle['dInorm'] = cycle['current'].diff() / Inorm
         cycle['dt'] = cycle['test_time'].diff()
 

@@ -85,10 +85,10 @@ class OCVExtractor(BaseExtractor):
         #  TODO (wardlt): Make whether the cell started as charged (SOC~1) an option
         #   This code assumes the cycle starts with a discharged cell
         cycle = cycle.copy(deep=False)  # We are not editing the data
-        if 'cycle_capacity' not in cycle.columns:
+        if 'cycled_charge' not in cycle.columns:
             StateOfCharge().enhance(cycle)
-        cycle['soc'] = (cycle['cycle_capacity'] - cycle['cycle_capacity'].min()) / \
-                       (cycle['cycle_capacity'].max() - cycle['cycle_capacity'].min())
+        cycle['soc'] = (cycle['cycled_charge'] - cycle['cycled_charge'].min()) / \
+                       (cycle['cycled_charge'].max() - cycle['cycled_charge'].min())
         cycle = cycle.sort_values('soc')
 
         # Assign weights according to current so that low-current values are more important

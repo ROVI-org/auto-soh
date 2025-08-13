@@ -30,7 +30,7 @@ def test_data_check(ocv_dataset, ocv_extractor):
 
 def test_spline_fit(ocv_dataset, ocv_extractor):
     ocv_extractor.soc_points = np.linspace(0, 1, 64)
-    ocv_dataset.raw_data.drop(columns='cycle_capacity')
+    ocv_dataset.raw_data.drop(columns='cycled_charge')
     ocv_points = ocv_extractor.extract(ocv_dataset.tables['raw_data']).ocv_ref.base_values
 
     expected_ocv = realistic_fake_ocv(ocv_extractor.soc_points)

@@ -178,10 +178,6 @@ class RestDataChecker(DeltaSOCRangeChecker):
             AddState(rest_curr_threshold=self.rest_current_threshold).enhance(raw_data)
         if 'step_index' not in raw_data.columns:
             AddSteps().enhance(raw_data)
-        if 'method' not in raw_data.columns:
-            AddMethod().enhance(raw_data)
-        if 'sub_step_index' not in raw_data.columns:
-            AddSubSteps().enhance(raw_data)
 
         # Now, let's find the rest periods
         rest_data = raw_data[raw_data['state'] == ChargingState.rest]

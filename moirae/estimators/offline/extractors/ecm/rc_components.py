@@ -199,9 +199,9 @@ class RCExtractor(BaseExtractor):
 
         cycle = data.tables['raw_data']
         cycle = cycle.copy(deep=False)  # We are not editing the data
-        if 'cycle_capacity' not in cycle.columns:
+        if 'cycled_charge' not in cycle.columns:
             StateOfCharge().enhance(cycle)
-        cycle['soc'] = self.starting_soc + cycle['cycle_capacity'] / self.capacity  # Ensure data are [0, 1)
+        cycle['soc'] = self.starting_soc + cycle['cycled_charge'] / self.capacity  # Ensure data are [0, 1)
 
         if 'state' not in cycle.columns:
             AddState(rest_curr_threshold=self.max_rest_I).enhance(cycle)
