@@ -12,6 +12,7 @@ def test_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if the number of pulses is below the minimum"""
     # Create unreasonable checker expecting 300 pulses
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                                min_delta_soc=0.1,
                                min_pulses=300)
 
@@ -27,6 +28,7 @@ def test_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test that the HPPCDataChecker raises an error if bidirectional pulses are not present"""
     # Create unreasonable checker expecting at least one charge and one discharge pulse
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                                min_delta_soc=0.1,
                                min_pulses=1,
                                ensure_bidirectional=True)
@@ -56,6 +58,7 @@ def test_pulse_checker_pass(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """Test the HPPCDataChecker with a valid HPPC cycle"""
     # Create a checker with reasonable parameters
     checker = PulseDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                               coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                                min_delta_soc=0.99,
                                min_pulses=20,
                                ensure_bidirectional=True)

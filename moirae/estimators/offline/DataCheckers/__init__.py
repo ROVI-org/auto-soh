@@ -40,6 +40,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
 
     Args:
         capacity: Assumed cell capacity in Amp-hours
+        coulombic_efficiency: Assumed Coulombic efficiency of the cell; defaults to 1.0 (100%)
         min_delta_soc: Minimum required SOC change; defaults to 10%
     """
     def __init__(self,

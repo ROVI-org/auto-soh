@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import pandas as pd
 
@@ -18,6 +18,7 @@ class PulseDataChecker(DeltaSOCRangeChecker):
 
     Args:
         capacity: Assumed cell capacity in Amp-hours
+        coulombic_efficiency: Assumed Coulombic efficiency of the cell; defaults to 1.0 (100%)
         min_delta_soc: Minimum required SOC change; defaults to 10%
         min_pulses: Minimum number of pulses (both charge and discharge) required for the cycle to be considered a HPPC
         ensure_bidirectional: If True, ensures that both charge and discharge pulses are present
@@ -101,6 +102,7 @@ class RestDataChecker(DeltaSOCRangeChecker):
 
     Args:
         capacity: Assumed cell capacity in Amp-hours
+        coulombic_efficiency: Assumed Coulombic efficiency of the cell; defaults to 1.0 (100%)
         min_delta_soc: Minimum required SOC change; defaults to 10%
         min_rest_duration: Minimum duration of rest period in seconds; defaults to 600s (10 min)
         min_number_of_rests: Minimum number of rest periods required; defaults to 1
@@ -196,3 +198,76 @@ class RestDataChecker(DeltaSOCRangeChecker):
         # Return rest periods if requested
         if extract:
             return rest_periods
+
+
+class FullHPPCDataChecker():
+    """
+    Ensures the cycle provided contains both pulses and rest periods
+
+    Args:
+        capacity: Assumed cell capacity in Amp-hours
+        coulombic_efficiency: Assumed Coulombic efficiency of the cell; defaults to 1.0 (100%)
+        min_delta_soc: Minimum required SOC change; defaults to 10%
+        min_pulses: Minimum number of pulses (both charge and discharge) required for the cycle to be considered a HPPC
+        ensure_bidirectional: If True, ensures that both charge and discharge pulses are present
+        min_rest_duration: Minimum duration of rest period in seconds; defaults to 600s (10 min)
+        min_number_of_rests: Minimum number of rest periods required; defaults to 1
+        rest_current_threshold: Maximum absolute current to consider as rest; defaults to 1 mA
+    """
+    def __init__(self,
+                 capacity: Union[float, MaxTheoreticalCapacity],
+                 coulombic_efficiency: float = 1.0,
+                 min_delta_soc: float = 0.1,
+                 min_pulses: int = 1,
+                 ensure_bidirectional: bool = True,
+                 min_number_of_rests: int = 1,
+                 min_rest_duration: float = 600.,
+                 rest_current_threshold: float = 1.0e-04
+                 ):
+        self.pulse_checker = PulseDataChecker(capacity=capacity,
+                                              coulombic_efficiency=coulombic_efficiency,
+                                              min_delta_soc=min_delta_soc,
+                                              min_pulses=min_pulses,
+                                              ensure_bidirectional=ensure_bidirectional)
+        self.rest_checker = RestDataChecker(capacity=capacity,
+                                            coulombic_efficiency=coulombic_efficiency,
+                                            min_delta_soc=min_delta_soc,
+                                            min_number_of_rests=min_number_of_rests,
+                                            min_rest_duration=min_rest_duration,
+                                            rest_current_threshold=rest_current_threshold)
+
+    def check(self,
+              data: Union[pd.DataFrame, BatteryDataset],
+              extract_pulses: bool = False,
+              extract_rests: bool = False
+              ) -> Union[None, List[pd.DataFrame], Tuple[List[pd.DataFrame], List[pd.DataFrame]]]:
+        """
+        Verify whether data contains rests of sufficient duration
+
+        Args:
+            data: Data to be evaluated
+            extract_pulses: flag to indicate if pulses should be returned as a list of DataFrames; defaults to False
+            extract_rests: flag to indicate if rests should be returned as a list of DataFrames; defaults to False
+
+        Raises:
+            (DataCheckError) If the dataset is missing critical information
+
+        Returns:
+            None if both `extract` flags are false, a single list if only one `extract` flag is true, or a tuple of
+            pulses and rests if both flags are true
+        """
+        # Ensure we have a BatteryDataset
+        data = ensure_battery_dataset(data)
+
+        # Get pulses
+        pulses = self.pulse_checker.check(data=data, extract=extract_pulses)
+
+        # Get rests
+        rests = self.rest_checker.check(data=data, extract=extract_rests)
+
+        if extract_pulses and extract_rests:
+            return (pulses, rests)
+        if extract_pulses:
+            return pulses
+        if extract_rests:
+            return rests

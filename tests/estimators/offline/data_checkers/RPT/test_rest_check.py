@@ -33,9 +33,11 @@ def test_unsatisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """
     # Create unreasonable checkers expecting 300 rests, or expecting very long rests
     checke_many_rests = RestDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                                        coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                                         min_delta_soc=0.1,
                                         min_number_of_rests=300)
     check_long_rests = RestDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                                       coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                                        min_delta_soc=0.1,
                                        min_rest_duration=3600 * 10.)
 
@@ -60,6 +62,7 @@ def test_satisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     """
     # Create reasonable checkers expecting 1 rest, or expecting 10 min long rests
     checker = RestDataChecker(capacity=realistic_LFP_aSOH.q_t,
+                              coulombic_efficiency=realistic_LFP_aSOH.ce.item(),
                               min_delta_soc=0.99,
                               min_number_of_rests=10,
                               min_rest_duration=1800.,
