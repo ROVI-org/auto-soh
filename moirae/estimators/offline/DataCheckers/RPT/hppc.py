@@ -110,7 +110,7 @@ class RestDataChecker(DeltaSOCRangeChecker):
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
-                 coulombic_efficiency: float = 1.0, 
+                 coulombic_efficiency: float = 1.0,
                  min_delta_soc: float = 0.1,
                  min_number_of_rests: int = 1,
                  min_rest_duration: float = 600.,

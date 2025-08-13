@@ -100,7 +100,7 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         raw_data = data.tables.get('raw_data')
         if 'CE_charge' not in raw_data.columns:
             StateOfCharge(coulombic_efficiency=self._ce).enhance(data=raw_data)
-        sampled_soc_range = (raw_data['CE_charge'].max() - raw_data['CE_charge'].min())/ self._capacity
+        sampled_soc_range = (raw_data['CE_charge'].max() - raw_data['CE_charge'].min()) / self._capacity
 
         if sampled_soc_range < self.min_delta_soc:
             raise DataCheckError(f"Dataset must sample at least {self.min_delta_soc * 100:.1f}% of SOC. "
