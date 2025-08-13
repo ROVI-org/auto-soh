@@ -33,4 +33,3 @@ def test_full_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     # Neither
     neither = hppc_checker.check(data=hppc_data)
     assert neither is None, f'Check returned {type(neither)}!'
-    
