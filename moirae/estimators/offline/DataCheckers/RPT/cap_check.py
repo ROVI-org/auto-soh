@@ -31,11 +31,8 @@ class CapacityDataChecker(SingleCycleChecker):
         self.voltage_tolerance = voltage_tolerance
 
     def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
-        # Ensure we have a BatteryDataset
-        data = ensure_battery_dataset(data)
-
         # Make sure we have a single cycle
-        super().check(data)
+        data = super().check(data)
 
         # Get raw data
         raw_data = data.tables.get('raw_data')
@@ -84,3 +81,5 @@ class CapacityDataChecker(SingleCycleChecker):
         if not found_valid[1]:
             raise DataCheckError(f"Cycle does not contain a valid discharge segment at C/{1./self.max_C_rate:.1f}"
                                  " or lower!")
+
+        return data

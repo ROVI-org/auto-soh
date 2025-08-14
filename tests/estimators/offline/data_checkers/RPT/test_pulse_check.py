@@ -2,7 +2,7 @@ from pytest import raises
 
 from battdat.postprocess.tagging import AddState, AddSteps, AddMethod, AddSubSteps
 from battdat.postprocess.integral import StateOfCharge
-from battdat.schemas.column import ChargingState
+from battdat.schemas.column import ChargingState, ControlMethod
 
 from moirae.estimators.offline.DataCheckers import DataCheckError
 from moirae.estimators.offline.DataCheckers.RPT import PulseDataChecker
@@ -68,4 +68,7 @@ def test_pulse_checker_pass(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
 
     # Check that it passes without errors
-    assert len(checker.check(data=hppc, extract=True)) == 20, 'Expected 20 pulses to be extracted from the HPPC data!'
+    checked_data = checker.check(data=hppc)
+    checked_raw = checked_data.tables.get('raw_data')
+    assert len(checked_raw[checked_raw['method'] == ControlMethod.pulse].groupby('substep_index')) == 20, \
+        'Expected 20 pulses to be extracted from the HPPC data!'

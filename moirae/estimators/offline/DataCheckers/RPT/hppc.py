@@ -4,7 +4,7 @@ import pandas as pd
 
 from battdat.data import BatteryDataset
 from battdat.postprocess.tagging import AddState, AddSteps, AddMethod, AddSubSteps
-from battdat.schemas.column import ChargingState
+from battdat.schemas.column import ChargingState, ControlMethod
 
 from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.estimators.offline.DataCheckers import DeltaSOCRangeChecker, DataCheckError
@@ -34,27 +34,10 @@ class PulseDataChecker(DeltaSOCRangeChecker):
         self.ensure_bidirectional = ensure_bidirectional
 
     def check(self,
-              data: Union[pd.DataFrame, BatteryDataset],
-              extract: bool = False) -> Union[None, List[pd.DataFrame]]:
-        """
-        Verify whether data contains pulses
-
-        Args:
-            data: Data to be evaluated
-            extract: flag to indicate if pulses should be returned as a list of DataFrames for further processing;
-                defaults to False
-
-        Raises:
-            (DataCheckError) If the dataset is missing critical information
-
-        Returns:
-            If `extract` is True, returns a list of DataFrames containing the pulses; otherwise, returns None
-        """
-        # Ensure we have a BatteryDataset
-        data = ensure_battery_dataset(data)
+              data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
 
         # Make sure we have a single cycle and the SOC range is sufficient
-        super().check(data=data)
+        data = super().check(data=data)
 
         # Get only raw data
         raw_data = data.tables.get('raw_data')
@@ -70,7 +53,7 @@ class PulseDataChecker(DeltaSOCRangeChecker):
             AddSubSteps().enhance(raw_data)
 
         # Now, make sure we can find at least `min_pulses`
-        pulses = raw_data[raw_data['method'] == 'pulse']
+        pulses = raw_data[raw_data['method'] == ControlMethod.pulse]
         num_observed_pulses = len(pulses['substep_index'].unique())
         if num_observed_pulses < self.min_pulses:
             raise DataCheckError(f"Cycle contains only {num_observed_pulses} pulses; "
@@ -91,9 +74,10 @@ class PulseDataChecker(DeltaSOCRangeChecker):
                 raise DataCheckError(f"Found {num_charge_pulses} charge and {num_discharge_pulses} discharge pulses; "
                                      f"HPPC is not bi-directional!")
 
-        # Return pulses if requested
-        if extract:
-            return [group[1] for group in pulses.groupby('substep_index')]
+        # Include these modifications back in the data
+        data.tables['raw_data'] = raw_data
+
+        return data
 
 
 class RestDataChecker(DeltaSOCRangeChecker):
@@ -152,27 +136,9 @@ class RestDataChecker(DeltaSOCRangeChecker):
         self._curr_thresh = abs(value)
 
     def check(self,
-              data: Union[pd.DataFrame, BatteryDataset],
-              extract: bool = False) -> Union[None, List[pd.DataFrame]]:
-        """
-        Verify whether data contains rests of sufficient duration
-
-        Args:
-            data: Data to be evaluated
-            extract: flag to indicate if pulses should be returned as a list of DataFrames for further processing;
-                defaults to False
-
-        Raises:
-            (DataCheckError) If the dataset is missing critical information
-
-        Returns:
-            If `extract` is True, returns a list of DataFrames containing the pulses; otherwise, returns None
-        """
-        # Ensure we have a BatteryDataset
-        data = ensure_battery_dataset(data)
-
+              data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Make sure we have a single cycle and the SOC range is sufficient
-        super().check(data=data)
+        data = super().check(data=data)
 
         # Get only raw data
         raw_data = data.tables.get('raw_data')
@@ -195,9 +161,10 @@ class RestDataChecker(DeltaSOCRangeChecker):
             raise DataCheckError(f"Cycle contains only {len(rest_periods)} rest periods of at least "
                                  f"{self.min_rest_duration:.1f} seconds; expected at least {self.min_rests:d}!")
 
-        # Return rest periods if requested
-        if extract:
-            return rest_periods
+        # Include these modifications back in the data
+        data.tables['raw_data'] = raw_data
+
+        return data
 
 
 class FullHPPCDataChecker():
@@ -236,38 +203,14 @@ class FullHPPCDataChecker():
                                             min_rest_duration=min_rest_duration,
                                             rest_current_threshold=rest_current_threshold)
 
-    def check(self,
-              data: Union[pd.DataFrame, BatteryDataset],
-              extract_pulses: bool = False,
-              extract_rests: bool = False
-              ) -> Union[None, List[pd.DataFrame], Tuple[List[pd.DataFrame], List[pd.DataFrame]]]:
-        """
-        Verify whether data contains rests of sufficient duration
-
-        Args:
-            data: Data to be evaluated
-            extract_pulses: flag to indicate if pulses should be returned as a list of DataFrames; defaults to False
-            extract_rests: flag to indicate if rests should be returned as a list of DataFrames; defaults to False
-
-        Raises:
-            (DataCheckError) If the dataset is missing critical information
-
-        Returns:
-            None if both `extract` flags are false, a single list if only one `extract` flag is true, or a tuple of
-            pulses and rests if both flags are true
-        """
+    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Ensure we have a BatteryDataset
         data = ensure_battery_dataset(data)
 
         # Get pulses
-        pulses = self.pulse_checker.check(data=data, extract=extract_pulses)
+        data = self.pulse_checker.check(data=data)
 
         # Get rests
-        rests = self.rest_checker.check(data=data, extract=extract_rests)
+        data = self.rest_checker.check(data=data)
 
-        if extract_pulses and extract_rests:
-            return (pulses, rests)
-        if extract_pulses:
-            return pulses
-        if extract_rests:
-            return rests
+        return data

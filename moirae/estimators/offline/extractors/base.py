@@ -1,17 +1,15 @@
 """Interface for extractors"""
-from typing import Union
+from typing import Dict, Union
 
 import pandas as pd
 
 from battdat.data import BatteryDataset
 
-from moirae.models.base import HealthVariable
-
 
 class BaseExtractor:
     """Base class for tools which determine parameters from special cycles"""
 
-    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> HealthVariable:
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Dict:
         """Determine parameters of a physics model from battery dataset or from raw data, which must follow the format
         defined in `RawData format`_ of battery-data-toolkit RawData, given at
         https://rovi-org.github.io/battery-data-toolkit/user-guide/schemas/column-schema.html#rawdata
@@ -20,6 +18,7 @@ class BaseExtractor:
             data: Data to use for parameter assessment
 
         Returns:
-            Part of the parameter set for a model.
+            Dictionary containing extracted values, units, and, when appropriate, additional information (such as the
+            corresponding SOC levels for reported values)
         """
         raise NotImplementedError()

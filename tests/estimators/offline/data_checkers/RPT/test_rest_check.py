@@ -1,5 +1,7 @@
 from pytest import raises
 
+from battdat.schemas.column import ChargingState
+
 from moirae.estimators.offline.DataCheckers import DataCheckError
 from moirae.estimators.offline.DataCheckers.RPT import RestDataChecker
 
@@ -72,4 +74,12 @@ def test_satisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     raw_rpt = realistic_rpt_data.tables['raw_data']
     hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
 
-    assert len(checker.check(data=hppc, extract=True)) == 12, "Should find 12 valide rests in the cycle"
+    # Make sure it passes
+    checked_data = checker.check(data=hppc)
+    checked_raw = checked_data.tables.get('raw_data')
+    found_rests = 0
+    for _, rest_data in checked_raw[checked_raw['state'] == ChargingState.rest].groupby('step_index'):
+        if rest_data['test_time'].iloc[-1] - rest_data['test_time'].iloc[0] >= 1800:
+            found_rests += 1
+
+    assert found_rests == 12, f'Should find 12 valide rests in the cycle, instead, encountered {found_rests}'

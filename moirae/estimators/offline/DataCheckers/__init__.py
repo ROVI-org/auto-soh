@@ -33,6 +33,8 @@ class SingleCycleChecker(BaseDataChecker):
         if len(raw_data['cycle_number'].unique()) > 1:
             raise DataCheckError("Multiple cycles found in data! Please provide a single cycle.")
 
+        return data
+
 
 class DeltaSOCRangeChecker(SingleCycleChecker):
     """
@@ -89,12 +91,9 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
             raise ValueError("Coulombic efficiency must be between 0 and 1.")
         self._ce = value
 
-    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
-        # Ensure we have a BatteryDataset
-        data = ensure_battery_dataset(data)
-
+    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Check for single cycle
-        super().check(data)
+        data = super().check(data)
 
         # Compute SOC range if needed
         raw_data = data.tables.get('raw_data')
@@ -105,3 +104,8 @@ class DeltaSOCRangeChecker(SingleCycleChecker):
         if sampled_soc_range < self.min_delta_soc:
             raise DataCheckError(f"Dataset must sample at least {self.min_delta_soc * 100:.1f}% of SOC. "
                                  f"Only sampled {sampled_soc_range * 100:.1f}%.")
+
+        # Include these modifications back in the data
+        data.tables['raw_data'] = raw_data
+
+        return data

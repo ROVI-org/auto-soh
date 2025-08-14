@@ -1,3 +1,5 @@
+from battdat.schemas.column import ChargingState, ControlMethod
+
 from moirae.estimators.offline.DataCheckers.RPT import FullHPPCDataChecker
 
 
@@ -17,19 +19,9 @@ def test_full_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     raw_rpt = realistic_rpt_data.tables.get('raw_data')
     hppc_data = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
 
-    # First, extract everything
-    pulses, rests = hppc_checker.check(data=hppc_data, extract_pulses=True, extract_rests=True)
-    assert len(pulses) == 20, f'Expected 20 pulses, but only {len(pulses)} we found!'
-    assert len(rests) == 12, f'Expected 12 rest periods, but only {len(rests)} we found!'
+    # Make sure it works
+    checked_data = hppc_checker.check(data=hppc_data)
+    checked_raw = checked_data.tables.get('raw_data')
+    pulses = checked_raw[checked_raw['method'] == ControlMethod.pulse]
 
-    # Only pulses
-    pulses = hppc_checker.check(data=hppc_data, extract_pulses=True, extract_rests=False)
-    assert len(pulses) == 20, f'Expected 20 pulses, but only {len(pulses)} we found!'
-
-    # Only rests
-    rests = hppc_checker.check(data=hppc_data, extract_pulses=False, extract_rests=True)
-    assert len(rests) == 12, f'Expected 12 pulses, but only {len(rests)} we found!'
-
-    # Neither
-    neither = hppc_checker.check(data=hppc_data)
-    assert neither is None, f'Check returned {type(neither)}!'
+    assert len(pulses.groupby('substep_index')) == 20, f'Expected 20 pulses, but only {len(pulses)} we found!'

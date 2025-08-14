@@ -1,3 +1,4 @@
 """
-Model-specific algorithms for quickly extracting parameters from informative parts of time series data
+Model-specific algorithms for quickly extracting parameters from time series data corresponding to diagnostic cycles,
+such as capacity checks, HPPC tests, and EIS.
 """

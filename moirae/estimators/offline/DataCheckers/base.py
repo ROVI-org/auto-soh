@@ -4,6 +4,8 @@ import pandas as pd
 
 from battdat.data import BatteryDataset
 
+from .utils import ensure_battery_dataset
+
 
 class DataCheckError(ValueError):
     """
@@ -18,13 +20,17 @@ class BaseDataChecker():
     Base class for tools to check if data being used is appropriate for extractors
     """
 
-    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
+    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         """
         Verify whether data contains features needed for algorithm
 
         Args:
             data: Data to be evaluated
+
         Raises:
             (DataCheckError) If the dataset is missing critical information
+
+        Returns:
+            corresponding `BatteryDataset` object if data is appropriate; can include additional processing
         """
-        pass  # Default: all data is valid
+        return ensure_battery_dataset(data=data)  # Default: all data is valid
