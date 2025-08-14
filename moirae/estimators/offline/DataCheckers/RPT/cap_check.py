@@ -29,6 +29,14 @@ class CapacityDataChecker(SingleCycleChecker):
         self.max_C_rate = max_C_rate
         self.voltage_tolerance = voltage_tolerance
 
+    @property
+    def c_rate_str(self) -> str:
+        if self.max_C_rate >= 1:
+            c_rate = f'{self.max_C_rate:.1f}C'
+        else:
+            c_rate = f'C/{1./self.max_C_rate:.1f}'
+        return c_rate
+
     def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Make sure we have a single cycle
         data = super().check(data)
@@ -75,10 +83,10 @@ class CapacityDataChecker(SingleCycleChecker):
                         break
 
         if not found_valid[0]:
-            raise DataCheckError(f"Cycle does not contain a valid charge segment at C/{1./self.max_C_rate:.1f}"
+            raise DataCheckError(f"Cycle does not contain a valid charge segment at {self.c_rate_str}"
                                  " or lower!")
         if not found_valid[1]:
-            raise DataCheckError(f"Cycle does not contain a valid discharge segment at C/{1./self.max_C_rate:.1f}"
+            raise DataCheckError(f"Cycle does not contain a valid discharge segment at {self.c_rate_str}"
                                  " or lower!")
 
         return data
