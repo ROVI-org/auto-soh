@@ -1,4 +1,4 @@
-from battdat.schemas.column import ChargingState, ControlMethod
+from battdat.schemas.column import ControlMethod
 
 from moirae.estimators.offline.DataCheckers.RPT import FullHPPCDataChecker
 

@@ -8,7 +8,6 @@ from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.schemas.column import ChargingState
 
 from moirae.estimators.offline.DataCheckers import SingleCycleChecker, DataCheckError
-from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
 class CapacityDataChecker(SingleCycleChecker):
