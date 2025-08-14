@@ -1,12 +1,12 @@
 """
 Collection of extractors specific for ECM models
 """
-from .capacity import MaxCapacityExtractor
+from .capacity import MaxCapacityCoulEffExtractor
 from .ocv import OCVExtractor
 from .series_resistance import R0Extractor
 from .rc_components import RCExtractor
 
-__all__ = ['MaxCapacityExtractor',
+__all__ = ['MaxCapacityCoulEffExtractor',
            'OCVExtractor',
            'R0Extractor',
            'RCExtractor']

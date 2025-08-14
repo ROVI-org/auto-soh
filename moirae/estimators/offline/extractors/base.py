@@ -1,15 +1,32 @@
 """Interface for extractors"""
-from typing import Dict, Union
+from typing import Dict, List, TypedDict, Union
 
+import numpy as np
 import pandas as pd
 
 from battdat.data import BatteryDataset
 
 
-class BaseExtractor:
-    """Base class for tools which determine parameters from special cycles"""
+class ExtractedParameter(TypedDict):
+    """
+    Defines how extracted parameters are reported
 
-    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Dict:
+    Args:
+        value: extracted values
+        units: unit of measurement for values
+        soc_level: SOC level for values, if appropriate
+    """
+    value: Union[float, np.ndarray, List]
+    units: str
+    soc_level: Union[List, np.ndarray]
+
+
+class BaseExtractor:
+    """
+    Base class for tools which determine parameters from special cycles
+    """
+
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> ExtractedParameter:
         """Determine parameters of a physics model from battery dataset or from raw data, which must follow the format
         defined in `RawData format`_ of battery-data-toolkit RawData, given at
         https://rovi-org.github.io/battery-data-toolkit/user-guide/schemas/column-schema.html#rawdata

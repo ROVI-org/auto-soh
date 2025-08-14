@@ -29,7 +29,7 @@ class CapacityDataChecker(SingleCycleChecker):
         self.max_C_rate = max_C_rate
         self.voltage_tolerance = voltage_tolerance
 
-    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> None:
+    def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Make sure we have a single cycle
         data = super().check(data)
 
