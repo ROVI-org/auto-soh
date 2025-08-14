@@ -9,13 +9,9 @@ from scipy.integrate import trapezoid
 
 from battdat.data import BatteryDataset
 from battdat.schemas.column import ChargingState
-from battdat.postprocess.integral import CapacityPerCycle
 
-
-from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.extractors.base import BaseExtractor, ExtractedParameter
-from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
 class MaxCapacityCoulEffExtractor(BaseExtractor):
@@ -83,9 +79,9 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
 
         # Sort by longest duration
         for i in range(2):
-            valid_segments[i].sort(key= lambda x: x['duration'],
+            valid_segments[i].sort(key=lambda x: x['duration'],
                                    reverse=True)
-        
+
         # Now, we can compute the maximum discharge capacity, as well as the Coulombic efficiency
         q_t = valid_segments[0][0]['cycled_charge'] / 3600.  # Convert to Amp-hours
         ce = valid_segments[0][0]['cycled_charge'] / valid_segments[1][0]['cycled_charge']

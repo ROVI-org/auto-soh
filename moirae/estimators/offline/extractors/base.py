@@ -1,5 +1,5 @@
 """Interface for extractors"""
-from typing import Dict, List, TypedDict, Union
+from typing import List, TypedDict, Union
 
 import numpy as np
 import pandas as pd
