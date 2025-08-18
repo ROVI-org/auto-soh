@@ -1,7 +1,7 @@
 """
 Defines capacity extractor
 """
-from typing import Tuple, Union
+from typing import Dict, List, Tuple, TypedDict, Union
 from warnings import warn
 
 import pandas as pd
@@ -14,6 +14,31 @@ from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.extractors.base import BaseExtractor, ExtractedParameter
 
 
+class ValidSlowFullDoDSegment(TypedDict):
+    """
+    Auxiliary dictionary to contain information about valid segments that cover 100% depth-of-discharge (DoD) and are
+    slow enough for capacity extraction.
+
+    Args:
+        cycled_charge: total amount of charge (in Amp-seconds) cycled during the segment (as observed by the cycler)
+        duration: total duration (in seconds) of the segment
+    """
+    cycled_charge: float
+    duration: float
+
+
+class ChargeDischargeSegs(TypedDict):
+    """
+    Auxiliary class to store the valid charge and discharge segments of a given cycle.
+
+    Args:
+        charge: charge segment(s)
+        discharge: discharge segment(s)
+    """
+    charge: Union[ValidSlowFullDoDSegment, List[ValidSlowFullDoDSegment]]
+    discharge: Union[ValidSlowFullDoDSegment, List[ValidSlowFullDoDSegment]]
+
+
 class MaxCapacityCoulEffExtractor(BaseExtractor):
     """
     Estimates the maximum discharge capacity of a battery from a low C-rate 100% DoD cycle
@@ -23,7 +48,17 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
     """
     def __init__(self,
                  data_checker: CapacityDataChecker = CapacityDataChecker()) -> None:
-        self._data_checker = data_checker
+        self.data_checker = data_checker
+
+    @property
+    def data_checker(self) -> CapacityDataChecker:
+        return self._data_checker
+
+    @data_checker.setter
+    def data_checker(self, checker: CapacityDataChecker) -> None:
+        if not isinstance(checker, CapacityDataChecker):
+            raise TypeError('Data checker must be a CapacityDataChecker object!')
+        self._data_checker = checker
 
     @property
     def voltage_limits(self) -> Union[Tuple[float, float], None]:
@@ -46,9 +81,18 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
         """
         return 3600. / self._data_checker.max_C_rate
 
-    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
-        # Check data
-        data = self._data_checker.check(data=data)
+    def get_all_valid_segments(self, data: BatteryDataset) -> ChargeDischargeSegs:
+        """
+        Function that returns all charge and discharge segments that meet the criteria established by the voltage limits
+        and by the maximum C-rate. Assumes the data to have already been checked.
+
+        Args:
+            data: dataset that satisfied the data checker conditions
+
+        Returns:
+            dictionary of discharge and charge segments
+        """
+        # Get raw data
         raw_data = data.tables.get('raw_data')
 
         # Find charge and discharge segments that spans voltage range
@@ -77,14 +121,52 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
                     cycled_charge = trapezoid(y=step_data['current'], x=step_data['test_time'])
                     valid_segments[i].append({'cycled_charge': abs(cycled_charge), 'duration': duration})
 
-        # Sort by longest duration
-        for i in range(2):
-            valid_segments[i].sort(key=lambda x: x['duration'],
-                                   reverse=True)
+        # Assemble return dictionary
+        info_dict = ChargeDischargeSegs(discharge=valid_segments[0],
+                                        charge=valid_segments[1])
+
+        return info_dict
+
+    def get_best_valid_segments(self, data: BatteryDataset) -> ChargeDischargeSegs:
+        """
+        Function that returns longest charge and discharge segments that meet the criteria established by the voltage
+        limits and by the maximum C-rate. Assumes the data to have already been checked.
+
+        Args:
+            data: dataset that satisfied the data checker conditions
+
+        Returns:
+            dictionary of discharge and charge segments
+        """
+        # Get all the valid segments
+        segments = self.get_all_valid_segments(data=data)
+
+        # Get the longest of each segment
+        longest_segs = {}
+        for state, segs in segments.items():
+            max_dur = -1.  # All durations are positive, so any negative number for initialization is fine
+            best_segment = None
+            for seg_info in segs:
+                if seg_info['duration'] > max_dur:
+                    max_dur = seg_info['duration']
+                    best_segment = seg_info.copy()
+            longest_segs[state] = best_segment
+
+        return longest_segs
+
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
+        # Check data
+        data = self._data_checker.check(data=data)
+        raw_data = data.tables.get('raw_data')
+
+        # Get the longest of each charge and discharge segments
+        segments = self.get_best_valid_segments(data=data)
+        dis_segment = segments['discharge']
+        chg_segment = segments['charge']
 
         # Now, we can compute the maximum discharge capacity, as well as the Coulombic efficiency
-        q_t = valid_segments[0][0]['cycled_charge'] / 3600.  # Convert to Amp-hours
-        ce = valid_segments[0][0]['cycled_charge'] / valid_segments[1][0]['cycled_charge']
+        q_t = dis_segment['cycled_charge'] / 3600.  # Convert to Amp-hours
+        ce = dis_segment['cycled_charge'] / chg_segment['cycled_charge']
 
         if ce > 1.:
             warn(f'Computed Coulombic Efficiency of {100 * ce:1.1f} % > 100%! '
