@@ -58,8 +58,20 @@ def test_capacity_data_checker(capacity_checker, full_cap_check) -> None:
 
     # Test duration
     short_dur = full_cap_check.iloc[:20]
-    with raises(DataCheckError, match="Cycle does not contain a valid charge segment at C/1.0 or lower!"):
+    with raises(DataCheckError, match="Cycle does not contain a valid charge segment at 1.0C or lower!"):
         capacity_checker.check(short_dur)
 
     # Make sure that it passes with the full data
     capacity_checker.check(full_cap_check)
+
+
+def test_cap_check_realistic(realistic_rpt_data) -> None:
+    """
+    Test the capacity checker with a realistic (though simulated) data
+    """
+    # Get relevant cycles
+    raw_rpt = realistic_rpt_data.tables.get('raw_data')
+    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
+
+    # Make sure it works fine
+    CapacityDataChecker().check(data=cap_check)

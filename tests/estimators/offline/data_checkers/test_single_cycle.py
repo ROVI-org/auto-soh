@@ -10,8 +10,8 @@ def test_single_cycle_checker(realistic_rpt_data):
 
     # Get raw data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    hppc_data = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
-    cap_check = raw_rpt[raw_rpt['protocol'] == b'Capacity Check']
+    hppc_data = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
+    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
 
     # Should pass on single cycle data
     checker.check(data=hppc_data)

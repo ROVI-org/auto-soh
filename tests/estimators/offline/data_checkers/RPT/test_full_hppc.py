@@ -17,7 +17,7 @@ def test_full_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
                                        rest_current_threshold=1.0e-04)
     # Get relevant data
     raw_rpt = realistic_rpt_data.tables.get('raw_data')
-    hppc_data = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc_data = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     # Make sure it works
     checked_data = hppc_checker.check(data=hppc_data)

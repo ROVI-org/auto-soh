@@ -18,7 +18,7 @@ def test_min_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     with raises(DataCheckError, match="Cycle contains only 20 pulses; expected at least 300!"):
         checker.check(data=hppc)
@@ -42,7 +42,7 @@ def test_bidirectional_pulses(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     StateOfCharge().enhance(raw_rpt)
 
     # Get HPPC data
-    hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     with raises(DataCheckError, match="No charge pulses found in the cycle!"):
         checker.check(data=hppc[hppc['state'] == ChargingState.discharging])
@@ -65,7 +65,7 @@ def test_pulse_checker_pass(realistic_rpt_data, realistic_LFP_aSOH) -> None:
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     # Check that it passes without errors
     checked_data = checker.check(data=hppc)

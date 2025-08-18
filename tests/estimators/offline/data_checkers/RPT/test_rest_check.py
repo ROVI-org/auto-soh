@@ -45,7 +45,7 @@ def test_unsatisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     # Start with many rests
     message = "Cycle contains only 12 rest periods of at least 600.0 seconds; expected at least 300!"
@@ -72,7 +72,7 @@ def test_satisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
 
     # Get HPPC data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    hppc = raw_rpt[raw_rpt['protocol'] == b'Full HPPC']
+    hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     # Make sure it passes
     checked_data = checker.check(data=hppc)

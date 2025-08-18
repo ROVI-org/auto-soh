@@ -37,7 +37,7 @@ def test_delta_soc_checker_incomplete(timeseries_dataset, soc_checker):
 def test_delta_soc_checker(realistic_rpt_data, soc_checker):
     # Get raw data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    cap_check = raw_rpt[raw_rpt['protocol'] == b'Capacity Check']
+    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
 
     # Should pass on single cycle data
     soc_checker.check(data=cap_check)

@@ -7,7 +7,7 @@ from moirae.estimators.offline.extractors.ecm import MaxCapacityCoulEffExtractor
 def test_max_qt(realistic_rpt_data, realistic_LFP_aSOH):
     # Get the capacity check part of the data
     raw_rpt = realistic_rpt_data.tables.get('raw_data')
-    cap_check = raw_rpt[raw_rpt['protocol'] == b'Capacity Check']
+    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
 
     # Get ground truth values
     qt_gt = realistic_LFP_aSOH.q_t.amp_hour.item()
@@ -16,7 +16,7 @@ def test_max_qt(realistic_rpt_data, realistic_LFP_aSOH):
     # Initialize extractor
     extractor = MaxCapacityCoulEffExtractor()
 
-    # Get extracted avlues
+    # Get extracted values
     max_cap_info, ce_info = extractor.extract(data=cap_check)
     max_cap = max_cap_info['value']
     ce_ext = ce_info['value']
