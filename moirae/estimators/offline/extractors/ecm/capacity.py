@@ -8,8 +8,10 @@ import pandas as pd
 from scipy.integrate import trapezoid
 
 from battdat.data import BatteryDataset
+from battdat.postprocess.tagging import AddState
 from battdat.schemas.column import ChargingState
 
+from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.extractors.base import BaseExtractor, ExtractedParameter
 
@@ -81,7 +83,7 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
         """
         return 3600. / self._data_checker.max_C_rate
 
-    def get_all_valid_segments(self, data: BatteryDataset) -> ChargeDischargeSegs:
+    def get_all_valid_segments(self, data: Union[pd.DataFrame, BatteryDataset]) -> ChargeDischargeSegs:
         """
         Function that returns all charge and discharge segments that meet the criteria established by the voltage limits
         and by the maximum C-rate. Assumes the data to have already been checked.
@@ -92,8 +94,13 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
         Returns:
             dictionary of discharge and charge segments
         """
+        # Ensure type
+        data = ensure_battery_dataset(data=data)
+
         # Get raw data
         raw_data = data.tables.get('raw_data')
+        if 'state' not in raw_data.columns:
+            AddState().enhance(data=raw_data)
 
         # Find charge and discharge segments that spans voltage range
         charge_segments = raw_data[raw_data['state'] == ChargingState.charging]
@@ -127,7 +134,7 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
 
         return info_dict
 
-    def get_best_valid_segments(self, data: BatteryDataset) -> ChargeDischargeSegs:
+    def get_best_valid_segments(self, data: Union[pd.DataFrame, BatteryDataset]) -> ChargeDischargeSegs:
         """
         Function that returns longest charge and discharge segments that meet the criteria established by the voltage
         limits and by the maximum C-rate. Assumes the data to have already been checked.
@@ -138,6 +145,9 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
         Returns:
             dictionary of discharge and charge segments
         """
+        # Ensure type
+        data = ensure_battery_dataset(data=data)
+
         # Get all the valid segments
         segments = self.get_all_valid_segments(data=data)
 
@@ -154,10 +164,20 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
 
         return longest_segs
 
-    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
-        # Check data
-        data = self._data_checker.check(data=data)
-        raw_data = data.tables.get('raw_data')
+    def compute_max_capacity_and_CE(self,
+                                    data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
+        """
+        Computes the maximum capacity and Coulombic efficiency from the given data, assuming it has already passed the
+        necessary checks
+
+        Args:
+            data: data to be used
+
+        Returns:
+            maximum discharge capacity and Coulombic efficiency
+        """
+        # Ensure type
+        data = ensure_battery_dataset(data=data)
 
         # Get the longest of each charge and discharge segments
         segments = self.get_best_valid_segments(data=data)
@@ -180,3 +200,10 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
                                       units='',
                                       soc_level=[])
         return capacity, coul_eff
+
+    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
+        # Check data
+        data = self._data_checker.check(data=data)
+        
+        # Compute what is needed
+        return self.compute_max_capacity_and_CE(data=data)
