@@ -164,8 +164,8 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
 
         return longest_segs
 
-    def compute_max_capacity_and_CE(self,
-                                    data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
+    def compute_parameters(self,
+                           data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
         """
         Computes the maximum capacity and Coulombic efficiency from the given data, assuming it has already passed the
         necessary checks
@@ -206,4 +206,4 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
         data = self._data_checker.check(data=data)
         
         # Compute what is needed
-        return self.compute_max_capacity_and_CE(data=data)
+        return self.compute_parameters(data=data)
