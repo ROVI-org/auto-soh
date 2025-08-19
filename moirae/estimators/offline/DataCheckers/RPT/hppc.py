@@ -203,6 +203,33 @@ class FullHPPCDataChecker():
                                             min_rest_duration=min_rest_duration,
                                             rest_current_threshold=rest_current_threshold)
 
+    @property
+    def capacity(self) -> float:
+        return self.pulse_checker.capacity
+
+    @capacity.setter
+    def capacity(self, value: Union[float, MaxTheoreticalCapacity]):
+        self.pulse_checker.capacity = value
+        self.rest_checker.capacity = value
+
+    @property
+    def coulombic_efficiency(self) -> float:
+        return self.rest_checker.coulombic_efficiency
+
+    @coulombic_efficiency.setter
+    def coulombic_efficiency(self, value: float):
+        self.pulse_checker.coulombic_efficiency = value
+        self.rest_checker.coulombic_efficiency = value
+
+    @property
+    def min_delta_soc(self) -> float:
+        return self.rest_checker.min_delta_soc
+
+    @min_delta_soc.setter
+    def min_delta_soc(self, value: float):
+        self.pulse_checker.min_delta_soc = value
+        self.rest_checker.min_delta_soc = value
+
     def check(self, data: Union[pd.DataFrame, BatteryDataset]) -> BatteryDataset:
         # Ensure we have a BatteryDataset
         data = ensure_battery_dataset(data)
