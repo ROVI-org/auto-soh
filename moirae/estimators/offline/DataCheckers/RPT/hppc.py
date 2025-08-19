@@ -49,7 +49,7 @@ class PulseDataChecker(DeltaSOCRangeChecker):
             AddSteps().enhance(raw_data)
         if 'method' not in raw_data.columns:
             AddMethod().enhance(raw_data)
-        if 'sub_step_index' not in raw_data.columns:
+        if 'substep_index' not in raw_data.columns:
             AddSubSteps().enhance(raw_data)
 
         # Now, make sure we can find at least `min_pulses`
