@@ -12,7 +12,7 @@ def test_full_hppc_checker(realistic_rpt_data, realistic_LFP_aSOH) -> None:
                                        min_delta_soc=0.99,
                                        min_pulses=20,
                                        ensure_bidirectional=True,
-                                       min_number_of_rests=12,
+                                       min_number_of_rests=10,
                                        min_rest_duration=900,
                                        rest_current_threshold=1.0e-04)
     # Get relevant data

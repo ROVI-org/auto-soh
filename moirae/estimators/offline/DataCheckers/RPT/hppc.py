@@ -82,13 +82,14 @@ class PulseDataChecker(DeltaSOCRangeChecker):
 
 class RestDataChecker(DeltaSOCRangeChecker):
     """
-    Ensures the cycle provided contains rest period.
+    Ensures the cycle provided contains rest period(s).
 
     Args:
         capacity: Assumed cell capacity in Amp-hours
         coulombic_efficiency: Assumed Coulombic efficiency of the cell; defaults to 1.0 (100%)
         min_delta_soc: Minimum required SOC change; defaults to 10%
         min_rest_duration: Minimum duration of rest period in seconds; defaults to 600s (10 min)
+        min_prev_duration: Minimum duration of the step that precedes a rest; defaults to 300s (5 min)
         min_number_of_rests: Minimum number of rest periods required; defaults to 1
         rest_current_threshold: Maximum absolute current to consider as rest; defaults to 1 mA
     """
@@ -98,10 +99,12 @@ class RestDataChecker(DeltaSOCRangeChecker):
                  min_delta_soc: float = 0.1,
                  min_number_of_rests: int = 1,
                  min_rest_duration: float = 600.,
+                 min_prev_duration: float = 300.,
                  rest_current_threshold: float = 1.0e-04):
         super().__init__(capacity=capacity, coulombic_efficiency=coulombic_efficiency, min_delta_soc=min_delta_soc)
         self.min_rests = min_number_of_rests
         self.min_rest_duration = min_rest_duration
+        self.min_prev_duration = min_prev_duration
         self.rest_current_threshold = rest_current_threshold
 
     @property
@@ -125,6 +128,16 @@ class RestDataChecker(DeltaSOCRangeChecker):
         if value <= 0:
             raise ValueError("Minimum rest duration must be positive!")
         self._min_rest_dur = value
+
+    @property
+    def min_prev_duration(self) -> float:
+        return self._min_prev_dur
+
+    @min_prev_duration.setter
+    def min_prev_duration(self, value: float):
+        if value <= 0:
+            raise ValueError('Minimum duration of step that precedes rest must be positive!')
+        self._min_prev_dur = value
 
     @property
     def rest_current_threshold(self) -> float:
@@ -152,14 +165,23 @@ class RestDataChecker(DeltaSOCRangeChecker):
         # Now, let's find the rest periods
         rest_data = raw_data[raw_data['state'] == ChargingState.rest]
         rest_periods = []
-        for _, group in rest_data.groupby('step_index'):
-            duration = group['test_time'].iloc[-1] - group['test_time'].iloc[0]
-            if duration >= self.min_rest_duration:
-                rest_periods.append(group)
+        for rest_step, rest in rest_data.groupby('step_index'):
+            rest_dur = rest['test_time'].iloc[-1] - rest['test_time'].iloc[0]
+            if rest_dur < self._min_rest_dur:
+                continue
+            # Now, get the previous step
+            prev_step = raw_data[raw_data['step_index'] == rest_step - 1]
+            if len(prev_step) == 0:  # If the first rest is at the very beginning of the cycle
+                continue
+            prev_dur = prev_step['test_time'].iloc[-1] - prev_step['test_time'].iloc[0]
+            if prev_dur >= self._min_prev_dur:
+                rest_periods.append(rest_step)
 
         if len(rest_periods) < self.min_rests:
             raise DataCheckError(f"Cycle contains only {len(rest_periods)} rest periods of at least "
-                                 f"{self.min_rest_duration:.1f} seconds; expected at least {self.min_rests:d}!")
+                                 f"{self.min_rest_duration:.1f} seconds with previous steps lasting at "
+                                 f"least {self._min_prev_dur:.1f} seconds; "
+                                 f"expected at least {self.min_rests:d} rest periods!")
 
         # Include these modifications back in the data
         data.tables['raw_data'] = raw_data
@@ -179,6 +201,7 @@ class FullHPPCDataChecker():
         ensure_bidirectional: If True, ensures that both charge and discharge pulses are present
         min_rest_duration: Minimum duration of rest period in seconds; defaults to 600s (10 min)
         min_number_of_rests: Minimum number of rest periods required; defaults to 1
+        min_rest_prev_dur: Mimimum duration of steps the precede rests; defaults to 300s (5 min)
         rest_current_threshold: Maximum absolute current to consider as rest; defaults to 1 mA
     """
     def __init__(self,
@@ -189,6 +212,7 @@ class FullHPPCDataChecker():
                  ensure_bidirectional: bool = True,
                  min_number_of_rests: int = 1,
                  min_rest_duration: float = 600.,
+                 min_rest_prev_dur: float = 300.,
                  rest_current_threshold: float = 1.0e-04
                  ):
         self.pulse_checker = PulseDataChecker(capacity=capacity,
@@ -201,6 +225,7 @@ class FullHPPCDataChecker():
                                             min_delta_soc=min_delta_soc,
                                             min_number_of_rests=min_number_of_rests,
                                             min_rest_duration=min_rest_duration,
+                                            min_prev_duration=min_rest_prev_dur,
                                             rest_current_threshold=rest_current_threshold)
 
     @property

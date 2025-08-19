@@ -20,9 +20,14 @@ def test_init_errors() -> None:
     # Test negative minimum rest duration
     with raises(ValueError, match="Minimum rest duration must be positive!"):
         RestDataChecker(capacity=10., min_rest_duration=-10.)
-
     with raises(ValueError, match="Minimum rest duration must be positive!"):
         RestDataChecker(capacity=10., min_rest_duration=0.)
+
+    # Test negative previous duration
+    with raises(ValueError, match="Minimum duration of step that precedes rest must be positive!"):
+        RestDataChecker(capacity=10., min_prev_duration=-10.)
+    with raises(ValueError, match="Minimum duration of step that precedes rest must be positive!"):
+        RestDataChecker(capacity=10., min_prev_duration=0.0)
 
     # Make sure current threshold is positive
     rest_checker = RestDataChecker(capacity=10., rest_current_threshold=-1.)
@@ -48,12 +53,14 @@ def test_unsatisfactory_rests(realistic_rpt_data, realistic_LFP_aSOH) -> None:
     hppc = raw_rpt[raw_rpt['protocol'] == 'Full HPPC']
 
     # Start with many rests
-    message = "Cycle contains only 12 rest periods of at least 600.0 seconds; expected at least 300!"
+    message = "Cycle contains only 10 rest periods of at least 600.0 seconds with previous steps lasting at least "
+    message += "300.0 seconds; expected at least 300 rest periods!"
     with raises(DataCheckError, match=message):
         checke_many_rests.check(data=hppc)
 
     # Now, check long rests
-    message = "Cycle contains only 0 rest periods of at least 36000.0 seconds; expected at least 1!"
+    message = "Cycle contains only 0 rest periods of at least 36000.0 seconds with previous steps lasting at least "
+    message += "300.0 seconds; expected at least 1 rest periods!"
     with raises(DataCheckError, match=message):
         check_long_rests.check(data=hppc)
 
