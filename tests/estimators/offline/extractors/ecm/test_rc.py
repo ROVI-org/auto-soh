@@ -2,8 +2,6 @@
 from pytest import fixture, raises
 import numpy as np
 
-from battdat.postprocess.integral import StateOfCharge
-
 from moirae.estimators.offline.DataCheckers.base import DataCheckError
 from moirae.estimators.offline.extractors.ecm import MaxCapacityCoulEffExtractor, RCExtractor
 from moirae.models.ecm.utils import unrealistic_fake_rc

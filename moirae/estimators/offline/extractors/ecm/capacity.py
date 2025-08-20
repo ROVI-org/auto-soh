@@ -1,7 +1,7 @@
 """
 Defines capacity extractor
 """
-from typing import Dict, List, Tuple, TypedDict, Union
+from typing import List, Tuple, TypedDict, Union
 from warnings import warn
 
 import pandas as pd
@@ -204,6 +204,6 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
     def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> Tuple[ExtractedParameter, ExtractedParameter]:
         # Check data
         data = self._data_checker.check(data=data)
-        
+
         # Compute what is needed
         return self.compute_parameters(data=data)

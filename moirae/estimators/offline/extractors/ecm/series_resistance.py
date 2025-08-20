@@ -26,7 +26,7 @@ def compute_r0(raw_data: pd.DataFrame, valid_idx: List[int]) -> List[float]:
 
     Args:
         raw_data: raw battery data, provided as a dataframe
-        valid_idx: list of indices to be used for R0 extraction; assumes current differences to be large 
+        valid_idx: list of indices to be used for R0 extraction; assumes current differences to be large
     """
     # Get the values at the present timestep
     end_voltage = raw_data.loc[valid_idx, 'voltage'].to_numpy()
@@ -45,7 +45,7 @@ def compute_r0(raw_data: pd.DataFrame, valid_idx: List[int]) -> List[float]:
 
     if not np.all(r0_vals > 0.):
         raise ValueError('Negative values of series resistance have been found!')
-    
+
     return r0_vals
 
 
@@ -136,7 +136,7 @@ class R0Extractor(BaseExtractor):
                               min_number_of_rests=min_number_of_rests,
                               min_rest_duration=min_rest_duration,
                               rest_current_threshold=rest_current_threshold)
-        
+
         return R0Extractor(hppc_checker=checker, dt_max=dt_max, dcurr_min=dcurr_min)
 
     def identify_valid_current_changes(self, data: Union[pd.DataFrame, BatteryDataset]) -> List[int]:
@@ -161,7 +161,7 @@ class R0Extractor(BaseExtractor):
 
         # Get valid indices
         valid_idx = np.logical_and(delta_curr, delta_t)
-        valid_idx = valid_idx[valid_idx == True]
+        valid_idx = valid_idx[valid_idx]  # this obtains only the ones that are True
         valid_idx = valid_idx.index.to_list()
 
         if len(valid_idx) == 0:
@@ -210,7 +210,7 @@ class R0Extractor(BaseExtractor):
                            indices: Optional[List[int]] = None,
                            start_soc: float = 0.0) -> ExtractedParameter:
         """
-        Function to compute the parameters to be extracted. 
+        Function to compute the parameters to be extracted.
 
         If a list of indices is provided, it will validate them and use them for computation of R0 values. Otherwise,
         the list will be generated internally.

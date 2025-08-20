@@ -131,7 +131,7 @@ class RCExtractor(BaseExtractor):
                                   min_rest_duration=min_rest_duration,
                                   min_prev_duration=min_prev_duration,
                                   rest_current_threshold=rest_current_threshold)
-        
+
         return RCExtractor(rest_checker=checker)
 
     def identify_rests_steps(self, data: Union[pd.DataFrame, BatteryDataset]) -> List[int]:

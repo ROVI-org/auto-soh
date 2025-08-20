@@ -57,7 +57,7 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
     Returns:
         amplitude and relaxation time parameters for each exponential decay
     """
-    # Let's first prepare the bounds for the parameters. 
+    # Let's first prepare the bounds for the parameters.
     bounds = np.zeros(((2 * n_exp) + 1, 2))
     # Recall the middle third of the parameters are the time constants, which are not observable if smaller than the
     # timestep present
@@ -85,7 +85,7 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
                                         updating='deferred',
                                         vectorized=True,
                                         args=(time, measurements, n_exp))
-    
+
     # Get the best parameters
     params = fit_result.x.copy()
     # Split amplitudes and relaxation times
@@ -135,7 +135,7 @@ def build_sum_exp_decays(params: np.ndarray, time: np.ndarray, n_exp: int) -> np
         amps = amps.reshape((n_exp, 1))
         taus = taus.reshape((n_exp, 1))
         offsets = offsets.reshape((1, 1))
-    
+
     decays = offsets + (amps * np.exp(- t / taus))
 
     # sum over the functions
