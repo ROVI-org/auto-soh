@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from pytest import fixture
 
-from moirae.estimators.offline.extractors.ecm.utils import compute_I_RCs
+from moirae.estimators.offline.extractors.ecm.utils import compute_I_RCs, build_sum_exp_decays, fit_exponential_decays
 
 
 @fixture
@@ -84,3 +84,39 @@ def test_saturation(constant_current_proile) -> None:
                          tau_values=tau,
                          qc0s=qc0)
     assert np.allclose(i_rc, current_mean, rtol=0.001), f'{i_rc} != {current_mean}'
+
+
+def test_exp_decay_fit() -> None:
+    """
+    Tests the ability to fit the exponential decay
+    """
+    # Establish ground truth parameters
+    amps_gt = np.array([10, 5])  # amplitudes
+    taus_gt = np.array([1, 5])  # relaxation times
+    params_gt = np.hstack((amps_gt, taus_gt))
+    # Generate the ground truth function
+    time = np.linspace(1, 11, 1000)
+    func_gt = build_sum_exp_decays(params=params_gt, time=time, n_exp=2)
+    # Add noise
+    rng = np.random.default_rng(seed=1234)
+    noisy = func_gt + rng.normal(scale=0.1, size=len(time))
+    # Fit
+    amps_fit, taus_fit = fit_exponential_decays(time=time, measurements=noisy, n_exp=2)
+    # Recall that fits are returned in ascending order of tau!
+    assert np.allclose(amps_fit, amps_gt, rtol=0.05), f'Fit amplitudes {amps_fit} != ground truth {amps_gt}!'
+    assert np.allclose(taus_fit, taus_gt, rtol=0.05), f'Fit taus {taus_fit} != ground truth {taus_gt}!'
+
+    # Now, make sure it works with negative amplitudes
+    amps_gt = -np.array([10, 5])  # amplitudes
+    taus_gt = np.array([1, 5])  # relaxation times
+    params_gt = np.hstack((amps_gt, taus_gt))
+    # Generate the ground truth function
+    time = np.linspace(1, 11, 1000)
+    func_gt = build_sum_exp_decays(params=params_gt, time=time, n_exp=2)
+    # Add noise
+    noisy = func_gt + rng.normal(scale=0.1, size=len(time))
+    # Fit
+    amps_fit, taus_fit = fit_exponential_decays(time=time, measurements=noisy, n_exp=2)
+    # Recall that fits are returned in ascending order of tau!
+    assert np.allclose(amps_fit, amps_gt, rtol=0.05), f'Fit amplitudes {amps_fit} != ground truth {amps_gt}!'
+    assert np.allclose(taus_fit, taus_gt, rtol=0.05), f'Fit taus {taus_fit} != ground truth {taus_gt}!'
