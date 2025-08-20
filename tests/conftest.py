@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 
 from battdat.schemas import BatteryMetadata, BatteryDescription
+from battdat.schemas.column import ChargingState
 
 from moirae.models.ecm.components import (SOCInterpolatedHealth,
                                           OpenCircuitVoltage,
@@ -158,7 +159,7 @@ def make_dataset_hppc(model_and_params):
     It_profile['pulse_di_0pctSOC'] = [tpulse, -Ipulse, tspulse]
 
     currents = [Ich]
-    states = ['charging']
+    states = [ChargingState.charging]
     tot_time = 0
     step_indices = [0]
     timestamps = [0]
@@ -173,11 +174,11 @@ def make_dataset_hppc(model_and_params):
         step_indices += [step_c] * n_ts
 
         if curr > 0.0001:
-            state = 'charging'
+            state = ChargingState.charging
         elif curr < -0.0001:
-            state = 'discharging'
+            state = ChargingState.discharging
         else:
-            state = 'resting'
+            state = ChargingState.rest
 
         states += [state] * n_ts
 
