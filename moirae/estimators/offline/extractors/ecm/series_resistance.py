@@ -82,9 +82,17 @@ class R0Extractor(BaseExtractor):
     def capacity(self) -> float:
         return self._data_checker.capacity
 
+    @capacity.setter
+    def capacity(self, value: Union[float, MaxTheoreticalCapacity]):
+        self._data_checker.capacity = value
+
     @property
     def coul_eff(self) -> float:
         return self._data_checker.coulombic_efficiency
+
+    @coul_eff.setter
+    def coul_eff(self, value: float):
+        self._data_checker.coulombic_efficiency = value
 
     @property
     def rest_current_threshold(self) -> float:

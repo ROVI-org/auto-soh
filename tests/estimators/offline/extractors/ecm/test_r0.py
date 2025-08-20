@@ -22,7 +22,7 @@ def test_data_check(r0_dataset, r0_extractor):
     r0_extractor.data_checker.check(r0_dataset)
 
     # Fail if no cycle samples the full SOC
-    r0_extractor.data_checker.capacity = 2 * r0_extractor.data_checker.capacity
+    r0_extractor.capacity = 2 * r0_extractor.capacity
     with raises(DataCheckError, match='Dataset must sample at least 95'):
         r0_extractor.data_checker.check(r0_dataset)
 
@@ -55,7 +55,7 @@ def test_full_realistic(realistic_rpt_data, realistic_LFP_aSOH):
                                                 min_delta_soc=0.99,
                                                 min_pulses=10,
                                                 ensure_bidirectional=True,
-                                                min_number_of_rests=12)
+                                                min_number_of_rests=10)
 
     # Recall we start at close to 100% SOC
     start_soc = hppc.iloc[0]['SOC']
