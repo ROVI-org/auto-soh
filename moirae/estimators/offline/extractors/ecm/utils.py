@@ -66,11 +66,14 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
     duration = time[-1] - time[0]
     bounds[n_exp:, 1] = duration
     # For the amplitude terms, what matters most is the "direction" of the decay: are we approaching a value larger than
-    # the first, or smaller? We will use this difference for our amplitude bounds, but keep them very loose
+    # the first, or smaller? We will use this difference for our amplitude bounds
     if measurements[-1] > measurements[0]:
-        bounds[:n_exp, 0] = 100 * (measurements[0] - measurements[-1])
+        bounds[:n_exp, 0] = (measurements[0] - measurements[-1])
     else:
-        bounds[:n_exp, 1] = 100 * (measurements[0] - measurements[-1])
+        bounds[:n_exp, 1] = (measurements[0] - measurements[-1])
+
+    # We are not interested in fitting the "y-offset", so let's compute it and remove it from the measurements
+    offset_measurements = measurements - measurements[-1]
 
     # Now, we can fit our parameters
     fit_result = differential_evolution(func=sum_squared_error_exp_decay,
@@ -78,7 +81,7 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
                                         popsize=120,
                                         updating='deferred',
                                         vectorized=True,
-                                        args=(time, measurements, n_exp))
+                                        args=(time, offset_measurements, n_exp))
     
     # Get the best parameters
     params = fit_result.x.copy()
