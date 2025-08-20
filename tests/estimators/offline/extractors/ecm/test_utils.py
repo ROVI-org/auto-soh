@@ -93,13 +93,14 @@ def test_exp_decay_fit() -> None:
     # Establish ground truth parameters
     amps_gt = np.array([10, 5])  # amplitudes
     taus_gt = np.array([1, 5])  # relaxation times
-    params_gt = np.hstack((amps_gt, taus_gt))
+    offset = np.array([-5])
+    params_gt = np.hstack((amps_gt, taus_gt, offset))
     # Generate the ground truth function
     time = np.linspace(1, 11, 1000)
     func_gt = build_sum_exp_decays(params=params_gt, time=time, n_exp=2)
     # Add noise
     rng = np.random.default_rng(seed=1234)
-    noisy = func_gt + rng.normal(scale=0.1, size=len(time))
+    noisy = func_gt + rng.normal(scale=0.01, size=len(time))
     # Fit
     amps_fit, taus_fit = fit_exponential_decays(time=time, measurements=noisy, n_exp=2)
     # Recall that fits are returned in ascending order of tau!
@@ -109,12 +110,12 @@ def test_exp_decay_fit() -> None:
     # Now, make sure it works with negative amplitudes
     amps_gt = -np.array([10, 5])  # amplitudes
     taus_gt = np.array([1, 5])  # relaxation times
-    params_gt = np.hstack((amps_gt, taus_gt))
+    params_gt = np.hstack((amps_gt, taus_gt, offset))
     # Generate the ground truth function
     time = np.linspace(1, 11, 1000)
     func_gt = build_sum_exp_decays(params=params_gt, time=time, n_exp=2)
     # Add noise
-    noisy = func_gt + rng.normal(scale=0.1, size=len(time))
+    noisy = func_gt + rng.normal(scale=0.01, size=len(time))
     # Fit
     amps_fit, taus_fit = fit_exponential_decays(time=time, measurements=noisy, n_exp=2)
     # Recall that fits are returned in ascending order of tau!

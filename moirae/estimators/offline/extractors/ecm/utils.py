@@ -58,13 +58,13 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
         amplitude and relaxation time parameters for each exponential decay
     """
     # Let's first prepare the bounds for the parameters. 
-    bounds = np.zeros((2 * n_exp, 2))
-    # Recall the bottom half of the parameters are the time constants, which are not observable if smaller than the
+    bounds = np.zeros(((2 * n_exp) + 1, 2))
+    # Recall the middle third of the parameters are the time constants, which are not observable if smaller than the
     # timestep present
-    bounds[n_exp:, 0] = np.min(np.abs(np.diff(time)))
+    bounds[n_exp:-1, 0] = np.min(np.abs(np.diff(time)))
     # Similarly, the time constant cannot be larger than the duration of the period, otherwise, the fit is poor
     duration = time[-1] - time[0]
-    bounds[n_exp:, 1] = duration
+    bounds[n_exp:-1, 1] = duration
     # For the amplitude terms, what matters most is the "direction" of the decay: are we approaching a value larger than
     # the first, or smaller? We will use this difference for our amplitude bounds
     if measurements[-1] > measurements[0]:
@@ -72,8 +72,11 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
     else:
         bounds[:n_exp, 1] = (measurements[0] - measurements[-1])
 
-    # We are not interested in fitting the "y-offset", so let's compute it and remove it from the measurements
-    offset_measurements = measurements - measurements[-1]
+    # Finally, the "y-offset", which is ultimately a measure of how for the "steady-state" stable value is from 0
+    # Our best guess for it is the last value, but let's make it loose
+    offset = abs(measurements[-1])
+    bounds[-1, 0] = -10 * offset
+    bounds[-1, 1] = 10 * offset
 
     # Now, we can fit our parameters
     fit_result = differential_evolution(func=sum_squared_error_exp_decay,
@@ -81,13 +84,13 @@ def fit_exponential_decays(time: np.ndarray, measurements: np.ndarray, n_exp: in
                                         popsize=120,
                                         updating='deferred',
                                         vectorized=True,
-                                        args=(time, offset_measurements, n_exp))
+                                        args=(time, measurements, n_exp))
     
     # Get the best parameters
     params = fit_result.x.copy()
     # Split amplitudes and relaxation times
     amps = params[:n_exp]
-    taus = params[n_exp:]
+    taus = params[n_exp:-1]
     # Sort by faster to slowest relaxation time
     idx = np.argsort(taus)
 
@@ -108,12 +111,13 @@ def build_sum_exp_decays(params: np.ndarray, time: np.ndarray, n_exp: int) -> np
     Returns:
         values of the sum of the exponential decay for each entry in the time array
     """
-    if params.shape[0] != 2 * n_exp:
+    if params.shape[0] == (1 * n_exp) + 1:
         params_len = params.shape[0]
         raise ValueError(f'Number of parameters {params_len} not match number of exponential decays to build {n_exp}!')
     # Get amplitudes and relaxation times
     amps = params[:n_exp]
-    taus = params[n_exp:]
+    taus = params[n_exp:(2 * n_exp)]
+    offsets = params[-1:]
 
     # Build the sum of exponential decays
     t = time - time[0]
@@ -126,11 +130,13 @@ def build_sum_exp_decays(params: np.ndarray, time: np.ndarray, n_exp: int) -> np
         if num_sols > 1:
             amps = amps.reshape((n_exp, num_sols, 1))
             taus = taus.reshape((n_exp, num_sols, 1))
+            offsets = offsets.reshape((1, num_sols, 1))
     else:
         amps = amps.reshape((n_exp, 1))
         taus = taus.reshape((n_exp, 1))
+        offsets = offsets.reshape((1, 1))
     
-    decays = amps * np.exp(- t / taus)
+    decays = offsets + (amps * np.exp(- t / taus))
 
     # sum over the functions
     decay_sum = decays.sum(axis=0)
