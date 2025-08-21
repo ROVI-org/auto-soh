@@ -1,118 +1,273 @@
 """
-Defines OCV extractor
+Defines the OCV extractor
 """
-from typing import Union
+from typing import List, Optional, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 import pandas as pd
 
-from sklearn.isotonic import IsotonicRegression
 from battdat.data import BatteryDataset
-from battdat.postprocess.integral import CapacityPerCycle, StateOfCharge
+from battdat.schemas.column import ChargingState
+from battdat.postprocess.tagging import AddState, AddSteps
+from battdat.postprocess.integral import StateOfCharge
 
+from moirae.models.ecm.components import MaxTheoreticalCapacity, Resistance
+from moirae.estimators.offline.extractors.base import BaseExtractor, ExtractedParameter
+from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
-from moirae.estimators.offline.extractors.base import BaseExtractor
-from moirae.models.ecm.components import SOCInterpolatedHealth, OpenCircuitVoltage, MaxTheoreticalCapacity
 
 
 class OCVExtractor(BaseExtractor):
-    """Estimate the Open Circuit Voltage (OCV) of a battery as a function of state of charge (SOC)
-
-    Suggested data: OCV extraction works best when provided with data for a cycle that samples
-    the entire SOC range (at least a range larger than :attr:`soc_requirement`)
-    with a slow charge and discharge rate. Periodic rests are helpful but not required.
-
-    Algorithm:
-        1. Locate cycle with the lowest average voltage during charge and discharge
-        2. Assign an SOC to each measurement based on :attr:`capacity`
-        3. Assign a weights to each point based on :math:`1 / max(\\left| current \\right|, 1e-6)`.
-           Normalize weights such that they sum to 1.
-        4. Fit an `isotonic regressor <https://scikit-learn.org/stable/modules/isotonic.html#isotonic>`_
-           to the weighted data.
-        5. Evaluate the regression at SOC points requested by the user,
-           return as a :class:`~moirae.models.ecm.components.OpenCircuitVoltage` object
-           using the :attr:`interpolation_style` type of spline.
+    """
+    Extracts the open circuit voltage (OCV) from a 100% depth-of-discharge (DoD), low C-rate cycle
 
     Args:
-        soc_points: SOC points at which to extract OCV or (``int``) number of grid points.
+        data_checker: data checker for capacity check tests
+        capacity: capacity of the cell in Amp-hours
+        coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
+        series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
     """
-
-    soc_points: np.ndarray
-    """State of charge points at which to estimate the resistance"""
-    capacity: float
-    """Assumed capacity of the cell. Units: A-hr"""
-    soc_requirement: float
-    """Require that dataset samples at least this fraction of the capacity"""
-    interpolation_style: str
-    """Type of spline used for the output"""
-
     def __init__(self,
-                 capacity: float | MaxTheoreticalCapacity,
-                 soc_points: np.ndarray | int = 11,
-                 soc_requirement: float = 0.95,
-                 interpolation_style: str = 'linear'):
-        if isinstance(soc_points, int):
-            soc_points = np.linspace(0, 1, soc_points)
-        self.soc_points = np.array(soc_points)
-        self.capacity = capacity.base_values[0, 0] if isinstance(capacity, MaxTheoreticalCapacity) else float(capacity)
-        self.soc_requirement = soc_requirement
-        self.interpolation_style = interpolation_style
+                 capacity: Union[float, MaxTheoreticalCapacity],
+                 coulombic_efficiency: float = 1.,
+                 series_resistance: Union[Resistance, float] = 0.,
+                 data_checker: CapacityDataChecker = CapacityDataChecker()):
+        self.data_checker = data_checker
+        self.capacity = capacity
+        self.coulombic_efficiency = coulombic_efficiency
+        self.series_resistance = series_resistance
 
-    def check_data(self, data: BatteryDataset):
-        # Check if there is a raw_data table
-        if 'raw_data' not in data.tables:
-            raise ValueError('`raw_data` table is required')
-
-        # Compute the per-cycle capacity if unavailable
-        if data.tables.get('cycle_stats') is None or 'capacity_charge' not in data.tables['cycle_stats'].columns:
-            CapacityPerCycle().add_summaries(data)
-
-        # Ensure at least one cycle samples capacities within
-        sampled_soc = data.tables['cycle_stats']['capacity_charge'].max() / self.capacity
-        if sampled_soc < self.soc_requirement:
-            raise ValueError(f'Dataset must sample {self.soc_requirement * 100:.1f}% of SOC.'
-                             f' Only sampled {sampled_soc * 100:.1f}%')
-
-    def interpolate_ocv(self, cycle: pd.DataFrame) -> np.ndarray:
-        """Fit then evaluate a smoothing spline which explains voltage as a function of SOC and current
+    @classmethod
+    def init_from_basics(self,
+                         capacity: Union[float, MaxTheoreticalCapacity],
+                         coulombic_efficiency: float = 1.,
+                         series_resistance: Union[Resistance, float] = 0.,
+                         voltage_limits: Optional[Tuple[float, float]] = None,
+                         max_C_rate: float = 0.1,
+                         voltage_tolerance: float = 0.001) -> Self:
+        """
+        Helper function to initialize OCV extractor for basic information
 
         Args:
-            cycle: Cycle to use for fitting the spline
+            capacity: cell capacity, in Amp-hours
+            coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
+            series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
+            voltage_limits: Tuple of (min_voltage, max_voltage) to check against; if not provided, does not check
+                voltage
+            max_C_rate: Maximum approximate C-rate for the cycle to be considered a capacity check; deafults to C/10
+            voltage_tolerance: Tolerance for voltage limits, defaults to 1 mV
+
         Returns:
-            An estimate for the OCV at :attr:`soc_points`
+            instance of OCVExtractor
         """
-        # Compute the SOC by assuming the cycle fully discharges the batter
-        #  TODO (wardlt): Make whether the cell started as charged (SOC~1) an option
-        #   This code assumes the cycle starts with a discharged cell
-        cycle = cycle.copy(deep=False)  # We are not editing the data
-        if 'cycled_charge' not in cycle.columns:
-            StateOfCharge().enhance(cycle)
-        cycle['soc'] = (cycle['cycled_charge'] - cycle['cycled_charge'].min()) / \
-                       (cycle['cycled_charge'].max() - cycle['cycled_charge'].min())
-        cycle = cycle.sort_values('soc')
+        checker = CapacityDataChecker(voltage_limits=voltage_limits,
+                                      max_C_rate=max_C_rate,
+                                      voltage_tolerance=voltage_tolerance)
+        return OCVExtractor(capacity=capacity,
+                            coulombic_efficiency=coulombic_efficiency,
+                            series_resistance=series_resistance,
+                            data_checker=checker)
 
-        # Assign weights according to current so that low-current values are more important
-        w = 1. / np.clip(np.abs(cycle['current']), a_min=1e-6, a_max=None)
-        w /= w.sum()
+    @property
+    def data_checker(self) -> CapacityDataChecker:
+        return self._data_checker
 
-        # Fit then evaluate a monotonic function
-        model = IsotonicRegression(out_of_bounds='clip').fit(cycle['soc'], cycle['voltage'], sample_weight=w)
-        return model.predict(self.soc_points)
+    @data_checker.setter
+    def data_checker(self, checker: CapacityDataChecker):
+        if not isinstance(checker, CapacityDataChecker):
+            raise TypeError('Data checker must be a CapacityDataChecker object!')
+        self._data_checker = checker
 
-    def extract(self, data: Union[pd.DataFrame, BatteryDataset]) -> OpenCircuitVoltage:
-        """Extract an estimate for the OCV of a cell
+    @property
+    def capacity(self) -> float:
+        """
+        Returns capacity in Amp-hours
+        """
+        return self._capacity
+
+    @capacity.setter
+    def capacity(self, value: Union[float, MaxTheoreticalCapacity]):
+        if isinstance(value, MaxTheoreticalCapacity):
+            self._capacity = value.amp_hour.item()
+        elif isinstance(value, (int, float)):
+            if value <= 0:
+                raise ValueError("Capacity must be a positive number!")
+            self._capacity = float(value)
+        else:
+            raise TypeError("Capacity must be a float or MaxTheoreticalCapacity object!")
+
+    @property
+    def coulombic_efficiency(self) -> float:
+        """Coulombic efficiency of the cell"""
+        return self._ce
+
+    @coulombic_efficiency.setter
+    def coulombic_efficiency(self, value: float):
+        if value < 0 or value > 1:
+            raise ValueError("Coulombic efficiency must be between 0 and 1.")
+        self._ce = value
+
+    @property
+    def series_resistance(self) -> Resistance:
+        return self._r0
+
+    @series_resistance.setter
+    def series_resistance(self, resistance: Union[Resistance, float]):
+        """
+        Sets series resistance
+        """
+        if isinstance(resistance, Resistance):
+            self._r0 = resistance
+        elif isinstance(resistance, float):
+            self._r0 = Resistance(base_values=[resistance, resistance])
+        else:
+            raise ValueError('Resistance must be provided as a float or as a Resistance object!')
+
+    @property
+    def voltage_limits(self) -> Union[Tuple[float, float], None]:
+        """
+        Voltage limits of the cell, in volts
+        """
+        return self._data_checker.voltage_limits
+
+    @property
+    def max_current(self) -> float:
+        """
+        Maximum allowed current (in Amps) based on specified C-rate
+        """
+        return (self.capacity * self._data_checker.max_C_rate)
+
+    @property
+    def min_segment_duration(self) -> float:
+        """
+        Minimum duration (in seconds) for a charge or discharge segment to be considered valid
+        """
+        return 3600. / self._data_checker.max_C_rate
+
+    @property
+    def volt_tol(self) -> float:
+        """
+        Absolute voltage tolerance for voltage limits, in volts
+        """
+        return self._data_checker.voltage_tolerance
+
+    def identify_valid_steps(self, data: Union[pd.DataFrame, BatteryDataset]) -> List[int]:
+        """
+        Auxiliary function to help identify useful steps to be used when computing OCV. Steps returned are either charge
+        or discharge steps with low current and long duration.
 
         Args:
-            dataset: Dataset containing an estimate for the nominal capacity and time series measurements.
+            data: data to be used when extracting OCV; assumed to have already passed necessary checks
+        """
+        # Ensure battery dataset
+        data = ensure_battery_dataset(data=data)
+        raw_data = data.tables.get('raw_data')
+
+        # Postprocessing what is needed
+        if 'state' not in raw_data.columns:
+            AddState().enhance(raw_data)
+        if 'step_index' not in raw_data.columns:
+            AddSteps().enhance(raw_data)
+
+        # Initialize list to keep valid steps
+        step_idx = []
+
+        # We want to look at the steps that are either charging or discharging, as it is in them that the SOC changes
+        # We also need to make sure each of these steps is adequate for what we want
+        segments = raw_data[raw_data['state'].isin([ChargingState.charging, ChargingState.discharging])]
+        for step_id, step in segments.groupby('step_index'):
+            include_step = False  # Boolean flag to 
+            duration = step['test_time'].iloc[-1] - step['test_time'].iloc[0]
+            if duration >= self.min_segment_duration:  # Segment lasts for a long time
+                # Check if current is small enough throughout
+                if np.all(step['current'].abs() <= self.max_current):
+                    # Check for voltage limits
+                    if self.voltage_limits is not None:
+                        # If we must check the voltage limits
+                        min_volt, max_volt = sorted(self.voltage_limits)
+                        min_obs, max_obs = step['voltage'].min(), step['voltage'].max()
+                        if np.allclose([min_volt, max_volt], [min_obs, max_obs], atol=self.volt_tol):
+                            # If the voltage limits are reached
+                            include_step = True
+                    else:
+                        include_step = True
+            if include_step:
+                step_idx.append(step_id)
+
+        return step_idx
+
+    def compute_parameters(self,
+                           data: Union[pd.DataFrame, BatteryDataset],
+                           valid_steps: Optional[List[int]] = None,
+                           start_soc: float = 0.) -> ExtractedParameter:
+        """
+        Computes OCV from valid steps
+
+        Args:
+            data: data to be used, assumed to have already passed necessary checks
+            valid_steps: list of steps to use; if not provided, will be computed
+            start_soc: SOC at the beginning of the provided data
 
         Returns:
-            An OCV instance with the requested SOC interpolation points,
+            extracted OCV
         """
-        # Ensure correct object
-        dataset = ensure_battery_dataset(data=data)
+        # Check if we need to compute valid steps
+        if valid_steps is None:
+            valid_steps = self.identify_valid_steps(data=data)
 
-        knots = self.interpolate_ocv(dataset.tables['raw_data'])
-        return OpenCircuitVoltage(
-            ocv_ref=SOCInterpolatedHealth(base_values=knots, soc_pinpoints=self.soc_points,
-                                          interpolation_style=self.interpolation_style)
-        )
+        # Ensure battery dataset
+        data = ensure_battery_dataset(data=data)
+        raw_data = data.tables.get('raw_data')
+
+        # Compute SOC
+        if 'state' not in raw_data.columns:
+            AddState().enhance(raw_data)
+        if 'step_index' not in raw_data.columns:
+            AddSteps().enhance(raw_data)
+        if 'CE_adjusted_charge' not in raw_data.columns:
+            StateOfCharge(coulombic_efficiency=self._ce).enhance(data=raw_data)
+
+        # Initialize OCV and SOC lists
+        ocv_values = []
+        soc_levels = []
+
+        # Iterate through steps
+        for step_id in valid_steps:
+            step_data = raw_data[raw_data['step_index'] == step_id]
+            # Get voltage and current
+            voltage = step_data['voltage']
+            current = step_data['current']
+            # Get SOC
+            soc = start_soc + (step_data['CE_adjusted_charge'].to_numpy() / self.capacity)
+            # Get series resistance values
+            r0_vals = self._r0.get_value(soc=soc).flatten()
+            # Remove IR contribution
+            ocv = voltage - (current * r0_vals)
+            # Add to return values
+            ocv_values += ocv.tolist()
+            soc_levels += soc.tolist()
+        
+        # Assemble return dictionary
+        extracted_ocv = ExtractedParameter(value=np.array(ocv_values),
+                                           soc_level=np.array(soc_levels),
+                                           units='Volt')
+        return extracted_ocv
+
+    def extract(self,
+                data: Union[pd.DataFrame, BatteryDataset],
+                start_soc: float = 0.) -> ExtractedParameter:
+        """
+        Extracts OCV
+
+        Args:
+            data: data to be used
+            start_soc: SOC at the beginning of reported data
+
+        Returns:
+            extracted values of OCV
+        """
+        # Check data
+        data = self._data_checker.check(data=data)
+
+        return self.compute_parameters(data=data, start_soc=start_soc)

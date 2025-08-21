@@ -1,7 +1,9 @@
 """Test the code for OCV estimation"""
-from battdat.postprocess.integral import StateOfCharge
 from pytest import fixture, raises
 import numpy as np
+
+from battdat.data import BatteryDataset
+from battdat.postprocess.integral import StateOfCharge
 
 from moirae.estimators.offline.extractors.ecm import OCVExtractor
 from moirae.models.ecm.utils import realistic_fake_ocv
@@ -9,34 +11,48 @@ from moirae.models.ecm.utils import realistic_fake_ocv
 
 @fixture()
 def ocv_extractor():
-    return OCVExtractor(10)
+    return OCVExtractor.init_from_basics(capacity=10,
+                                         max_C_rate=2,
+                                         voltage_limits=(1,5))
 
 
 @fixture()
 def ocv_dataset(timeseries_dataset):
-    """Compute features needed for OCV extraction"""
-    StateOfCharge().enhance(timeseries_dataset.tables['raw_data'])
-    return timeseries_dataset
+    raw_data = timeseries_dataset.tables.get('raw_data')
+    cycle0 = raw_data[raw_data['cycle_number'] == 0]
+    return BatteryDataset.make_cell_dataset(raw_data=cycle0)
 
 
 def test_data_check(ocv_dataset, ocv_extractor):
-    ocv_extractor.check_data(ocv_dataset)
-
-    # Fail if no cycle samples the full SOC
-    ocv_extractor.capacity *= 2
-    with raises(ValueError, match='Dataset must sample 95'):
-        ocv_extractor.check_data(ocv_dataset)
+    with raises(ValueError, match='Cycle does not reach'):
+        ocv_extractor.data_checker.check(ocv_dataset)
 
 
-def test_spline_fit(ocv_dataset, ocv_extractor):
-    ocv_extractor.soc_points = np.linspace(0, 1, 64)
-    ocv_dataset.raw_data.drop(columns='cycled_charge')
-    ocv_points = ocv_extractor.extract(ocv_dataset.tables['raw_data']).ocv_ref.base_values
+def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
+    # Get the capacity check
+    raw_rpt = realistic_rpt_data.tables.get('raw_data')
+    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
 
-    expected_ocv = realistic_fake_ocv(ocv_extractor.soc_points)
-    assert np.allclose(ocv_points, expected_ocv, atol=5e-1), f'Max diff: {np.abs(ocv_points - expected_ocv).max():.2e}'
+    # For simplicity, get the ground truth OCV and other relevant values
+    qt_gt = realistic_LFP_aSOH.q_t
+    r0_gt = realistic_LFP_aSOH.r0
+    ce_gt = realistic_LFP_aSOH.ce
+    ocv_gt = realistic_LFP_aSOH.ocv
+    voltage_lims = tuple(ocv_gt.get_value(soc=[0., 1.]).flatten().tolist())
 
-
-def test_full(ocv_dataset, ocv_extractor):
-    ocv = ocv_extractor.extract(ocv_dataset)
-    assert np.isclose(ocv(0.), realistic_fake_ocv(0.), atol=1e-2)
+    # Prepare extractor
+    extractor = OCVExtractor.init_from_basics(capacity=qt_gt,
+                                              coulombic_efficiency=ce_gt,
+                                              series_resistance=r0_gt,
+                                              voltage_limits=voltage_lims,
+                                              max_C_rate=0.2,  # C/5 rate just to be sure
+                                              voltage_tolerance=0.0075 # 7.5 mV tolerance
+                                              )
+    ocv_info = extractor.extract(data=cap_check, start_soc=cap_check['SOC'].iloc[0])
+    ocv_ext = ocv_info['value']
+    soc_ext = ocv_info['soc_level']
+    # Recall that the comparison will not be perfect due to hysteresis and RC terms that were not accounted for, as well
+    # as numerical errors in the computation of SOC. A 5% error seems reasonable
+    errs = ocv_ext - ocv_gt(soc=soc_ext).flatten()
+    assert np.allclose(ocv_gt.get_value(soc=soc_ext).flatten(), ocv_ext, rtol=0.05), \
+        f'Max OCV error = {max(abs(errs))}'

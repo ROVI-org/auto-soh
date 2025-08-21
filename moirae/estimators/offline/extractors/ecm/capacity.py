@@ -117,7 +117,7 @@ class MaxCapacityCoulEffExtractor(BaseExtractor):
                     if self.voltage_limits is not None:
                         # If we must check the voltage limits
                         min_volt, max_volt = sorted(self.voltage_limits)
-                        min_obs, max_obs = step_data['volage'].min(), step_data['volage'].max()
+                        min_obs, max_obs = step_data['voltage'].min(), step_data['voltage'].max()
                         if (abs(min_volt - min_obs) <= self.volt_tol) and (abs(max_volt - max_obs) <= self.volt_tol):
                             # If the voltage limits are reached
                             include_step = True
