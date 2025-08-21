@@ -177,7 +177,7 @@ class OCVExtractor(BaseExtractor):
         # We also need to make sure each of these steps is adequate for what we want
         segments = raw_data[raw_data['state'].isin([ChargingState.charging, ChargingState.discharging])]
         for step_id, step in segments.groupby('step_index'):
-            include_step = False  # Boolean flag to 
+            include_step = False  # Boolean flag to indicate whether step should be included
             duration = step['test_time'].iloc[-1] - step['test_time'].iloc[0]
             if duration >= self.min_segment_duration:  # Segment lasts for a long time
                 # Check if current is small enough throughout
@@ -247,7 +247,7 @@ class OCVExtractor(BaseExtractor):
             # Add to return values
             ocv_values += ocv.tolist()
             soc_levels += soc.tolist()
-        
+
         # Assemble return dictionary
         extracted_ocv = ExtractedParameter(value=np.array(ocv_values),
                                            soc_level=np.array(soc_levels),

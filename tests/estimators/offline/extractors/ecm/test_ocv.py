@@ -3,17 +3,15 @@ from pytest import fixture, raises
 import numpy as np
 
 from battdat.data import BatteryDataset
-from battdat.postprocess.integral import StateOfCharge
 
 from moirae.estimators.offline.extractors.ecm import OCVExtractor
-from moirae.models.ecm.utils import realistic_fake_ocv
 
 
 @fixture()
 def ocv_extractor():
     return OCVExtractor.init_from_basics(capacity=10,
                                          max_C_rate=2,
-                                         voltage_limits=(1,5))
+                                         voltage_limits=(1, 5))
 
 
 @fixture()
@@ -46,7 +44,7 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
                                               series_resistance=r0_gt,
                                               voltage_limits=voltage_lims,
                                               max_C_rate=0.2,  # C/5 rate just to be sure
-                                              voltage_tolerance=0.0075 # 7.5 mV tolerance
+                                              voltage_tolerance=0.0075  # 7.5 mV tolerance
                                               )
     ocv_info = extractor.extract(data=cap_check, start_soc=cap_check['SOC'].iloc[0])
     ocv_ext = ocv_info['value']
