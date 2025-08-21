@@ -18,6 +18,19 @@ from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
 
+class ExtractedOCV(ExtractedParameter):
+    """
+    Definition for extracted OCV, which also accounts for the current at the moment the OCV was extracted
+
+    Args:
+        value: extracted values
+        units: unit of measurement for values
+        soc_level: SOC level for values, if appropriate
+        current: values of current corresponding at the time the OCV values were extracted
+    """
+    current: Union[List, np.ndarray]
+
+
 class OCVExtractor(BaseExtractor):
     """
     Extracts the open circuit voltage (OCV) from a 100% depth-of-discharge (DoD), low C-rate cycle
@@ -200,7 +213,7 @@ class OCVExtractor(BaseExtractor):
     def compute_parameters(self,
                            data: Union[pd.DataFrame, BatteryDataset],
                            valid_steps: Optional[List[int]] = None,
-                           start_soc: float = 0.) -> ExtractedParameter:
+                           start_soc: float = 0.) -> ExtractedOCV:
         """
         Computes OCV from valid steps
 
@@ -228,9 +241,10 @@ class OCVExtractor(BaseExtractor):
         if 'CE_adjusted_charge' not in raw_data.columns:
             StateOfCharge(coulombic_efficiency=self._ce).enhance(data=raw_data)
 
-        # Initialize OCV and SOC lists
+        # Initialize OCV, SOC, and current lists
         ocv_values = []
         soc_levels = []
+        cur_values = []
 
         # Iterate through steps
         for step_id in valid_steps:
@@ -247,16 +261,18 @@ class OCVExtractor(BaseExtractor):
             # Add to return values
             ocv_values += ocv.tolist()
             soc_levels += soc.tolist()
+            cur_values += current.to_list()
 
         # Assemble return dictionary
-        extracted_ocv = ExtractedParameter(value=np.array(ocv_values),
-                                           soc_level=np.array(soc_levels),
-                                           units='Volt')
+        extracted_ocv = ExtractedOCV(value=np.array(ocv_values),
+                                     soc_level=np.array(soc_levels),
+                                     current=np.array(cur_values),
+                                     units='Volt')
         return extracted_ocv
 
     def extract(self,
                 data: Union[pd.DataFrame, BatteryDataset],
-                start_soc: float = 0.) -> ExtractedParameter:
+                start_soc: float = 0.) -> ExtractedOCV:
         """
         Extracts OCV
 
