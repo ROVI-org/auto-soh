@@ -61,7 +61,7 @@ class SOCDependentAssembler(BaseAssembler):
         return self._soc_pts
 
     @soc_points.setter
-    def soc_pointsn(self, array: Union[np.ndarray, int]):
+    def soc_points(self, array: Union[np.ndarray, int]):
         if isinstance(array, int):
             soc_pts = np.linspace(0., 1., array)
         else:
@@ -70,7 +70,7 @@ class SOCDependentAssembler(BaseAssembler):
         max_val = max(soc_pts)
         if (min_val > 0.) or (max_val < 1.):
             raise ValueError(f'SOC domain not fully covered, only {100*min_val:.1f} -- {100*max_val:.1f}%!')
-        self._soc_pts = soc_pts
+        self._soc_pts = np.array(soc_pts)
 
     def _prepare_for_regression(self, extracted_parameter: ExtractedParameter) -> Dict:
         """
@@ -90,7 +90,7 @@ class SOCDependentAssembler(BaseAssembler):
         
         for key in clean_param.keys():
             if (key != 'units') and (key != 'soc_level') and (key != 'value'):
-                regression_dict['key'] = clean_param[key]
+                regression_dict[key] = clean_param[key]
 
         # Make sure to add knots in the case of LSQ Univariate regression!
         if self.regressor.style == 'lsq':
