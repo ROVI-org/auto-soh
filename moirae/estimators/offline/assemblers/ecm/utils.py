@@ -51,7 +51,7 @@ class SOCDependentAssembler(BaseAssembler):
         soc_points: points in the SOC domain to be used when assembling the HealthVariable object
     """
     def __init__(self,
-                 regressor: SOCRegressor,
+                 regressor: SOCRegressor = SOCRegressor(),
                  soc_points: Union[np.ndarray, int] = 11):
         self.regressor = regressor
         self.soc_points = soc_points

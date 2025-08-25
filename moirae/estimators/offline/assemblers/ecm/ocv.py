@@ -32,9 +32,10 @@ class OCVAssembler(SOCDependentAssembler):
 
         # If we provided the currents, we need to clean that up as well
         if 'current' in clean_up.keys():
-            curr = abs(np.array(clean_up.pop('current')))
-            curr = curr / sum(curr)
-            clean_up['sample_weight'] = curr
+            # Weights should be inversely proportional to current: larger current => smaller weight
+            inv_curr = 1.0 / abs(np.array(clean_up.pop('current')))
+            inv_curr = inv_curr / sum(inv_curr)
+            clean_up['sample_weight'] = inv_curr
 
         return clean_up
 
