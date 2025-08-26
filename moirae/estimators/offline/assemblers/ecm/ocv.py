@@ -2,7 +2,6 @@
 OCV assembler
 """
 from typing import Union
-from typing_extensions import Self
 
 import numpy as np
 
