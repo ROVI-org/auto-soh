@@ -259,14 +259,13 @@ def test_offline(timeseries_dataset):
         cell_model=TheveninModel(isothermal=True),
         asoh=rint,
         transient_state=TheveninTransient.from_asoh(rint),
-        observations=timeseries_dataset,
         input_class=TheveninInput,
         output_class=OutputQuantities
     )
 
     # Run the evaluation
     x0 = loss.get_x0()[None, :]
-    y = loss(x0)
+    y = loss(x0, observations=timeseries_dataset)
     assert y.shape == (1,)
 
 
