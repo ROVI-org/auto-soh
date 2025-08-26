@@ -3,6 +3,8 @@ Tools which refine existing estimates of battery health and performance
 """
 from typing import Any
 
+from battdat.data import BatteryDataset
+
 from moirae.estimators.offline.refiners.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
@@ -21,9 +23,12 @@ class Refiner:
     loss: BaseLoss
     """Function being minimized, which contains initial guesses"""
 
-    def refine(self) -> tuple[GeneralContainer, HealthVariable, Any]:
+    def refine(self, observations: BatteryDataset) -> tuple[GeneralContainer, HealthVariable, Any]:
         """
-        Compute an estimate for the initial state and ASOH.
+        Compute an estimate for the initial state and aSOH, given observations.
+
+        Args:
+            observations: data to be used when refining initial guesses
 
         Returns:
             - Estimate for the initial state

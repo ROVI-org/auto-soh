@@ -1,6 +1,8 @@
 """Estimate the state of health using SciPy optimizers"""
 from scipy.optimize import differential_evolution, minimize, OptimizeResult, Bounds
 
+from battdat.data import BatteryDataset
+
 from moirae.estimators.offline.refiners import Refiner
 from moirae.estimators.offline.refiners.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
@@ -29,14 +31,14 @@ class ScipyDifferentialEvolution(Refiner):
         self.bounds = bounds
         self.scipy_kwargs = kwargs
 
-    def refine(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
+    def refine(self, observations: BatteryDataset) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
-        y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
+        y0 = self.objective(x0[None, :], observations).item()  # Used to normalize scale and reduce rtol vs atol issues
 
         # Assemble the function call
         result = differential_evolution(
-            func=lambda x: self.objective(x[None, :]).item() / max(abs(y0), 1e-12),
+            func=lambda x: self.objective(x[None, :], observations).item() / max(abs(y0), 1e-12),
             bounds=self.bounds,
             x0=x0,
             **self.scipy_kwargs
@@ -63,14 +65,14 @@ class ScipyMinimizer(Refiner):
         self.objective = objective
         self.scipy_kwargs = kwargs
 
-    def refine(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
+    def refine(self, observations: BatteryDataset) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
-        y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
+        y0 = self.objective(x0[None, :], observations).item()  # Used to normalize scale and reduce rtol vs atol issues
 
         # Assemble the function call
         result = minimize(
-            fun=lambda x: self.objective(x[None, :]).item() / max(abs(y0), 1e-12),
+            fun=lambda x: self.objective(x[None, :], observations).item() / max(abs(y0), 1e-12),
             x0=x0,
             **self.scipy_kwargs
         )
