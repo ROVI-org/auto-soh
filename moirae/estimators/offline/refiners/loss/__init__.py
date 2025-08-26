@@ -27,12 +27,12 @@ class MeanSquaredLoss(BaseLoss):
     output_class: type[OutputQuantities] = ECMMeasurement
     """Class used to represent the output data for a model"""
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: np.ndarray, observations: BatteryDataset) -> np.ndarray:
         # Translate input parameters to state and ASOH parameters
         state_x, asoh_x = self.x_to_state(x, inplace=True)
 
         # Build a simulator
-        raw_data = self.observations.tables['raw_data']
+        raw_data = observations.tables['raw_data']
         initial_input, initial_output = row_to_inputs(raw_data.iloc[0],
                                                       input_class=self.input_class,
                                                       output_class=self.output_class)
@@ -53,7 +53,7 @@ class MeanSquaredLoss(BaseLoss):
         pred_y[0, :] = y.to_numpy()
 
         # Run the forward model
-        for i, (_, row) in enumerate(self.observations.tables['raw_data'].iloc[1:].iterrows()):
+        for i, (_, row) in enumerate(observations.tables['raw_data'].iloc[1:].iterrows()):
             new_in, new_out = row_to_inputs(row,
                                             input_class=self.input_class,
                                             output_class=self.output_class)
@@ -98,18 +98,16 @@ class PriorLoss(BaseLoss):
                  asoh_priors: dict[str, rv_continuous],
                  cell_model: CellModel,
                  asoh: HealthVariable,
-                 transient_state: GeneralContainer,
-                 observations: BatteryDataset):
+                 transient_state: GeneralContainer):
         super().__init__(
             cell_model=cell_model,
             asoh=asoh,
             transient_state=transient_state,
-            observations=observations
         )
         self._tran_priors = transient_priors.copy()
         self._asoh_priors = asoh_priors.copy()
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: np.ndarray, observations: BatteryDataset) -> np.ndarray:
         # Prepare the outputs
         state_x, asoh_x = self.x_to_state(x)
         output = np.zeros((x.shape[0],))

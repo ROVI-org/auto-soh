@@ -34,8 +34,6 @@ class BaseLoss:
     """Initial guess for battery health"""
     transient_state: GeneralContainer
     """Initial guess for battery transient state"""
-    observations: BatteryDataset
-    """Observed data for the battery performance"""
 
     def __post_init__(self):
         self.asoh = self.asoh.model_copy(deep=True)
@@ -76,12 +74,13 @@ class BaseLoss:
         return np.concatenate([self.transient_state.to_numpy(),
                                self.asoh.get_parameters()], axis=1)[0, :]  # Get a 1D vector
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: np.ndarray, observations: BatteryDataset) -> np.ndarray:
         """
         Compute the fitness of a set of parameters to the observed data.
 
         Args:
             x: Batch of parameters to be evaluated (2D array)
+            observations: Observed data from the battery to be used to compute loss
 
         Returns:
             A single measure of parameter fitness for each member of batch (1D array)

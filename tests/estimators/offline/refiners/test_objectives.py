@@ -17,14 +17,13 @@ def test_mse_loss(simple_rint, timeseries_dataset, state_only):
         cell_model=ecm_model,
         asoh=rint_asoh,
         transient_state=rint_state,
-        observations=timeseries_dataset,
         input_class=ECMInput,
         output_class=ECMMeasurement
     )
 
     # Run the evaluation
     x0 = loss.get_x0()[None, :]
-    y = loss(x0)
+    y = loss(x0, observations=timeseries_dataset)
     assert y.shape == (1,)
     assert np.isclose(y, 0.)
 
@@ -47,12 +46,11 @@ def test_prior_loss(simple_rint, timeseries_dataset, state_only):
         cell_model=ecm_model,
         asoh=rint_asoh,
         transient_state=rint_state,
-        observations=timeseries_dataset
     )
 
     # Run the evaluation
     x0 = loss.get_x0()[None, :]
-    y = loss(x0)
+    y = loss(x0, observations=timeseries_dataset)
     assert y.shape == (1,)
     qt_logprob = qt_dist.logpdf(10.)
     hy_logprob = hy_dist.logpdf(0.)
@@ -70,13 +68,11 @@ def test_additive(simple_rint, timeseries_dataset):
         cell_model=ecm_model,
         asoh=rint_asoh,
         transient_state=rint_state,
-        observations=timeseries_dataset
     )
     fit_loss = MeanSquaredLoss(
         cell_model=ecm_model,
         asoh=rint_asoh,
-        transient_state=rint_state,
-        observations=timeseries_dataset
+        transient_state=rint_state
     )
     loss = AdditiveLoss(
         losses=[(0.1, prior_loss), (1, fit_loss)]
@@ -84,8 +80,8 @@ def test_additive(simple_rint, timeseries_dataset):
 
     # Run the evaluation
     x0 = loss.get_x0()[None, :]
-    y0_fit = fit_loss(x0)
-    y = loss(x0)
+    y0_fit = fit_loss(x0, observations=timeseries_dataset)
+    y = loss(x0, observations=timeseries_dataset)
     assert y.shape == (1,)
     hy_logprob = -hy_dist.logpdf(0.)
     assert np.allclose(y, 0.1 * hy_logprob + y0_fit)

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from battdat.data import BatteryDataset
+
 from ._base import BaseLoss
 
 
@@ -24,12 +26,11 @@ class AdditiveLoss(BaseLoss):
             cell_model=_l.cell_model,
             transient_state=_l.transient_state,
             asoh=_l.asoh,
-            observations=_l.observations
         )
         self._losses = list(losses)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: np.ndarray, observations: BatteryDataset) -> np.ndarray:
         output = np.zeros((x.shape[0],))
         for weight, loss in self._losses:
-            output += weight * loss(x)
+            output += weight * loss(x, observations)
         return output
