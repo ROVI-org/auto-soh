@@ -1,6 +1,5 @@
 """
-Tools which estimate parameters of battery health and performance in an offline fashion, that is, after the data has
-been collected, as opposed to as it is collected.
+Tools which refine existing estimates of battery health and performance
 """
 from typing import Any
 
@@ -10,19 +9,19 @@ from moirae.models.base import GeneralContainer, HealthVariable
 
 # TODO (wardlt): Make it possible to define bounds for classes
 # TODO (wardlt): Consider letting users pass x0 in as an input
-class OfflineEstimator:
+class Refiner:
     """
-    Base class for tools which estimate battery health parameters given
+    Base class for tools which refine battery health parameters given
     many measurements of the battery performance over time.
 
-    Create the class by passing a fully-configured :meth:`~moirae.estimators.offline.loss.Loss`
-    then perform the estimation using the :meth:`estimate` function.
+    Create the class by passing a fully-configured :meth:`~moirae.estimators.offline.refiners.loss.Loss`
+    then perform the estimation using the :meth:`refine` function.
     """
 
     loss: BaseLoss
-    """Function being minimized"""
+    """Function being minimized, which contains initial guesses"""
 
-    def estimate(self) -> tuple[GeneralContainer, HealthVariable, Any]:
+    def refine(self) -> tuple[GeneralContainer, HealthVariable, Any]:
         """
         Compute an estimate for the initial state and ASOH.
 

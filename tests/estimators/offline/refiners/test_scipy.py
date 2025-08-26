@@ -32,7 +32,7 @@ def test_scipy(simple_rint, timeseries_dataset, state_only, minimizer):
     # Run the optimizer
     cls, kwargs = minimizer
     scipy = cls(loss, **kwargs, bounds=bounds)
-    state, asoh, result = scipy.estimate()
+    state, asoh, result = scipy.refine()
     assert np.allclose(state.to_numpy(), rint_state.to_numpy(), atol=1e-1)
     if not state_only:
         # Not much data from which to judge capacity from our early cycle-measurement

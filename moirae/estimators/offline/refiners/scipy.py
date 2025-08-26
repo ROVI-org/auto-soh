@@ -1,12 +1,12 @@
 """Estimate the state of health using SciPy optimizers"""
 from scipy.optimize import differential_evolution, minimize, OptimizeResult, Bounds
 
-from moirae.estimators.offline.refiners import OfflineEstimator
+from moirae.estimators.offline.refiners import Refiner
 from moirae.estimators.offline.refiners.loss import BaseLoss
 from moirae.models.base import GeneralContainer, HealthVariable
 
 
-class ScipyDifferentialEvolution(OfflineEstimator):
+class ScipyDifferentialEvolution(Refiner):
     """Estimate using SciPy's differential_evolution_ function.
 
     Args:
@@ -29,7 +29,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
         self.bounds = bounds
         self.scipy_kwargs = kwargs
 
-    def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
+    def refine(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
         y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
@@ -47,7 +47,7 @@ class ScipyDifferentialEvolution(OfflineEstimator):
         return states, asoh, result
 
 
-class ScipyMinimizer(OfflineEstimator):
+class ScipyMinimizer(Refiner):
     """Estimate using SciPy's minimize_ function.
 
     Args:
@@ -63,7 +63,7 @@ class ScipyMinimizer(OfflineEstimator):
         self.objective = objective
         self.scipy_kwargs = kwargs
 
-    def estimate(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
+    def refine(self) -> tuple[GeneralContainer, HealthVariable, OptimizeResult]:
         # Get the scale of the initial error, used to normalize the output
         x0 = self.objective.get_x0()
         y0 = self.objective(x0[None, :]).item()  # Used to normalize scale and reduce rtol vs atol issues
