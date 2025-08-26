@@ -19,5 +19,5 @@ def test_incomplete_soc_range():
 
 def test_correct_soc_creation():
     assembler = SOCDependentAssembler(regressor=SOCRegressor(),
-                                     soc_points=11)
+                                      soc_points=11)
     assert np.allclose(np.linspace(0, 1, 11), assembler.soc_points), f'Wrong SOC points created: {assembler.soc_points}'

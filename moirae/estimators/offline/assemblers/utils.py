@@ -117,4 +117,3 @@ class SOCRegressor():
             if 't' not in params.keys():
                 raise ValueError('Please provide knots for LSQ Spline!')
             return make_lsq_spline(x=soc, y=targets, **params)
-        

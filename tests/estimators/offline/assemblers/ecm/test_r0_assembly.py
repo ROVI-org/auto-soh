@@ -59,7 +59,7 @@ def test_proper_assembly(realistic_rpt_data, realistic_LFP_aSOH):
     r_ass_interp = ResistanceAssembler(regressor=regressor)
     r_assembled = r_ass_interp.assemble(extracted_parameter=r0_info.copy())
     assert np.allclose(r_assembled.get_value(soc=soc_test), r0_gt.get_value(soc=soc_test), rtol=0.05), \
-        f'Larger than 5% different on spline-based assembly!'
+        'Larger than 5% different on spline-based assembly!'
 
     # Now, test one that fails due to negative values
     regressor = SOCRegressor(style='smooth')

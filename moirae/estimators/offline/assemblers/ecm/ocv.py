@@ -44,6 +44,6 @@ class OCVAssembler(SOCDependentAssembler):
             raise ValueError(f'OCV provided in {unit}, rather than Volt!')
 
         # Get preliminary OCV, but as a different object
-        ocv_ref =  super().assemble(extracted_parameter=extracted_parameter)
+        ocv_ref = super().assemble(extracted_parameter=extracted_parameter)
 
         return OCV(ocv_ref=ocv_ref)

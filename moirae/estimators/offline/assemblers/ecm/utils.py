@@ -80,14 +80,14 @@ class SOCDependentAssembler(BaseAssembler):
             extracted_parameter: dictionary containing information about the extracted parameter
 
         Returns:
-            dictionary of keywords to be used 
+            dictionary of keywords to be used
         """
         # Clean-up the parameters
         clean_param = post_process_extracted(extracted_parameter=extracted_parameter)
 
         regression_dict = {'soc': clean_param['soc_level'],
                            'targets': clean_param['value']}
-        
+
         for key in clean_param.keys():
             if (key != 'units') and (key != 'soc_level') and (key != 'value'):
                 regression_dict[key] = clean_param[key]
