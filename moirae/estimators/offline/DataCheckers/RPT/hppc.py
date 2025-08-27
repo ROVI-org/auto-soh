@@ -1,4 +1,5 @@
-from typing import Union
+from typing import TypedDict, Union
+from typing_extensions import NotRequired, Self
 
 import pandas as pd
 
@@ -10,6 +11,29 @@ from moirae.models.ecm.components import MaxTheoreticalCapacity
 from moirae.estimators.offline.DataCheckers import DeltaSOCRangeChecker, DataCheckError
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
 
+
+class FullHPPCCheckerPreinitParams(TypedDict):
+    """
+    Collection of parameters to be used when initialize the FullHPPCDataChecker once capacity and coulombic efficiency
+    are obtained.
+    """
+    min_delta_soc: NotRequired[float]
+    min_pulses: NotRequired[int]
+    ensure_bidirectional: NotRequired[bool]
+    min_number_of_rests: NotRequired[int]
+    min_rest_duration: NotRequired[float]
+    min_rest_prev_dur: NotRequired[float]
+    rest_current_threshold: NotRequired[float]
+
+    @classmethod
+    def default(cls) -> Self:
+        return {'min_delta_soc': 0.1,
+                'min_pulses': 1,
+                'ensure_bidirectional': True,
+                'min_number_of_rests': True,
+                'min_rest_duration': 600,
+                'min_rest_prev_dur': 300.,
+                'rest_current_threshold': 1.0e-04}
 
 class PulseDataChecker(DeltaSOCRangeChecker):
     """
