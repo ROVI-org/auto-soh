@@ -1,8 +1,8 @@
 """
 Defines functionality for R0 extraction
 """
-from typing import List, Optional, Union
-from typing_extensions import Self
+from typing import List, Optional, TypedDict, Union
+from typing_extensions import NotRequired, Self
 from warnings import warn
 
 import numpy as np
@@ -47,6 +47,18 @@ def compute_r0(raw_data: pd.DataFrame, valid_idx: List[int]) -> List[float]:
         raise ValueError('Negative values of series resistance have been found!')
 
     return r0_vals
+
+
+class R0ExtractorPreinitParams(TypedDict):
+    """
+    Helper class to specify parameters to initialize R0 extractor once the HPPC checker is assembled
+    """
+    dt_max: NotRequired[float]
+    dcurr_min: NotRequired[float]
+
+    @classmethod
+    def default(cls) -> Self:
+        return {'dt_max': 0.02, 'dcurr_min': 0.1}
 
 
 class R0Extractor(BaseExtractor):
