@@ -1,10 +1,12 @@
 """
 Framework for offline estimation of ECM model parameters from RPT data
 """
-from typing import List, Tuple, TypedDict, Union
+from typing import Dict, List, Tuple, TypedDict, Union
 from typing_extensions import NotRequired, Self
 
+import numpy as np
 import pandas as pd
+from scipy.optimize import OptimizeResult
 
 from battdat.data import BatteryDataset
 
@@ -27,6 +29,8 @@ from moirae.estimators.offline.assemblers.ecm import (CapacityAssembler,
                                                       ResistanceAssembler,
                                                       OCVAssembler,
                                                       CapacitanceAssembler)
+from moirae.estimators.offline.refiners.loss import MeanSquaredLoss
+from moirae.estimators.offline.refiners.scipy import ScipyMinimizer
 
 
 class ECMAssemblers(TypedDict):
@@ -87,7 +91,8 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                  number_rc_pairs: int,
                  start_soc: float = 0.0,
                  asoh_assemblers: ECMAssemblers = ECMAssemblers.default(),
-                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH]:
+                 minimizer_kwargs: Dict = {},
+                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH, OptimizeResult]:
         """
         Estimates the aSOH and initial transient states from provided data
 
@@ -98,6 +103,7 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
             number_rc_pairs: number of RC pairs to be considered
             start_soc: SOC at the beginning of the first diagnostic cycle
             asoh_assemblers: dictionary specifying what assemblers to use for different components of the aSOH
+            minimizer_kwargs: keyword arguments to be given to the scipy minimizer
 
         Returns:
             estimate for aSOH and transient state at the beginning of the diagnostic tests
@@ -180,4 +186,31 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                        r0=r0,
                        rc_elements=tuple(rc_pairs))
 
-        return asoh
+        # Now, let us refine these estimates
+        transient = ECMTransientVector.from_asoh(asoh=asoh)
+        transient.soc = np.atleast_2d(start_soc)
+
+        # Remember to make parts of the aSOH updatable!
+        asoh.mark_updatable(name='q_t.base_values')
+        asoh.mark_updatable(name='r0.base_values')
+        asoh.mark_updatable(name='ocv.ocv_ref.base_values')
+        for rc in asoh.rc_elements:
+            rc.mark_updatable(name='r.base_values')
+            rc.mark_updatable(name='c.base_values')
+        asoh.mark_updatable(name='h0.base_values')
+
+        # We will limit ourselves to voltage squared-error loss
+        loss_metric = MeanSquaredLoss(cell_model=ECM(),
+                                      asoh=asoh,
+                                      transient_state=transient)
+        
+        # Prepare minimizer
+        minimizer = ScipyMinimizer(objective=loss_metric,
+                                   **minimizer_kwargs)
+
+        # We will refine only over the RPT data
+        refine_data = diagnostic_raw.query('cycle_number == @capacity_check_cycle_number or '
+                                           'cycle_number == @hppc_test_cycle_number')
+        refine_data = ensure_battery_dataset(data=refine_data)
+
+        return minimizer.refine(observations=refine_data)
