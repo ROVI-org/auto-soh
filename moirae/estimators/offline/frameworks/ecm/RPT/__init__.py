@@ -213,4 +213,10 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                                            'cycle_number == @hppc_test_cycle_number')
         refine_data = ensure_battery_dataset(data=refine_data)
 
-        return minimizer.refine(observations=refine_data)
+        # Refine
+        ref_transient, ref_asoh, ref_results = minimizer.refine(observations=refine_data)
+
+        # Mark aSOH as fixed for consistency
+        ref_asoh.mark_all_fixed()
+
+        return ref_transient, ref_asoh, ref_results
