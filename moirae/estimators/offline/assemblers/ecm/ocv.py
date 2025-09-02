@@ -25,16 +25,22 @@ class OCVAssembler(SOCDependentAssembler):
         super().__init__(regressor=SOCRegressor(style='isotonic', parameters={'out_of_bounds': 'clip'}),
                          soc_points=soc_points)
 
+    def _compute_weights(self, extracted_parameter: Union[ExtractedOCV, ExtractedParameter]):
+        # If we provided the currents, we need to clean that up as well
+        if 'current' not in extracted_parameter.keys():
+            return super()._compute_weights(extracted_parameter=extracted_parameter)
+
+        # Weights should be inversely proportional to current: larger current => smaller weight
+        weights = 1.0 / abs(np.array(extracted_parameter['current']))
+        weights = weights / sum(weights)
+        return weights
+
     def _prepare_for_regression(self, extracted_parameter: Union[ExtractedOCV, ExtractedParameter]):
         # Invoke the base capabilities of the parent class for cleaning up
         clean_up = super()._prepare_for_regression(extracted_parameter=extracted_parameter)
-
-        # If we provided the currents, we need to clean that up as well
+        clean_up['sample_weight'] = clean_up.pop('weights')
         if 'current' in clean_up.keys():
-            # Weights should be inversely proportional to current: larger current => smaller weight
-            inv_curr = 1.0 / abs(np.array(clean_up.pop('current')))
-            inv_curr = inv_curr / sum(inv_curr)
-            clean_up['sample_weight'] = inv_curr
+            _ = clean_up.pop('current')
 
         return clean_up
 
