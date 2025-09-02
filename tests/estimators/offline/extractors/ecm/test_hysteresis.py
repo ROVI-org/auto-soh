@@ -22,6 +22,7 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
     # Prepare extractor
     extractor = HysteresisExtractor.init_from_basics(capacity=qt_gt,
                                                      ocv=ocv_gt,
+                                                     gamma=h0_gt.gamma.item(),
                                                      coulombic_efficiency=ce_gt,
                                                      series_resistance=r0_gt, 
                                                      voltage_limits=voltage_lims,
@@ -31,14 +32,11 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
     h0_info = extractor.extract(data=cap_check, start_soc=cap_check['SOC'].iloc[0])
     h0_ext = h0_info['value']
     soc_ext = h0_info['soc_level']
-    step_time = h0_info['step_time']
+    exp_fact = np.array(h0_info['exponential_factor'])
     # Recall that the comparison will not be perfect as hysteresis takes a while to kick in, so instead, we should
-    # compute the errors and weight them by the appropriate step time value.
-    gamma = h0_gt.gamma.flatten()
-    kappa = gamma * realistic_LFP_aSOH.ce.flatten() / qt_gt.value.flatten()  # this is the rate of decay
-    # Compute amount of time it takes to reach 98% of the max hyst value, knowing exp(-4) ~ 0.02
-    time_to_98_percent = 4. / kappa  
-    weights = step_time / time_to_98_percent
-    weights = np.where(weights > 1., 1., weights)
-    errs = (h0_ext - h0_gt.get_value(soc=soc_ext).flatten()) * weights
-    assert np.allclose(errs, 0.0, atol=0.015), f'Max weighted hyst error = {max(abs(errs))}'
+    # compute the errors and weight them by the appropriate value.
+    errs = (h0_ext - h0_gt.get_value(soc=soc_ext).flatten())
+    mae = np.average(abs(errs), weights=exp_fact)
+    rmse = np.sqrt(np.average(np.pow(errs, 2), weights=exp_fact))
+    assert mae <= 0.0075, f'MAE = {mae:.1e} V > 7.5 mV!'
+    assert rmse <= 0.01, f'RMSE = {rmse:.1e} V > 10 mV!'

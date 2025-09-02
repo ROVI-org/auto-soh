@@ -24,10 +24,13 @@ class ExtractedHysteresis(ExtractedParameter):
         value: extracted values
         units: unit of measurement for values
         soc_level: SOC level for values, if appropriate
+        exponential_factor: values of dynamic hysteresis model exponential factor, that is, 1 minus the exponent of the
+            multiplication of current by coulombic efficiency by delta time since the beginninng of the step divided by
+            capacity
         step_time: time (in seconds) since the beginning of the charge, discharge, or rest step from which hysteresis
             is being extracted
     """
-    step_time: Union[List, np.ndarray]
+    exponential_factor: Union[List, np.ndarray]
 
 
 class HysteresisExtractor(BaseExtractor):
@@ -37,17 +40,21 @@ class HysteresisExtractor(BaseExtractor):
     Args:
         data_checker: data checker for capacity check tests
         capacity: capacity of the cell in Amp-hours
+        ocv: cell open circuit voltage, in Volts
+        gamma: hysteresis gamma parameter, proportionality constant related to how quickly instantaneous hysteresis
         coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
         series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
-                 ocv: OpenCircuitVoltage, 
+                 ocv: OpenCircuitVoltage,
+                 gamma: float = 50.,
                  coulombic_efficiency: float = 1.,
                  series_resistance: Union[Resistance, float] = 0.,
                  data_checker: CapacityDataChecker = CapacityDataChecker()):
         self.data_checker = data_checker
         self.capacity = capacity
+        self.gamma = gamma
         self.ocv = ocv
         self.coulombic_efficiency = coulombic_efficiency
         self.series_resistance = series_resistance
@@ -57,6 +64,7 @@ class HysteresisExtractor(BaseExtractor):
                          capacity: Union[float, MaxTheoreticalCapacity],
                          ocv: OpenCircuitVoltage, 
                          coulombic_efficiency: float = 1.,
+                         gamma: float = 50.,
                          series_resistance: Union[Resistance, float] = 0.,
                          voltage_limits: Optional[Tuple[float, float]] = None,
                          max_C_rate: float = 0.1,
@@ -66,7 +74,10 @@ class HysteresisExtractor(BaseExtractor):
 
         Args:
             capacity: cell capacity, in Amp-hours
+            ocv: cell open circuit voltage, in Volts
             coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
+            gamma: hysteresis gamma parameter, proportionality constant related to how quickly instantaneous hysteresis
+            approaches hysteresis limit
             series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
             voltage_limits: Tuple of (min_voltage, max_voltage) to check against; if not provided, does not check
                 voltage
@@ -81,6 +92,7 @@ class HysteresisExtractor(BaseExtractor):
                                       voltage_tolerance=voltage_tolerance)
         return HysteresisExtractor(capacity=capacity,
                                    ocv=ocv,
+                                   gamma=gamma,
                                    coulombic_efficiency=coulombic_efficiency,
                                    series_resistance=series_resistance,
                                    data_checker=checker)
@@ -123,6 +135,22 @@ class HysteresisExtractor(BaseExtractor):
         if value < 0 or value > 1:
             raise ValueError("Coulombic efficiency must be between 0 and 1.")
         self._ce = value
+
+    @property
+    def gamma(self) -> float:
+        """Hysteresis gamma paramter"""
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, value: float):
+        if value <= 0.:
+            raise ValueError("Hysteresis Gamma must be positive")
+        self._gamma = value
+
+    @property
+    def kappa(self) -> float:
+        """Hysteresis Kappa parameters, that is, factor that determines rate of exponential approach"""
+        return self._gamma * self._ce / (3600 * self._capacity)
 
     @property
     def series_resistance(self) -> Resistance:
@@ -211,11 +239,15 @@ class HysteresisExtractor(BaseExtractor):
         for step_id, step_data in raw_data.groupby('step_index'):
             dt = step_data['test_time'].to_numpy() - step_data['test_time'].iloc[0]
             step_times += dt.tolist()
+        # Convert that to numpy array
+        step_time=np.array(step_times)
+        # Now, multiply by the relevant current and by kappa to get the exponential prefactor
+        exp_fact = 1. - np.exp(-abs(self.kappa * raw_data['current'].to_numpy() * step_time)).flatten()
 
         # Prepare return object
         extracted_hyst = ExtractedHysteresis(value=hyst,
                                              soc_level=soc,
-                                             step_time=np.array(step_times),
+                                             exponential_factor=exp_fact,
                                              units='Volt')
         
         return extracted_hyst
