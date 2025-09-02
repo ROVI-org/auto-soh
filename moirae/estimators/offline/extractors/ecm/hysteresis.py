@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 
 from battdat.data import BatteryDataset
-from battdat.schemas.column import ChargingState
 from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.postprocess.integral import StateOfCharge
 
@@ -214,8 +213,8 @@ class HysteresisExtractor(BaseExtractor):
             step_times += dt.tolist()
 
         # Prepare return object
-        extracted_hyst = ExtractedHysteresis(value=hyst[1:],
-                                             soc_level=soc[1:],
+        extracted_hyst = ExtractedHysteresis(value=hyst,
+                                             soc_level=soc,
                                              step_time=np.array(step_times),
                                              units='Volt')
         
