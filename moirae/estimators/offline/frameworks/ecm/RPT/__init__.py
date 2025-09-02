@@ -1,7 +1,7 @@
 """
 Framework for offline estimation of ECM model parameters from RPT data
 """
-from typing import Dict, List, Tuple, TypedDict, Union
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
 from typing_extensions import NotRequired, Self
 
 import numpy as np
@@ -13,7 +13,7 @@ from battdat.data import BatteryDataset
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.transient import ECMTransientVector
-from moirae.models.ecm.components import MaxTheoreticalCapacity, RCComponent
+from moirae.models.ecm.components import MaxTheoreticalCapacity, RCComponent, HysteresisParameters
 
 from moirae.estimators.offline.base import BaseOfflineEstimator
 from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker, FullHPPCDataChecker
@@ -91,8 +91,10 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                  number_rc_pairs: int,
                  start_soc: float = 0.0,
                  asoh_assemblers: ECMAssemblers = ECMAssemblers.default(),
+                 hysteresis_soc_pts: Union[int, np.ndarray] = 1,
+                 params_to_optimize: Union[List[str], Literal['all']] = [],
                  minimizer_kwargs: Dict = {},
-                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH, OptimizeResult]:
+                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH, Optional[OptimizeResult]]:
         """
         Estimates the aSOH and initial transient states from provided data
 
@@ -103,6 +105,11 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
             number_rc_pairs: number of RC pairs to be considered
             start_soc: SOC at the beginning of the first diagnostic cycle
             asoh_assemblers: dictionary specifying what assemblers to use for different components of the aSOH
+            hysteresis_soc_pts: SOC pinpoints to be used by hysteresis; if provided as integer, divides the SOC range in
+                that number of points using `numpy.linspace`, if provided as array, uses the array. Defaults to not 
+                performing any additional optimizations
+            params_to_optimize: list of parameters to be uptmized after extraction; if `'all'`, everthing will be
+                optimized. Defaults to only optimizing hysteresis base values
             minimizer_kwargs: keyword arguments to be given to the scipy minimizer
 
         Returns:
@@ -179,25 +186,36 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                 c = assembler_tuple[1].assemble(extracted_parameter=extracted_tuple[1])
                 rc_pairs.append(RCComponent(r=r, c=c))
 
+        # Now, prepare the hysteresis
+        if isinstance(hysteresis_soc_pts, int):
+            h0_vals = np.zeros(hysteresis_soc_pts)
+            h0 = HysteresisParameters(base_values=h0_vals)
+        elif isinstance(hysteresis_soc_pts, np.ndarray):
+            h0_vals = np.zeros_like(hysteresis_soc_pts)
+            h0 = HysteresisParameters(base_values=h0_vals, soc_pinpoints=hysteresis_soc_pts)
+
         # Assemble full aSOH
         asoh = ECMASOH(q_t=qt,
                        ce=ce,
                        ocv=ocv,
                        r0=r0,
-                       rc_elements=tuple(rc_pairs))
+                       rc_elements=tuple(rc_pairs),
+                       h0=h0)
 
         # Now, let us refine these estimates
         transient = ECMTransientVector.from_asoh(asoh=asoh)
         transient.soc = np.atleast_2d(start_soc)
 
-        # Remember to make parts of the aSOH updatable!
-        asoh.mark_updatable(name='q_t.base_values')
-        asoh.mark_updatable(name='r0.base_values')
-        asoh.mark_updatable(name='ocv.ocv_ref.base_values')
-        for rc in asoh.rc_elements:
-            rc.mark_updatable(name='r.base_values')
-            rc.mark_updatable(name='c.base_values')
-        asoh.mark_updatable(name='h0.base_values')
+        # See what parts of the aSOH are updatable
+        if params_to_optimize == 'all':
+            asoh.mark_all_updatable()
+        elif isinstance(params_to_optimize, list):
+            if len(params_to_optimize) == 0:
+                return transient, asoh, None
+
+            for param in params_to_optimize:
+                asoh.mark_updatable(name=param)
+
 
         # We will limit ourselves to voltage squared-error loss
         loss_metric = MeanSquaredLoss(cell_model=ECM(),
