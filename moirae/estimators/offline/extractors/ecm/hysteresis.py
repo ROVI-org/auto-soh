@@ -320,7 +320,7 @@ class HysteresisExtractor(BaseExtractor):
                                         asoh=self.hypothetical_asoh,
                                         state_0=transient0)
             # Instantaneous hysteresis computed as the difference
-            inst_hyst = np.abs(simulated_cell['terminal_voltage'].to_numpy() - step_raw['voltage'].to_numpy())
+            inst_hyst = step_raw['voltage'].to_numpy() - simulated_cell['terminal_voltage'].to_numpy()
             times = step_raw['test_time'].to_numpy().flatten()
             times = times - times[0]
             currs = step_raw['current'].to_numpy() * self._ce / (self._capacity * 3600.)

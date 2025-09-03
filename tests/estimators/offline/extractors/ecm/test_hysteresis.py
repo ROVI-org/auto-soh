@@ -37,7 +37,7 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
     exp_fact = 1. - np.exp(-gamma * abs(h0_info['adjusted_curr']) * h0_info['step_time'])
     # Recall that the comparison will not be perfect as hysteresis takes a while to kick in, so instead, we should
     # compute the errors and weight them by the appropriate value.
-    errs = (h0_ext - h0_gt.get_value(soc=soc_ext).flatten())
+    errs = (abs(h0_ext) - h0_gt.get_value(soc=soc_ext).flatten())
     mae = np.average(abs(errs), weights=exp_fact)
     rmse = np.sqrt(np.average(np.pow(errs, 2), weights=exp_fact))
     assert mae <= 0.0075, f'MAE = {mae:.1e} V > 7.5 mV!'
