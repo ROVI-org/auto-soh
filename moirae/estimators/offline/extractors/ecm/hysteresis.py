@@ -8,10 +8,20 @@ import numpy as np
 import pandas as pd
 
 from battdat.data import BatteryDataset
+from battdat.schemas.column import ChargingState
 from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.postprocess.integral import StateOfCharge
 
-from moirae.models.ecm.components import MaxTheoreticalCapacity, Resistance, OpenCircuitVoltage
+from moirae.models.ecm.components import (MaxTheoreticalCapacity,
+                                          Resistance,
+                                          OpenCircuitVoltage,
+                                          RCComponent,
+                                          HysteresisParameters)
+from moirae.models.ecm.advancedSOH import ECMASOH
+from moirae.models.ecm.transient import ECMTransientVector
+from moirae.models.ecm import EquivalentCircuitModel as ECM
+from moirae.interface import run_model
+
 from moirae.estimators.offline.extractors.base import BaseExtractor, ExtractedParameter
 from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker
 from moirae.estimators.offline.DataCheckers.utils import ensure_battery_dataset
@@ -24,13 +34,12 @@ class ExtractedHysteresis(ExtractedParameter):
         value: extracted values
         units: unit of measurement for values
         soc_level: SOC level for values, if appropriate
-        exponential_factor: values of dynamic hysteresis model exponential factor, that is, 1 minus the exponent of the
-            multiplication of current by coulombic efficiency by delta time since the beginninng of the step divided by
-            capacity
         step_time: time (in seconds) since the beginning of the charge, discharge, or rest step from which hysteresis
             is being extracted
+        adjusted_curr: adjusted current value, that is, current * CE / capacity, measures in Hz
     """
-    exponential_factor: Union[List, np.ndarray]
+    step_time: Union[List, np.ndarray]
+    adjusted_curr: Union[List, np.ndarray]
 
 
 class HysteresisExtractor(BaseExtractor):
@@ -38,34 +47,34 @@ class HysteresisExtractor(BaseExtractor):
     Extracts the open circuit voltage (OCV) from a 100% depth-of-discharge (DoD), low C-rate cycle
 
     Args:
-        data_checker: data checker for capacity check tests
         capacity: capacity of the cell in Amp-hours
         ocv: cell open circuit voltage, in Volts
-        gamma: hysteresis gamma parameter, proportionality constant related to how quickly instantaneous hysteresis
-        coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
         series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
+        coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
+        rc_elements: list of RC components; defaults to no RC pairs
+        data_checker: data checker for capacity check tests
     """
     def __init__(self,
                  capacity: Union[float, MaxTheoreticalCapacity],
                  ocv: OpenCircuitVoltage,
-                 gamma: float = 50.,
+                 series_resistance: Resistance = Resistance(base_values=0),
+                 rc_elements: List[RCComponent] = [],
                  coulombic_efficiency: float = 1.,
-                 series_resistance: Union[Resistance, float] = 0.,
                  data_checker: CapacityDataChecker = CapacityDataChecker()):
-        self.data_checker = data_checker
         self.capacity = capacity
-        self.gamma = gamma
         self.ocv = ocv
-        self.coulombic_efficiency = coulombic_efficiency
         self.series_resistance = series_resistance
+        self.rc_elements = rc_elements
+        self.coulombic_efficiency = coulombic_efficiency
+        self.data_checker = data_checker
 
     @classmethod
     def init_from_basics(self,
                          capacity: Union[float, MaxTheoreticalCapacity],
                          ocv: OpenCircuitVoltage, 
                          coulombic_efficiency: float = 1.,
-                         gamma: float = 50.,
                          series_resistance: Union[Resistance, float] = 0.,
+                         rc_elements: List[RCComponent] = [],
                          voltage_limits: Optional[Tuple[float, float]] = None,
                          max_C_rate: float = 0.1,
                          voltage_tolerance: float = 0.001) -> Self:
@@ -76,9 +85,8 @@ class HysteresisExtractor(BaseExtractor):
             capacity: cell capacity, in Amp-hours
             ocv: cell open circuit voltage, in Volts
             coulombic_efficiency: coulombic efficiency of the cell; defaults to 100%
-            gamma: hysteresis gamma parameter, proportionality constant related to how quickly instantaneous hysteresis
-            approaches hysteresis limit
             series_resistance: resistance to be used when computing IR terms; defaults to zero resistance
+            rc_elements: list of RC components; defaults to no RC pairs
             voltage_limits: Tuple of (min_voltage, max_voltage) to check against; if not provided, does not check
                 voltage
             max_C_rate: Maximum approximate C-rate for the cycle to be considered a capacity check; deafults to C/10
@@ -92,9 +100,9 @@ class HysteresisExtractor(BaseExtractor):
                                       voltage_tolerance=voltage_tolerance)
         return HysteresisExtractor(capacity=capacity,
                                    ocv=ocv,
-                                   gamma=gamma,
                                    coulombic_efficiency=coulombic_efficiency,
                                    series_resistance=series_resistance,
+                                   rc_elements=rc_elements,
                                    data_checker=checker)
 
     @property
@@ -137,22 +145,6 @@ class HysteresisExtractor(BaseExtractor):
         self._ce = value
 
     @property
-    def gamma(self) -> float:
-        """Hysteresis gamma paramter"""
-        return self._gamma
-
-    @gamma.setter
-    def gamma(self, value: float):
-        if value <= 0.:
-            raise ValueError("Hysteresis Gamma must be positive")
-        self._gamma = value
-
-    @property
-    def kappa(self) -> float:
-        """Hysteresis Kappa parameters, that is, factor that determines rate of exponential approach"""
-        return self._gamma * self._ce / (3600 * self._capacity)
-
-    @property
     def series_resistance(self) -> Resistance:
         return self._r0
 
@@ -162,11 +154,42 @@ class HysteresisExtractor(BaseExtractor):
         Sets series resistance
         """
         if isinstance(resistance, Resistance):
-            self._r0 = resistance
+            self._r0 = resistance.model_copy(deep=True)
         elif isinstance(resistance, float):
             self._r0 = Resistance(base_values=[resistance, resistance])
         else:
             raise ValueError('Resistance must be provided as a float or as a Resistance object!')
+
+    @property
+    def rc_elements(self) -> List[RCComponent]:
+        return self._rc_pairs
+
+    @rc_elements.setter
+    def rc_elements(self, rc_pairs: List[RCComponent]):
+        self._rc_pairs = [rc.model_copy(deep=True) for rc in rc_pairs]
+
+    @property
+    def ocv(self) -> OpenCircuitVoltage:
+        return self._ocv
+
+    @ocv.setter
+    def ocv(self, func: OpenCircuitVoltage):
+        if not isinstance(func, OpenCircuitVoltage):
+            raise ValueError('OCV must be of proper type!')
+        self._ocv = func.model_copy(deep=True)
+
+    @property
+    def hypothetical_asoh(self) -> ECMASOH:
+        """
+        Auxiliary property that builds a corresponding aSOH but with no hysteresis
+        """
+        asoh = ECMASOH(q_t=MaxTheoreticalCapacity(base_values=self._capacity),
+                       ce=self._ce,
+                       ocv=self._ocv,
+                       r0=self._r0,
+                       rc_elements=self._rc_pairs,
+                       h0=HysteresisParameters(base_values=0.))
+        return asoh
 
     @property
     def voltage_limits(self) -> Union[Tuple[float, float], None]:
@@ -196,9 +219,55 @@ class HysteresisExtractor(BaseExtractor):
         """
         return self._data_checker.voltage_tolerance
 
+    def identify_valid_steps(self, data: Union[pd.DataFrame, BatteryDataset]) -> List[int]:
+        """
+        Auxiliary function to help identify useful steps to be used when computing hysteresis. Steps returned are either
+        charge or discharge steps with long duration, so that, by the end of it, the RC pairs will be saturated.
+
+        Args:
+            data: data to be used when extracting OCV; assumed to have already passed necessary checks
+        """
+        # Ensure battery dataset
+        data = ensure_battery_dataset(data=data)
+        raw_data = data.tables.get('raw_data')
+
+        # Postprocessing what is needed
+        if 'state' not in raw_data.columns:
+            AddState().enhance(raw_data)
+        if 'step_index' not in raw_data.columns:
+            AddSteps().enhance(raw_data)
+
+        # Initialize list to keep valid steps
+        step_idx = []
+
+        # We want to look at the steps that are either charging or discharging, as it is in them that the SOC changes
+        # We also need to make sure each of these steps is adequate for what we want
+        segments = raw_data[raw_data['state'].isin([ChargingState.charging, ChargingState.discharging])]
+        for step_id, step in segments.groupby('step_index'):
+            include_step = False  # Boolean flag to indicate whether step should be included
+            duration = step['test_time'].iloc[-1] - step['test_time'].iloc[0]
+            if duration >= self.min_segment_duration:  # Segment lasts for a long time
+                # Check if current is small enough throughout
+                if np.all(step['current'].abs() <= self.max_current):
+                    # Check for voltage limits
+                    if self.voltage_limits is not None:
+                        # If we must check the voltage limits
+                        min_volt, max_volt = sorted(self.voltage_limits)
+                        min_obs, max_obs = step['voltage'].min(), step['voltage'].max()
+                        if np.allclose([min_volt, max_volt], [min_obs, max_obs], atol=self.volt_tol):
+                            # If the voltage limits are reached
+                            include_step = True
+                    else:
+                        include_step = True
+            if include_step:
+                step_idx.append(step_id)
+
+        return step_idx
+
     def compute_parameters(self,
                            data: Union[pd.DataFrame, BatteryDataset],
-                           start_soc: float = 0.) -> ExtractedHysteresis:
+                           start_soc: float = 0.,
+                           valid_steps: Optional[List[int]] = None) -> ExtractedHysteresis:
         """
         Computes Hysteresis assuming it is the difference between observed terminal voltage and expected (OCV + IR-drop)
         terminal voltage
@@ -206,10 +275,15 @@ class HysteresisExtractor(BaseExtractor):
         Args:
             data: data to be used, assumed to have already passed necessary checks
             start_soc: SOC at the beginning of the provided data
+            valid_steps: steps that will be used to extract instantaneous hysteresis
 
         Returns:
             extracted hysteresis
         """
+        # Check if we need to compute valid steps
+        if valid_steps is None:
+            valid_steps = self.identify_valid_steps(data=data)
+
         # Ensure battery dataset
         data = ensure_battery_dataset(data=data)
         raw_data = data.tables.get('raw_data')
@@ -222,35 +296,46 @@ class HysteresisExtractor(BaseExtractor):
         if 'CE_adjusted_charge' not in raw_data.columns:
             StateOfCharge(coulombic_efficiency=self._ce).enhance(data=raw_data)
 
-        # Compute SOC at every timestep, as well as corresponding OCV and IR-drop
-        soc = start_soc + (raw_data['CE_adjusted_charge'].to_numpy() / self.capacity)
-        ocv = self.ocv(soc=soc).flatten()
-        ir_drop = (self._r0.get_value(soc=soc).flatten() * raw_data['current'].to_numpy())
+        # Now, for each identified step, we will simulate the cell with an aSOH that assumes no hysteresis, and assume
+        # the difference between the simulated and measured voltage corresponds to the instantaneous hysteresis.
+        # Note that, for that, we also make the assumption that, at the beginning of each segment, the RC components
+        # have no overpotential
+        hyst_vals = []
+        soc_vals = []
+        step_time = []
+        adj_curr = []
 
-        # From this, we can compute the "expected" terminal voltage
-        expected_vt = ocv + ir_drop
+        # Iterate through steps
+        for step_id in valid_steps:
+            # Get data
+            step_raw = raw_data[raw_data['step_index'] == step_id]
+            step_data = BatteryDataset.make_cell_dataset(raw_data=step_raw)
+            # Prepare to simulate
+            soc = start_soc + (step_raw['CE_adjusted_charge'].to_numpy() / self._capacity)
+            transient0 = ECMTransientVector.from_asoh(asoh=self.hypothetical_asoh)
+            transient0.soc = np.atleast_2d(soc[0])
+            # Run ECM model
+            simulated_cell = run_model(model=ECM(),
+                                        dataset=step_data,
+                                        asoh=self.hypothetical_asoh,
+                                        state_0=transient0)
+            # Instantaneous hysteresis computed as the difference
+            inst_hyst = np.abs(simulated_cell['terminal_voltage'].to_numpy() - step_raw['voltage'].to_numpy())
+            times = step_raw['test_time'].to_numpy().flatten()
+            times = times - times[0]
+            currs = step_raw['current'].to_numpy() * self._ce / (self._capacity * 3600.)
+            # Add to running values
+            hyst_vals += inst_hyst.tolist()
+            soc_vals += soc.tolist()
+            step_time += times.tolist()
+            adj_curr += currs.flatten().tolist()
 
-        # Our assumption is that the hysteresis is equivalent to the difference between observed and expected terminal
-        # voltage, which is an okay assumption, since we are looking at a capacity check cycle
-        hyst = np.abs(raw_data['voltage'].to_numpy() - expected_vt)
-
-        # Now, we need to compute the time since the beginning of each step
-        step_times = []
-        for step_id, step_data in raw_data.groupby('step_index'):
-            dt = step_data['test_time'].to_numpy() - step_data['test_time'].iloc[0]
-            step_times += dt.tolist()
-        # Convert that to numpy array
-        step_time=np.array(step_times)
-        # Now, multiply by the relevant current and by kappa to get the exponential prefactor
-        exp_fact = 1. - np.exp(-abs(self.kappa * raw_data['current'].to_numpy() * step_time)).flatten()
-
-        # Prepare return object
-        extracted_hyst = ExtractedHysteresis(value=hyst,
-                                             soc_level=soc,
-                                             exponential_factor=exp_fact,
-                                             units='Volt')
-        
-        return extracted_hyst
+        return ExtractedHysteresis(value=np.array(hyst_vals),
+                                   soc_level=np.array(soc_vals),
+                                   units='Volt',
+                                   step_time=np.array(step_time),
+                                   adjusted_curr=np.array(adj_curr)
+                                   )
 
     def extract(self,
                 data: Union[pd.DataFrame, BatteryDataset],

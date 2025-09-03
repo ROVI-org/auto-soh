@@ -16,15 +16,16 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
     r0_gt = realistic_LFP_aSOH.r0
     ce_gt = realistic_LFP_aSOH.ce
     ocv_gt = realistic_LFP_aSOH.ocv
+    rc_gt = realistic_LFP_aSOH.rc_elements
     h0_gt = realistic_LFP_aSOH.h0
     voltage_lims = tuple(ocv_gt.get_value(soc=[0., 1.]).flatten().tolist())
 
     # Prepare extractor
     extractor = HysteresisExtractor.init_from_basics(capacity=qt_gt,
                                                      ocv=ocv_gt,
-                                                     gamma=h0_gt.gamma.item(),
                                                      coulombic_efficiency=ce_gt,
-                                                     series_resistance=r0_gt, 
+                                                     series_resistance=r0_gt,
+                                                     rc_elements=rc_gt,
                                                      voltage_limits=voltage_lims,
                                                      max_C_rate=0.2,  # C/5 rate just to be sure
                                                      voltage_tolerance=0.0075  # 7.5 mV tolerance
@@ -32,7 +33,8 @@ def test_realistic_synthetic(realistic_LFP_aSOH, realistic_rpt_data):
     h0_info = extractor.extract(data=cap_check, start_soc=cap_check['SOC'].iloc[0])
     h0_ext = h0_info['value']
     soc_ext = h0_info['soc_level']
-    exp_fact = np.array(h0_info['exponential_factor'])
+    gamma = 50
+    exp_fact = 1. - np.exp(-gamma * abs(h0_info['adjusted_curr']) * h0_info['step_time'])
     # Recall that the comparison will not be perfect as hysteresis takes a while to kick in, so instead, we should
     # compute the errors and weight them by the appropriate value.
     errs = (h0_ext - h0_gt.get_value(soc=soc_ext).flatten())
