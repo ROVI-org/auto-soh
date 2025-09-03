@@ -39,6 +39,9 @@ def post_process_extracted(extracted_parameter: ExtractedParameter,
         w = weights.copy()
     df.loc[:, 'weights'] = w
 
+    # Remove near zero-value weights
+    df = df[df['weights'] != 0.]
+
     # Now, we will sort by SOC
     df.sort_values(by='soc_level', inplace=True)
 
@@ -48,6 +51,7 @@ def post_process_extracted(extracted_parameter: ExtractedParameter,
     def weighted_avg(g, cols):
         return pd.Series(np.average(g[cols], weights=g['weights'], axis=0), index=cols)
     df = df.groupby('soc_level').apply(weighted_avg, cols=cols_to_avg).reset_index()
+    # Remove weights
     if weights is None:
         df.drop('weights', axis=1, inplace=True)
 
@@ -114,17 +118,16 @@ class SOCDependentAssembler(BaseAssembler):
         weights = self._compute_weights(extracted_parameter=extracted_parameter)
         clean_param = post_process_extracted(extracted_parameter=extracted_parameter, weights=weights)
 
-        regression_dict = {'soc': clean_param['soc_level'],
-                           'targets': clean_param['value']}
+        regression_dict = {'soc': np.array(clean_param['soc_level']),
+                           'targets': np.array(clean_param['value'])}
 
         for key in clean_param.keys():
             if (key != 'units') and (key != 'soc_level') and (key != 'value'):
-                regression_dict[key] = clean_param[key]
+                regression_dict[key] = np.array(clean_param[key])
 
         # Make sure to add knots in the case of LSQ Univariate regression!
         if self.regressor.style == 'lsq':
             regression_dict['t'] = self._soc_pts
-        print(regression_dict.keys())
 
         return regression_dict
 
