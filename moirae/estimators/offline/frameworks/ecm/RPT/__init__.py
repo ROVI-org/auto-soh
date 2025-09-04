@@ -9,6 +9,8 @@ import pandas as pd
 from scipy.optimize import OptimizeResult
 
 from battdat.data import BatteryDataset
+from battdat.postprocess.tagging import AddState, AddSteps, AddMethod, AddSubSteps
+from battdat.postprocess.integral import StateOfCharge
 
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
@@ -23,12 +25,14 @@ from moirae.estimators.offline.assemblers.utils import SOCRegressor
 from moirae.estimators.offline.extractors.ecm import (MaxCapacityCoulEffExtractor,
                                                       R0Extractor,
                                                       RCExtractor,
-                                                      OCVExtractor)
+                                                      OCVExtractor,
+                                                      HysteresisExtractor)
 from moirae.estimators.offline.extractors.ecm.series_resistance import R0ExtractorPreinitParams
 from moirae.estimators.offline.assemblers.ecm import (CapacityAssembler,
                                                       ResistanceAssembler,
                                                       OCVAssembler,
-                                                      CapacitanceAssembler)
+                                                      CapacitanceAssembler,
+                                                      HysteresisAssembler)
 from moirae.estimators.offline.refiners.loss import MeanSquaredLoss
 from moirae.estimators.offline.refiners.scipy import ScipyMinimizer
 
@@ -40,6 +44,7 @@ class ECMAssemblers(TypedDict):
     r0: NotRequired[ResistanceAssembler]
     ocv: NotRequired[OCVAssembler]
     rc: NotRequired[List[Tuple[ResistanceAssembler, CapacitanceAssembler]]]
+    hyst: NotRequired[HysteresisAssembler]
 
     @classmethod
     def default(cls) -> Self:
@@ -47,7 +52,8 @@ class ECMAssemblers(TypedDict):
         ocv_ass = OCVAssembler()
         rc_ass = [(ResistanceAssembler(regressor=SOCRegressor(style='smooth')),
                    CapacitanceAssembler(regressor=SOCRegressor(style='smooth')))]
-        return ECMAssemblers(r0=r0_ass, ocv=ocv_ass, rc=rc_ass)
+        hyst_ass = HysteresisAssembler()
+        return ECMAssemblers(r0=r0_ass, ocv=ocv_ass, rc=rc_ass, hyst=hyst_ass)
 
 
 class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
@@ -91,10 +97,9 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                  number_rc_pairs: int,
                  start_soc: float = 0.0,
                  asoh_assemblers: ECMAssemblers = ECMAssemblers.default(),
-                 hysteresis_soc_pts: Union[int, np.ndarray] = 1,
-                 params_to_optimize: Union[List[str], Literal['all']] = [],
+                 params_to_refine: Union[List[str], Literal['all']] = [],
                  minimizer_kwargs: Dict = {},
-                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH, Optional[OptimizeResult]]:
+                 *args, **kwargs) -> Tuple[ECMTransientVector, ECMASOH, Union[OptimizeResult, None]]:
         """
         Estimates the aSOH and initial transient states from provided data
 
@@ -105,10 +110,7 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
             number_rc_pairs: number of RC pairs to be considered
             start_soc: SOC at the beginning of the first diagnostic cycle
             asoh_assemblers: dictionary specifying what assemblers to use for different components of the aSOH
-            hysteresis_soc_pts: SOC pinpoints to be used by hysteresis; if provided as integer, divides the SOC range in
-                that number of points using `numpy.linspace`, if provided as array, uses the array. Defaults to not 
-                performing any additional optimizations
-            params_to_optimize: list of parameters to be uptmized after extraction; if `'all'`, everthing will be
+            params_to_refine: list of parameters to be uptmized after extraction; if `'all'`, everthing will be
                 optimized. Defaults to only optimizing hysteresis base values
             minimizer_kwargs: keyword arguments to be given to the scipy minimizer
 
@@ -145,6 +147,15 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
         # Assemble HPPC checker with these, and check data
         hppc_checker = self._assemble_hppc_checker(capacity=qt, coulombic_efficiency=ce)
         hppc_data = hppc_checker.check(data=hppc_data)
+
+        # Based on these values, we should recompute some parameters
+        if 'state' not in cap_check_data.tables.get('raw_data').columns:
+            AddState(rest_curr_threshold=hppc_checker.rest_checker.rest_current_threshold).enhance(
+                cap_check_data.tables.get('raw_data'))
+        if 'step' not in cap_check_data.tables.get('raw_data').columns:
+            AddSteps().enhance(cap_check_data.tables.get('raw_data'))
+        if 'CE_adjusted_charge' not in cap_check_data.tables.get('raw_data').columns:
+            StateOfCharge(coulombic_efficiency=ce).enhance(cap_check_data.tables.get('raw_data'))
 
         # Before we move on, we need to determine the SOC at the beginning of each cycle
         if capacity_check_cycle_number < hppc_test_cycle_number:
@@ -187,12 +198,14 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
                 rc_pairs.append(RCComponent(r=r, c=c))
 
         # Now, prepare the hysteresis
-        if isinstance(hysteresis_soc_pts, int):
-            h0_vals = np.zeros(hysteresis_soc_pts)
-            h0 = HysteresisParameters(base_values=h0_vals)
-        elif isinstance(hysteresis_soc_pts, np.ndarray):
-            h0_vals = np.zeros_like(hysteresis_soc_pts)
-            h0 = HysteresisParameters(base_values=h0_vals, soc_pinpoints=hysteresis_soc_pts)
+        hyst_extractor = HysteresisExtractor(capacity=qt,
+                                             coulombic_efficiency=ce,
+                                             ocv=ocv,
+                                             series_resistance=r0,
+                                             rc_elements=rc_pairs,
+                                             data_checker=self.cap_checker)
+        hyst_extracted = hyst_extractor.compute_parameters(data=cap_check_data, start_soc=cap_start_soc)
+        h0 = use_assemblers['hyst'].assemble(extracted_parameter=hyst_extracted)
 
         # Assemble full aSOH
         asoh = ECMASOH(q_t=qt,
@@ -207,13 +220,16 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
         transient.soc = np.atleast_2d(start_soc)
 
         # See what parts of the aSOH are updatable
-        if params_to_optimize == 'all':
+        if len(params_to_refine) == 0:  # No refinement requested
+            return transient, asoh, None
+
+        if params_to_refine == 'all':  # Refine everything
             asoh.mark_all_updatable()
-        elif isinstance(params_to_optimize, list):
-            if len(params_to_optimize) == 0:
+        elif isinstance(params_to_refine, list):
+            if len(params_to_refine) == 0:
                 return transient, asoh, None
 
-            for param in params_to_optimize:
+            for param in params_to_refine:
                 asoh.mark_updatable(name=param)
 
 
