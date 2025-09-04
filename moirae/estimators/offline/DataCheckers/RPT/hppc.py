@@ -35,6 +35,7 @@ class FullHPPCCheckerPreinitParams(TypedDict):
                 'min_rest_prev_dur': 300.,
                 'rest_current_threshold': 1.0e-04}
 
+
 class PulseDataChecker(DeltaSOCRangeChecker):
     """
     Ensures the cycle provided is representative of a Hybrid Pulse Power Characterization (HPPC) diagnostic cycle, that

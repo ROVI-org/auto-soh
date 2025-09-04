@@ -71,7 +71,7 @@ class HysteresisExtractor(BaseExtractor):
     @classmethod
     def init_from_basics(self,
                          capacity: Union[float, MaxTheoreticalCapacity],
-                         ocv: OpenCircuitVoltage, 
+                         ocv: OpenCircuitVoltage,
                          coulombic_efficiency: float = 1.,
                          series_resistance: Union[Resistance, float] = 0.,
                          rc_elements: List[RCComponent] = [],
@@ -316,9 +316,9 @@ class HysteresisExtractor(BaseExtractor):
             transient0.soc = np.atleast_2d(soc[0])
             # Run ECM model
             simulated_cell = run_model(model=ECM(),
-                                        dataset=step_data,
-                                        asoh=self.hypothetical_asoh,
-                                        state_0=transient0)
+                                       dataset=step_data,
+                                       asoh=self.hypothetical_asoh,
+                                       state_0=transient0)
             # Instantaneous hysteresis computed as the difference
             inst_hyst = step_raw['voltage'].to_numpy() - simulated_cell['terminal_voltage'].to_numpy()
             times = step_raw['test_time'].to_numpy().flatten()

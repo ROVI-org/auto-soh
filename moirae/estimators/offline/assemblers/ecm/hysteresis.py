@@ -5,10 +5,9 @@ from typing import Union
 
 import numpy as np
 
-from moirae.models.ecm.components import MaxTheoreticalCapacity, HysteresisParameters
+from moirae.models.ecm.components import HysteresisParameters
 from moirae.estimators.offline.extractors.base import ExtractedParameter
 from moirae.estimators.offline.extractors.ecm.hysteresis import ExtractedHysteresis
-from moirae.estimators.offline.assemblers.utils import SOCRegressor
 
 from .utils import SOCDependentAssembler
 

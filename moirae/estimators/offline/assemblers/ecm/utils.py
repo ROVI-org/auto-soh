@@ -47,9 +47,11 @@ def post_process_extracted(extracted_parameter: ExtractedParameter,
 
     # Average the repeated values
     cols_to_avg = [col for col in df.columns if (col != 'soc_level')]
+
     # Function to compute average of the group
     def weighted_avg(g, cols):
         return pd.Series(np.average(g[cols], weights=g['weights'], axis=0), index=cols)
+
     df = df.groupby('soc_level').apply(weighted_avg, cols=cols_to_avg).reset_index()
     # Remove weights
     if weights is None:

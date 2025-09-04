@@ -8,6 +8,7 @@ from moirae.estimators.offline.assemblers.utils import SOCRegressor
 from moirae.estimators.offline.extractors.ecm import HysteresisExtractor
 from moirae.estimators.offline.assemblers.ecm import HysteresisAssembler
 
+
 def test_wrong_units():
     hyst_ass = HysteresisAssembler()
     with raises(ValueError, match='OCV provided in Volts, rather than Volt!'):
@@ -16,6 +17,8 @@ def test_wrong_units():
                                                    'soc_level': [0., 1.],
                                                    'adjusted_curr': [1., 1.],
                                                    'step_time': [0., 1.]})
+
+
 def test_proper_assembly(realistic_rpt_data, realistic_LFP_aSOH):
     # Get the capacity check
     raw_rpt = realistic_rpt_data.tables.get('raw_data')

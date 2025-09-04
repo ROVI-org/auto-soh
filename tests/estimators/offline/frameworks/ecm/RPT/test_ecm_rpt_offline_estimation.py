@@ -17,7 +17,6 @@ from moirae.estimators.offline.assemblers.utils import SOCRegressor
 def test_offline_estimation_ecmasoh_rpt(realistic_LFP_aSOH, realistic_rpt_data):
     # Get the relevant parts of the data
     raw_rpt = realistic_rpt_data.tables['raw_data']
-    cap_check = raw_rpt[raw_rpt['protocol'] == 'Capacity Check']
 
     # Prepare parameters for HPPC data checker
     hppc_params = FullHPPCCheckerPreinitParams(
@@ -32,10 +31,8 @@ def test_offline_estimation_ecmasoh_rpt(realistic_LFP_aSOH, realistic_rpt_data):
     # Prepare assemblers
     ocv_assember = OCVAssembler(soc_points=np.array([0., 0.05, 0.1, 0.2, 0.75, 0.975, 1.0]))
     r0_assembler = ResistanceAssembler(regressor=SOCRegressor(style='interpolate', parameters={'k': 1}))
-    # h0_assembler = HysteresisAssembler(regressor=SOCRegressor(style='interpolate', parameters={'k': 0}),
-    #                                     soc_points=np.array([0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 1.0]))
     h0_assembler = HysteresisAssembler(regressor=SOCRegressor(style='lsq', parameters={'k': 1}),
-                                    soc_points=[-0.01, 0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 1.0, 1.01, 1.05])
+                                       soc_points=[-0.01, 0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 1.0, 1.01, 1.05])
 
     # Initialize offline estimator
     offline_estimator = ECMOfflineEstimatorFromRPT(hppc_checker_params=hppc_params)
@@ -48,7 +45,7 @@ def test_offline_estimation_ecmasoh_rpt(realistic_LFP_aSOH, realistic_rpt_data):
         number_rc_pairs=1,
         asoh_assemblers={'r0': r0_assembler, 'ocv': ocv_assember, 'hyst': h0_assembler},
         params_to_refine=['h0.base_values'],
-        minimizer_kwargs={'method':'Nelder-Mead',
+        minimizer_kwargs={'method': 'Nelder-Mead',
                           'tol': 1.0e-02,
                           'options': dict(maxiter=40),
                           }

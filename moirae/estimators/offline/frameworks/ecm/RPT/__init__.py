@@ -1,7 +1,7 @@
 """
 Framework for offline estimation of ECM model parameters from RPT data
 """
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import Dict, List, Literal, Tuple, TypedDict, Union
 from typing_extensions import NotRequired, Self
 
 import numpy as np
@@ -9,13 +9,13 @@ import pandas as pd
 from scipy.optimize import OptimizeResult
 
 from battdat.data import BatteryDataset
-from battdat.postprocess.tagging import AddState, AddSteps, AddMethod, AddSubSteps
+from battdat.postprocess.tagging import AddState, AddSteps
 from battdat.postprocess.integral import StateOfCharge
 
 from moirae.models.ecm import EquivalentCircuitModel as ECM
 from moirae.models.ecm.advancedSOH import ECMASOH
 from moirae.models.ecm.transient import ECMTransientVector
-from moirae.models.ecm.components import MaxTheoreticalCapacity, RCComponent, HysteresisParameters
+from moirae.models.ecm.components import MaxTheoreticalCapacity, RCComponent
 
 from moirae.estimators.offline.base import BaseOfflineEstimator
 from moirae.estimators.offline.DataCheckers.RPT import CapacityDataChecker, FullHPPCDataChecker
@@ -232,12 +232,11 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
             for param in params_to_refine:
                 asoh.mark_updatable(name=param)
 
-
         # We will limit ourselves to voltage squared-error loss
         loss_metric = MeanSquaredLoss(cell_model=ECM(),
                                       asoh=asoh,
                                       transient_state=transient)
-        
+
         # Prepare minimizer
         minimizer = ScipyMinimizer(objective=loss_metric,
                                    **minimizer_kwargs)
