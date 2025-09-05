@@ -20,10 +20,11 @@ class SOCRegressor():
                 integral of the squared second derivative function.
             - 'lsq': fits a Least-Squares spline to minimize the least squares errors; requires knots to be specified
             - 'isotonic': fits an isotonic curve, that is, a non-linear monotonic trend
+            - 'polyfit': fits a polynomial to the data
         parameters: Additional parameters needed to create fits; should not be required at fitting time
     """
     def __init__(self,
-                 style: Literal['interpolate', 'smooth', 'lsq', 'isotonic'] = 'interpolate',
+                 style: Literal['interpolate', 'smooth', 'lsq', 'isotonic', 'polyfit'] = 'interpolate',
                  parameters: Dict = {}):
         self.style = style
         self.parameters = parameters
@@ -33,7 +34,7 @@ class SOCRegressor():
         """
         Defines acceptable interpolation styles
         """
-        return ['interpolate', 'smooth', 'lsq', 'isotonic']
+        return ['interpolate', 'smooth', 'lsq', 'isotonic', 'polyfit']
 
     def acceptable_keywords(self) -> List[str]:
         """
@@ -47,6 +48,8 @@ class SOCRegressor():
             return ['k', 'w', 'axis', 'check_finite', 'method']
         elif self._style == 'isotonic':
             return ['y_min', 'y_max', 'increasing', 'out_of_bounds']
+        elif self._style == 'polyfit':
+            return ['deg', 'rcond', 'full', 'w', 'cov']
 
     @property
     def style(self) -> Literal['interpolate', 'smooth', 'lsq', 'isotonic']:
@@ -117,3 +120,8 @@ class SOCRegressor():
             if 't' not in params.keys():
                 raise ValueError('Please provide knots for LSQ Spline!')
             return make_lsq_spline(x=soc, y=targets, **params)
+        elif self._style == 'polyfit':
+            if 'deg' not in params.keys():
+                raise ValueError('Please specify degree of polynomial to fit!')
+            coeff = np.polyfit(x=soc, y=targets, **params)
+            return np.poly1d(coeff)

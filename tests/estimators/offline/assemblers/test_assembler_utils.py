@@ -33,3 +33,8 @@ def test_wrong_init():
     mess += 'not abcd!'
     with raises(ValueError, match=mess):
         _ = SOCRegressor(style='isotonic', parameters={'abcd': 1234})
+    # Polyfit
+    mess = 'Acceptable parameters for polyfit are deg, rcond, full, w, cov, '
+    mess += 'not abcd!'
+    with raises(ValueError, match=mess):
+        _ = SOCRegressor(style='polyfit', parameters={'abcd': 1234})
