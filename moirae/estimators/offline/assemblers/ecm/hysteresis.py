@@ -16,7 +16,7 @@ class HysteresisAssembler(SOCDependentAssembler):
 
     def _compute_weights(self, extracted_parameter: Union[ExtractedHysteresis, ExtractedParameter]) -> np.ndarray:
         # Weights are computed in based on the amount of time since the (dis/)charging step began
-        if 'ajdusted_curr' not in extracted_parameter.keys():
+        if 'step_time' not in extracted_parameter.keys():
             return super()._compute_weights(extracted_parameter)
 
         # The instantaneous hysteresis approaches its limit as (1 - exp(-kappa * dt))
@@ -52,7 +52,11 @@ class HysteresisAssembler(SOCDependentAssembler):
         param_sign['value'] = np.abs(param_sign['value'])
 
         # Get preliminary OCV, but as a different object
-        h0 = super().assemble(extracted_parameter=param_sign)
+        soc_interp = super().assemble(extracted_parameter=param_sign)
+        # Get base values
+        base_vals = soc_interp.base_values.flatten()
+        if np.any(base_vals <= 0.):
+            raise ValueError(f'Non-positive hysteresis detected! Base values = {base_vals}!')
 
-        return HysteresisParameters(base_values=h0.base_values.flatten(),
-                                    soc_pinpoints=h0.soc_pinpoints.flatten())
+        return HysteresisParameters(base_values=soc_interp.base_values.flatten(),
+                                    soc_pinpoints=soc_interp.soc_pinpoints.flatten())
