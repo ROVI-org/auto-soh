@@ -39,7 +39,7 @@ class HysteresisAssembler(SOCDependentAssembler):
                 _ = clean_up.pop('weights')
             elif (self.regressor.style == 'lsq') or \
                 (self.regressor.style == 'smooth') or \
-                (self.regressor.style == 'polyfit'):
+                    (self.regressor.style == 'polyfit'):
                 clean_up['w'] = clean_up.pop('weights')
 
         return clean_up
