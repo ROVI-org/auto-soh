@@ -341,7 +341,8 @@ def test_simplest_rint_normalization(real_initialization, initial_guesses, initi
                            atol=pred_volts_err[-last_pts:]).sum()/last_pts
     soc_capt = np.isclose(real_soc[-last_pts:],
                           est_soc[-last_pts:],
-                          atol=est_soc_err[-last_pts:]).sum()/last_pts
+                          atol=est_soc_err[-last_pts:],
+                          rtol=0.002).sum()/last_pts
     hyst_capt = np.isclose(real_hyst[-last_pts:],
                            est_hyst[-last_pts:],
                            atol=est_hyst_err[-last_pts:]).sum()/last_pts

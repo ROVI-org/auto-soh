@@ -3,7 +3,7 @@
 from pytest import mark
 import numpy as np
 
-from moirae.estimators.offline.loss import MeanSquaredLoss
+from moirae.estimators.offline.refiners.loss import MeanSquaredLoss
 from moirae.estimators.online.joint import JointEstimator
 from moirae.interface import run_model, run_online_estimate
 from moirae.models.base import OutputQuantities
@@ -259,14 +259,13 @@ def test_offline(timeseries_dataset):
         cell_model=TheveninModel(isothermal=True),
         asoh=rint,
         transient_state=TheveninTransient.from_asoh(rint),
-        observations=timeseries_dataset,
         input_class=TheveninInput,
         output_class=OutputQuantities
     )
 
     # Run the evaluation
     x0 = loss.get_x0()[None, :]
-    y = loss(x0)
+    y = loss(x0, observations=timeseries_dataset)
     assert y.shape == (1,)
 
 
