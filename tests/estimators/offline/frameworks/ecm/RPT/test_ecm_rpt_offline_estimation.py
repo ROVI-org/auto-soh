@@ -12,6 +12,7 @@ from moirae.estimators.offline.DataCheckers.RPT.hppc import FullHPPCCheckerPrein
 from moirae.estimators.offline.assemblers.ecm import ResistanceAssembler, OCVAssembler, HysteresisAssembler
 from moirae.estimators.offline.assemblers.utils import SOCRegressor
 
+
 def test_offline_estimation_ecmasoh_rpt_no_refinement(realistic_LFP_aSOH, realistic_rpt_data):
     # Get the relevant parts of the data
     raw_rpt = realistic_rpt_data.tables['raw_data']
