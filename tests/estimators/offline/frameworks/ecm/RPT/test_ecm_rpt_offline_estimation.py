@@ -56,10 +56,6 @@ def test_offline_estimation_ecmasoh_rpt_no_refinement(realistic_LFP_aSOH, realis
     assert np.allclose(asoh.ocv(soc_test), realistic_LFP_aSOH.ocv(soc_test), rtol=0.05), 'Mismatch in OCV!'
     assert np.allclose(asoh.r0.get_value(soc_test), realistic_LFP_aSOH.r0.get_value(soc_test), rtol=0.01), \
         'Mismatch in R0!'
-    # Hysteresis works poorly at SOC extremes, and we should give it a few mV of tolerance as well
-    soc_h0 = np.linspace(0.1, 1., 100)
-    # assert np.allclose(asoh.h0.get_value(soc_h0), realistic_LFP_aSOH.h0.get_value(soc_h0), rtol=0.1, atol=5.0e-03), \
-    #     'Mismatch in H0!'
     for rc_est, rc_gt in zip(asoh.rc_elements, realistic_LFP_aSOH.rc_elements):
         assert np.allclose(rc_est.r.get_value(soc_test), rc_gt.r.get_value(soc_test), rtol=0.05), \
             "Mismatch in R_RC component!"
