@@ -121,9 +121,6 @@ class ECMOfflineEstimatorFromRPT(BaseOfflineEstimator):
         if capacity_check_cycle_number == hppc_test_cycle_number:
             raise ValueError('Capacity check cycle number must not coincide with HPPC cycle number!')
 
-        elif abs(capacity_check_cycle_number - hppc_test_cycle_number) != 1:
-            raise ValueError('Non-diagnostic cycles present between diagnostic cycles!')
-
         # Update the assemblers if needed
         use_assemblers = ECMAssemblers.default()
         use_assemblers.update(asoh_assemblers)
